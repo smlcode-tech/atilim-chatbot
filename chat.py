@@ -37,16 +37,19 @@ def retrieve(soru: str, k: int = 4) -> list[str]:
     return sonuc[: max(k, len(isim_sonuc))]
 
 
-while True:
-    soru = input("\nSoru (çıkış: q): ").strip()
-    if soru.lower() == "q":
-        break
+def answer(soru: str) -> str:
     baglam = "\n\n---\n\n".join(retrieve(soru))
     stream = client.models.generate_content_stream(
         model=LLM_MODEL,
         contents=f"BAĞLAM:\n{baglam}\n\nSORU: {soru}",
         config=types.GenerateContentConfig(system_instruction=SYSTEM, temperature=0),
     )
-    for parca in stream:
-        print(parca.text or "", end="", flush=True)
-    print()
+    return "".join(parca.text or "" for parca in stream)
+
+
+if __name__ == "__main__":
+    while True:
+        soru = input("\nSoru (çıkış: q): ").strip()
+        if soru.lower() == "q":
+            break
+        print(answer(soru))

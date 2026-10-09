@@ -1,7 +1,10 @@
 .venv/
 chroma_db/
-*.json
+node_modules/
+dist/
+people.json
 *.html
+!frontend/index.html
 __pycache__/
 .env
 .DS_Store
