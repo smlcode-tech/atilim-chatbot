@@ -6,7 +6,7 @@ from google import genai
 from google.genai import types
 
 EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-001")
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-3.8-flash")
 DIM = 768  # Chroma cosine kullandığı için ayrıca normalize etmeye gerek yok
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])

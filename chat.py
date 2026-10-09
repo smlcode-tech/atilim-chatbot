@@ -21,12 +21,12 @@ def retrieve(soru: str, k: int = 4) -> list[str]:
     qv = embed([soru], "RETRIEVAL_QUERY")[0]
     vektor_sonuc = col.query(query_embeddings=[qv], n_results=k)["documents"][0]
 
-    # 2) isim eşleşmesi (embedding özel isimde zayıf olduğu için)
-    sorgu_tokenlari = set(norm(soru).split())
+    # 2) isim eşleşmesi: sorgudaki herhangi bir kelime (3+ harf) bir isim parçasıyla eşleşirse
+    sorgu_tokenlari = {t for t in norm(soru).split() if len(t) >= 3}
     isim_sonuc = []
     for p in people:
-        ad_tokenlari = norm(p["ad"]).split()
-        if len(set(ad_tokenlari) & sorgu_tokenlari) >= 2 or ad_tokenlari[-1] in sorgu_tokenlari:
+        ad_tokenlari = set(norm(p["ad"]).split())
+        if ad_tokenlari & sorgu_tokenlari:
             isim_sonuc.append(p["metin"])
 
     # isim eşleşenler öne, tekrarlar elenir
