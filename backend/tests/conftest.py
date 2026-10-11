@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from atilim_assistant.domain import Document, Source
+from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.ingestion.parsers import academic_staff
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -21,9 +21,19 @@ def staff_source() -> Source:
 
 
 @pytest.fixture
-def staff_documents(staff_source: Source) -> list[Document]:
+def staff_content(staff_source: Source) -> SourceContent:
     html = (FIXTURES / "academic_staff.html").read_text(encoding="utf-8")
     return academic_staff.parse(html, staff_source)
+
+
+@pytest.fixture
+def staff_documents(staff_content: SourceContent) -> list[Document]:
+    return staff_content.documents
+
+
+@pytest.fixture
+def staff_answers(staff_content: SourceContent) -> list[PreparedAnswer]:
+    return staff_content.prepared_answers
 
 
 class FakeEmbedder:

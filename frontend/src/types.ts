@@ -10,6 +10,8 @@ export type Message = {
   time: string
   isError?: boolean
   sources?: SourceLink[]
+  /** Yanıt model tarafından üretilmedi, hazır yanıtlardan verildi. */
+  isPrepared?: boolean
 }
 
 export type ApiStatus = 'checking' | 'online' | 'offline'

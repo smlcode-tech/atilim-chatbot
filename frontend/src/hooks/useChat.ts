@@ -34,9 +34,9 @@ export function useChat() {
       append({ role: 'user', content: question })
       setIsLoading(true)
       try {
-        const { answer, sources } = await askQuestion(question)
+        const { answer, sources, prepared } = await askQuestion(question)
         setApiStatus('online')
-        append({ role: 'assistant', content: answer, sources })
+        append({ role: 'assistant', content: answer, sources, isPrepared: prepared })
       } catch (error) {
         setApiStatus(error instanceof ApiUnreachableError ? 'offline' : 'online')
         append({

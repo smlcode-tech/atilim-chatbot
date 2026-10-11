@@ -20,6 +20,11 @@ from atilim_assistant.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+UNAVAILABLE_DETAIL = (
+    "Asistan şu anda yanıt üretemiyor ve bu soru için hazır bir yanıt yok. "
+    "Lütfen daha sonra tekrar deneyin."
+)
+
 
 def create_app(chat_service: ChatService | None = None) -> FastAPI:
     """`chat_service` verilmezse ayarlardan kurulur; testler kendi servislerini verir."""
@@ -47,10 +52,11 @@ def create_app(chat_service: ChatService | None = None) -> FastAPI:
             answer = service.answer(body.question)
         except Exception:
             logger.exception("Yanıt oluşturulamadı")
-            raise HTTPException(status_code=502, detail="Yanıt oluşturulurken bir hata oluştu.")
+            raise HTTPException(status_code=502, detail=UNAVAILABLE_DETAIL)
         return ChatResponse(
             answer=answer.text,
             sources=[SourceLink(title=c.title, url=c.url) for c in answer.citations],
+            prepared=answer.prepared,
         )
 
     return app

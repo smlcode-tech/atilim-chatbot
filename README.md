@@ -10,17 +10,20 @@ büyütülür (bkz. [Kapsamı genişletmek](#kapsamı-genişletmek)).
 
 ## Mimari
 
-İki bağımsız akış vardır; ikisi yalnızca belge deposu üzerinden konuşur.
+İki bağımsız akış vardır; ikisi yalnızca `backend/data/` altındaki depolar üzerinden konuşur.
 
 ```
 İndeksleme (çevrimdışı, CLI)
-  kaynak kataloğu ──> sayfayı çek ──> ayrıştırıcı ──> Document[] ──> embedding ──> belge deposu
-  ingestion/sources   ingestion/pipeline  ingestion/parsers            providers      retrieval/store
+  kaynak kataloğu ──> sayfayı çek ──> ayrıştırıcı ─┬─> Document[] ──> embedding ──> belge deposu
+  ingestion/sources   ingestion/pipeline  ingestion/parsers             providers      retrieval/store
+                                                   └─> PreparedAnswer[] ──────────> hazır yanıt deposu
+                                                                                    retrieval/prepared
 
 Soru-cevap (çevrimiçi, HTTP)
   React arayüzü ──> /api/chat ──> ChatService ──> HybridRetriever ──> belge deposu
                     api/          chat/           (vektör + BM25)
-                                     └──> ChatModel (Gemini) ──> yanıt + kaynak bağlantıları
+                                     ├──> ChatModel (Gemini) ──> yanıt + kaynak bağlantıları
+                                     └──> model yanıt üretemezse: PreparedAnswerMatcher ──> hazır yanıt
 ```
 
 ```
@@ -32,7 +35,7 @@ backend/
     ports.py           Model sağlayıcı arayüzleri: Embedder, ChatModel
     providers/         Arayüzlerin somut uygulamaları (Gemini)
     ingestion/         Kaynak kataloğu, sayfa ayrıştırıcıları, indeksleme adımları
-    retrieval/         Belge deposu (Chroma), BM25 indeksi, hibrit getirici
+    retrieval/         Belge deposu (Chroma), BM25 indeksi, hibrit getirici, hazır yanıtlar
     chat/              Sistem talimatı ve soru-cevap servisi
     api/               FastAPI uygulaması ve istek/yanıt şemaları
     bootstrap.py       Ayarlardan bileşenleri kuran bağlama noktası
@@ -50,8 +53,15 @@ Temel tasarım kararları:
 
 - **Tek belge modeli.** Her ayrıştırıcı sayfasını `Document` listesine çevirir; depo, getirici ve
   sohbet katmanı sayfanın türünü bilmez. Yeni içerik türü eklemek bu katmanlara dokunmaz.
-- **Kaynak bazında indeksleme.** Bir kaynak yeniden indekslendiğinde yalnızca onun belgeleri
-  değiştirilir; diğer kaynaklar etkilenmez.
+- **Kaynak bazında indeksleme.** Bir kaynak yeniden indekslendiğinde yalnızca onun belgeleri ve
+  hazır yanıtları değiştirilir; diğer kaynaklar etkilenmez.
+- **Model kesintisine karşı hazır yanıtlar.** Ayrıştırıcılar, sayfa hakkında en sık sorulan
+  sorular için soru-yanıt şablonlarını sayfanın verisiyle doldurur (ör. her akademisyenin
+  tanıtımı, araştırma konuları, iletişimi; kadro listesi; konuya göre çalışanlar). Model yanıt
+  üretemediğinde (kota, ağ, zaman aşımı) soru bu yanıtlarla, dış servise ihtiyaç duymayan yerel
+  sözcük eşleştirmesiyle karşılanır. Şablonlar kodda, veri indekste durduğu için hazır yanıtlar
+  her `ingest` ile sayfayla birlikte güncellenir. Yanıt, API'de ve arayüzde hazır yanıt olarak
+  işaretlenir.
 - **Hibrit arama.** Anlamsal (vektör) arama ile anahtar kelime (BM25) araması Reciprocal Rank
   Fusion ile birleştirilir; böylece hem "makine öğrenmesi çalışanlar" hem de "Ali Yazıcı" gibi
   özel ad içeren sorular doğru belgeye ulaşır.
@@ -77,7 +87,7 @@ npm install
 Backend komutları `backend/` klasöründen çalıştırılır:
 
 ```bash
-uv run python -m atilim_assistant ingest    # kaynakları çek ve indeksle (backend/data/ altına yazar)
+uv run python -m atilim_assistant ingest    # kaynakları çek, indeksle, hazır yanıtları üret (backend/data/)
 uv run python -m atilim_assistant serve     # API: http://127.0.0.1:8000
 uv run python -m atilim_assistant chat      # terminalde sohbet (API gerekmez)
 ```
@@ -100,17 +110,22 @@ Vite'ın gösterdiği adresi tarayıcıda aç. Geliştirme sunucusu `/api` istek
 | Uç nokta | İstek | Yanıt |
 | --- | --- | --- |
 | `GET /api/health` | — | `{"status": "ok"}` |
-| `POST /api/chat` | `{"question": "..."}` (1-1000 karakter) | `{"answer": "...", "sources": [{"title": "...", "url": "..."}]}` |
+| `POST /api/chat` | `{"question": "..."}` (1-1000 karakter) | `{"answer": "...", "sources": [{"title": "...", "url": "..."}], "prepared": false}` |
 
-Hatalar `{"detail": "..."}` gövdesiyle döner: geçersiz soru için 422, yanıt üretilemediğinde 502.
+`prepared: true`, yanıtın model tarafından üretilmediğini, hazır yanıtlardan verildiğini belirtir.
+
+Hatalar `{"detail": "..."}` gövdesiyle döner: geçersiz soru için 422; model yanıt üretemediğinde
+ve soruyu karşılayan hazır yanıt da olmadığında 502.
 
 ## Kapsamı genişletmek
 
 1. `backend/atilim_assistant/ingestion/sources.py` içindeki `SOURCES` listesine yeni bir `Source` ekle.
 2. Sayfa, mevcut ayrıştırıcılardan birinin beklediği yapıdaysa (ör. başka bir bölümün akademik
    personel sayfası) o ayrıştırıcıyı kullan. Değilse `ingestion/parsers/` altına
-   `parse(html, source) -> list[Document]` imzalı yeni bir ayrıştırıcı ve `tests/` altına testini yaz.
-3. Üretilen belgeleri indekslemeden incele, sonra indeksle:
+   `parse(html, source) -> SourceContent` imzalı yeni bir ayrıştırıcı ve `tests/` altına testini yaz.
+   Ayrıştırıcı, belgelerin yanında o sayfa için hazır yanıt şablonlarını da üretir; her hazır
+   yanıtın `questions` listesi, kullanıcıların o bilgiyi sorarken kullanacağı sözcükleri içermelidir.
+3. Üretilen belgeleri ve hazır yanıtları indekslemeden incele, sonra indeksle:
 
    ```bash
    uv run python -m atilim_assistant ingest --source <kaynak-id> --dry-run
@@ -146,6 +161,12 @@ cd frontend && npm run build      # tip denetimi + derleme
 - **"İndeks boş" hatası:** önce `ingest` komutunu çalıştır.
 - **"akademik personel kartı bulunamadı":** sitenin sayfa yapısı değişmiş olabilir. Sayfayı kaydedip
   `ingest --source <kaynak-id> --html sayfa.html --dry-run` ile ayrıştırıcıyı dene.
+- **Yanıtın altında "Yapay zekâ modeli şu anda yanıt üretemiyor" notu:** model hata verdi ve
+  hazır yanıt gösterildi. Neden, API günlüğündeki "Model yanıt üretemedi" satırında yazar.
+  Kesintiden sonraki ilk soru, modelin yeniden denemeleri bitene kadar (birkaç saniye) bekler;
+  ardından model 60 saniye boyunca denenmez ve hazır yanıtlar anında verilir.
 - **429 / RESOURCE_EXHAUSTED:** Gemini kotası doldu (ücretsiz katmanda model başına günlük istek
   sınırı vardır). Bekle ya da `LLM_MODEL` ile başka bir model seç.
+- **"Hazır yanıt bulunamadı" uyarısı (API açılışında):** indeks, hazır yanıtlar eklenmeden önce
+  oluşturulmuş. `ingest` komutunu yeniden çalıştır.
 - **Arayüzde "Sunucuya ulaşılamıyor":** API'nin `serve` komutuyla çalıştığını kontrol et.

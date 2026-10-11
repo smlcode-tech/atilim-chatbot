@@ -22,6 +22,8 @@ class SourceLink(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     sources: list[SourceLink]
+    # Yanıt model tarafından üretilmedi, hazır yanıtlardan verildi.
+    prepared: bool
 
 
 class HealthResponse(BaseModel):

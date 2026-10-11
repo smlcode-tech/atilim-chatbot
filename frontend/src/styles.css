@@ -562,6 +562,15 @@ textarea:focus-visible {
   border-color: #f7dedb;
 }
 
+.message-notice {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 7px 0 0;
+  color: #7a6a3a;
+  font-size: 10px;
+}
+
 .message-sources {
   display: flex;
   flex-wrap: wrap;

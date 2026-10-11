@@ -3,6 +3,7 @@ import type { SourceLink } from '../types'
 export type ChatAnswer = {
   answer: string
   sources: SourceLink[]
+  prepared: boolean
 }
 
 /** Sunucuya hiç ulaşılamadığında fırlatılır. */
@@ -47,5 +48,9 @@ export async function askQuestion(question: string): Promise<ChatAnswer> {
   if (!payload.answer) {
     throw new Error('Asistandan boş bir yanıt alındı. Lütfen tekrar deneyin.')
   }
-  return { answer: payload.answer, sources: payload.sources ?? [] }
+  return {
+    answer: payload.answer,
+    sources: payload.sources ?? [],
+    prepared: payload.prepared ?? false,
+  }
 }

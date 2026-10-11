@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     def vector_store_dir(self) -> Path:
         return self.data_dir / "chroma"
 
+    @property
+    def prepared_answers_path(self) -> Path:
+        return self.data_dir / "prepared_answers.json"
+
 
 @lru_cache
 def get_settings() -> Settings:

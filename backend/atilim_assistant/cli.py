@@ -6,9 +6,14 @@ from pathlib import Path
 
 import uvicorn
 
-from atilim_assistant.bootstrap import build_chat_service, build_provider, build_store
+from atilim_assistant.bootstrap import (
+    build_chat_service,
+    build_prepared_answer_store,
+    build_provider,
+    build_store,
+)
 from atilim_assistant.config import get_settings
-from atilim_assistant.ingestion.pipeline import index_documents, load_documents
+from atilim_assistant.ingestion.pipeline import index_content, load_content
 from atilim_assistant.ingestion.sources import SOURCES, get_source
 
 
@@ -22,7 +27,9 @@ def main() -> None:
         "--html", type=Path, help="Sayfayı siteden çekmek yerine bu dosyadan oku (--source ile)."
     )
     ingest.add_argument(
-        "--dry-run", action="store_true", help="İndekslemeden, üretilen belgeleri yazdır."
+        "--dry-run",
+        action="store_true",
+        help="İndekslemeden, üretilen belgeleri ve hazır yanıtları yazdır.",
     )
     ingest.set_defaults(run=_ingest)
 
@@ -43,15 +50,21 @@ def _ingest(args: argparse.Namespace) -> None:
     if not args.dry_run:
         settings = get_settings()
         provider, store = build_provider(settings), build_store(settings)
+        prepared_answers = build_prepared_answer_store(settings)
 
     for source in sources:
-        documents = load_documents(source, html)
+        content = load_content(source, html)
         if args.dry_run:
-            for document in documents:
+            for document in content.documents:
                 print(f"\n=== {document.id} ===\n{document.text}")
+            for prepared in content.prepared_answers:
+                print(f"\n=== Hazır yanıt: {' | '.join(prepared.questions)} ===\n{prepared.answer}")
         else:
-            index_documents(source, documents, provider, store)
-        print(f"{source.id}: {len(documents)} belge")
+            index_content(source, content, provider, store, prepared_answers)
+        print(
+            f"{source.id}: {len(content.documents)} belge, "
+            f"{len(content.prepared_answers)} hazır yanıt"
+        )
 
 
 def _serve(_: argparse.Namespace) -> None:
@@ -73,6 +86,8 @@ def _chat(_: argparse.Namespace) -> None:
         if not question:
             continue
         answer = service.answer(question)
+        if answer.prepared:
+            print("(Hazır yanıt — yapay zekâ modeli şu anda yanıt üretemiyor.)")
         print(answer.text)
         for citation in answer.citations:
             print(f"  Kaynak: {citation.title} <{citation.url}>")

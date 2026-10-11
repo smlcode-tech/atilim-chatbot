@@ -19,6 +19,11 @@ def tokenize(text: str) -> list[str]:
     return [token for token in normalize(text).split() if len(token) >= 2]
 
 
+def stem(token: str) -> str:
+    """Çekim eklerini kabaca yok sayar: Türkçede sözcüğün ilk 5 harfi köke yakın sonuç verir."""
+    return token[:5]
+
+
 def slugify(text: str) -> str:
     return normalize(text).replace(" ", "-")
 

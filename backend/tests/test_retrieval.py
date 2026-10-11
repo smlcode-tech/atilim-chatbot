@@ -1,15 +1,22 @@
 import pytest
 
-from atilim_assistant.ingestion.pipeline import index_documents
+from atilim_assistant.domain import SourceContent
+from atilim_assistant.ingestion.pipeline import index_content
 from atilim_assistant.retrieval.lexical import LexicalIndex
+from atilim_assistant.retrieval.prepared import PreparedAnswerStore
 from atilim_assistant.retrieval.retriever import HybridRetriever
 from atilim_assistant.retrieval.store import DocumentStore
 
 
 @pytest.fixture
-def store(tmp_path, staff_source, staff_documents, embedder) -> DocumentStore:
-    store = DocumentStore(tmp_path, "test")
-    index_documents(staff_source, staff_documents, embedder, store)
+def prepared_store(tmp_path) -> PreparedAnswerStore:
+    return PreparedAnswerStore(tmp_path / "prepared_answers.json")
+
+
+@pytest.fixture
+def store(tmp_path, staff_source, staff_content, embedder, prepared_store) -> DocumentStore:
+    store = DocumentStore(tmp_path / "chroma", "test")
+    index_content(staff_source, staff_content, embedder, store, prepared_store)
     return store
 
 
@@ -17,9 +24,16 @@ def test_store_round_trips_documents(store, staff_documents):
     assert sorted(store.all(), key=lambda d: d.id) == sorted(staff_documents, key=lambda d: d.id)
 
 
-def test_reindexing_a_source_replaces_its_documents(store, staff_source, staff_documents, embedder):
-    index_documents(staff_source, staff_documents[:2], embedder, store)
-    assert {document.id for document in store.all()} == {d.id for d in staff_documents[:2]}
+def test_reindexing_a_source_replaces_its_content(
+    store, prepared_store, staff_source, staff_content, embedder
+):
+    assert prepared_store.all() == staff_content.prepared_answers
+
+    smaller = SourceContent(staff_content.documents[:2], staff_content.prepared_answers[:3])
+    index_content(staff_source, smaller, embedder, store, prepared_store)
+
+    assert {document.id for document in store.all()} == {d.id for d in smaller.documents}
+    assert prepared_store.all() == smaller.prepared_answers
 
 
 def test_lexical_search_matches_names_despite_suffixes_and_casing(staff_documents):

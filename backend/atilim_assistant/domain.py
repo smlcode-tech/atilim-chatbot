@@ -19,15 +19,37 @@ class Document:
 
 
 @dataclass(frozen=True, slots=True)
+class PreparedAnswer:
+    """Sayfa verisinden şablonla üretilen, model olmadan verilebilen hazır yanıt.
+
+    `questions`, yanıtın karşıladığı örnek soru kalıplarıdır; kullanıcının sorusu bunlarla eşleştirilir.
+    """
+
+    source_id: str
+    source_title: str
+    url: str
+    questions: list[str]
+    answer: str
+
+
+@dataclass(frozen=True, slots=True)
+class SourceContent:
+    """Bir kaynak sayfanın ayrıştırılmış içeriği."""
+
+    documents: list[Document]
+    prepared_answers: list[PreparedAnswer]
+
+
+@dataclass(frozen=True, slots=True)
 class Source:
-    """Siteden alınan tek bir sayfa ve onu belgelere çeviren ayrıştırıcı."""
+    """Siteden alınan tek bir sayfa ve onu içeriğe çeviren ayrıştırıcı."""
 
     id: str
     title: str
     url: str
     unit: str
     category: str
-    parser: Callable[[str, "Source"], list[Document]]
+    parser: Callable[[str, "Source"], SourceContent]
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,5 +60,8 @@ class Citation:
 
 @dataclass(frozen=True, slots=True)
 class Answer:
+    """`prepared`: yanıt model tarafından üretilmedi, hazır yanıtlardan verildi."""
+
     text: str
     citations: list[Citation]
+    prepared: bool = False

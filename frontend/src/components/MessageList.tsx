@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ArrowUpRight, Sparkles, UserRound } from 'lucide-react'
+import { ArrowUpRight, Info, Sparkles, UserRound } from 'lucide-react'
 import { assistant } from '../config/assistant'
 import type { Message } from '../types'
 
@@ -60,6 +60,12 @@ function MessageRow({ message }: { message: Message }) {
             message.content
           )}
         </div>
+        {message.isPrepared && (
+          <p className="message-notice">
+            <Info size={11} />
+            Yapay zekâ modeli şu anda yanıt üretemiyor; bu, kaynak sayfadan hazırlanmış bir yanıttır.
+          </p>
+        )}
         {message.sources && message.sources.length > 0 && (
           <ul className="message-sources" aria-label="Kaynaklar">
             {message.sources.map(({ title, url }) => (
