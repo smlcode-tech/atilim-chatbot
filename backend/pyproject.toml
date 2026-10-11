@@ -1,0 +1,31 @@
+[project]
+name = "atilim-assistant"
+version = "0.1.0"
+description = "Atılım Üniversitesi web sitesini kaynak alan, Türkçe soru-cevap yapan RAG asistanı."
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "beautifulsoup4>=4.12",
+    "chromadb>=1.5",
+    "fastapi>=0.115",
+    "google-genai>=2.0",
+    "httpx>=0.28",
+    "pydantic-settings>=2.6",
+    "uvicorn>=0.34",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+# Uygulama pakete kurulmaz; backend/ klasöründen `python -m atilim_assistant` ile çalışır.
+# (iCloud ile eşitlenen klasörlerde macOS, .venv içindeki .pth dosyalarını gizli işaretler ve
+# Python 3.13 bunları atlar; bu yüzden düzenlenebilir kurulum güvenilir değildir.)
+package = false
+# chromadb'nin bağımlılığı onnxruntime'ın yeni sürümleri Intel Mac için wheel yayınlamıyor
+# (Python 3.14 için hiç yok; requires-python üst sınırı bundan). Bu satır uv'nin o platformda
+# da kurulabilen bir sürüme çözmesini sağlar.
+required-environments = ["sys_platform == 'darwin' and platform_machine == 'x86_64'"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

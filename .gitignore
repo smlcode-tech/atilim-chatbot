@@ -1,10 +1,16 @@
+# Gizli ayarlar
+.env
+
+# Python
 .venv/
-chroma_db/
+__pycache__/
+.pytest_cache/
+
+# Üretilen indeks (`python -m atilim_assistant ingest` ile yeniden oluşturulur)
+backend/data/
+
+# Frontend
 node_modules/
 dist/
-people.json
-*.html
-!frontend/index.html
-__pycache__/
-.env
+
 .DS_Store

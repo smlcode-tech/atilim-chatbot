@@ -1,48 +1,151 @@
-# Atılım YM Akademik Personel Chatbot (RAG)
+# Atılım Akademik Asistan
 
-Atılım Üniversitesi Yazılım Mühendisliği akademik personel sayfasını kaynak alan, Türkçe soru-cevap yapan RAG chatbot.
+Atılım Üniversitesi web sitesini kaynak alan, Türkçe soru-cevap yapan RAG (Retrieval-Augmented
+Generation) asistanı. Amaç, mevcut ve aday öğrencilerin sorularını hızlıca yanıtlayarak öğrenci
+işlerinin yükünü azaltmaktır.
 
-Akış: scrape.py -> people.json -> index.py (Gemini embedding + Chroma) -> chat.py (arama + Gemini cevap)
+**Mevcut kapsam:** Yazılım Mühendisliği Bölümü akademik personeli. Kapsam, kaynak kataloğuna yeni
+sayfalar eklenerek [atilim.edu.tr](https://www.atilim.edu.tr/tr) genelini kapsayacak şekilde
+büyütülür (bkz. [Kapsamı genişletmek](#kapsamı-genişletmek)).
 
-## Kurulum (Intel Mac için Python 3.13 gerekir; 3.14'te chromadb/onnxruntime kurulmaz)
+## Mimari
 
-    python3 -m pip install --user uv
-    python3 -m uv venv --python 3.13 .venv
-    source .venv/bin/activate
-    python3 -m uv pip install -r requirements.txt
+İki bağımsız akış vardır; ikisi yalnızca belge deposu üzerinden konuşur.
 
-## API anahtarı (ekranda görünmeden gir, koda/GitHub'a yazma)
+```
+İndeksleme (çevrimdışı, CLI)
+  kaynak kataloğu ──> sayfayı çek ──> ayrıştırıcı ──> Document[] ──> embedding ──> belge deposu
+  ingestion/sources   ingestion/pipeline  ingestion/parsers            providers      retrieval/store
 
-    read -s GEMINI_API_KEY && export GEMINI_API_KEY
+Soru-cevap (çevrimiçi, HTTP)
+  React arayüzü ──> /api/chat ──> ChatService ──> HybridRetriever ──> belge deposu
+                    api/          chat/           (vektör + BM25)
+                                     └──> ChatModel (Gemini) ──> yanıt + kaynak bağlantıları
+```
 
-İsteğe bağlı model ayarı: EMBED_MODEL (varsayılan gemini-embedding-001), LLM_MODEL (varsayılan gemini-2.5-flash).
+```
+backend/
+  atilim_assistant/
+    config.py          Ortam değişkenleri / .env ayarları
+    domain.py          Çekirdek tipler: Document, Source, Answer, Citation
+    text.py            Türkçe metin normalleştirme
+    ports.py           Model sağlayıcı arayüzleri: Embedder, ChatModel
+    providers/         Arayüzlerin somut uygulamaları (Gemini)
+    ingestion/         Kaynak kataloğu, sayfa ayrıştırıcıları, indeksleme adımları
+    retrieval/         Belge deposu (Chroma), BM25 indeksi, hibrit getirici
+    chat/              Sistem talimatı ve soru-cevap servisi
+    api/               FastAPI uygulaması ve istek/yanıt şemaları
+    bootstrap.py       Ayarlardan bileşenleri kuran bağlama noktası
+    cli.py             Komut satırı: ingest, serve, chat
+  tests/               Birim ve API testleri (ağ ve API anahtarı gerektirmez)
+frontend/
+  src/
+    config/            Asistanın arayüzdeki adı, kapsam metinleri, öneri soruları
+    api/               Backend istemcisi
+    hooks/             Sohbet durumu (useChat)
+    components/        Sidebar, Topbar, Welcome, MessageList, Composer
+```
 
-## Chatbot web arayüzü
+Temel tasarım kararları:
 
-Önce akademik personel verisini ve vektör indeksini oluştur:
+- **Tek belge modeli.** Her ayrıştırıcı sayfasını `Document` listesine çevirir; depo, getirici ve
+  sohbet katmanı sayfanın türünü bilmez. Yeni içerik türü eklemek bu katmanlara dokunmaz.
+- **Kaynak bazında indeksleme.** Bir kaynak yeniden indekslendiğinde yalnızca onun belgeleri
+  değiştirilir; diğer kaynaklar etkilenmez.
+- **Hibrit arama.** Anlamsal (vektör) arama ile anahtar kelime (BM25) araması Reciprocal Rank
+  Fusion ile birleştirilir; böylece hem "makine öğrenmesi çalışanlar" hem de "Ali Yazıcı" gibi
+  özel ad içeren sorular doğru belgeye ulaşır.
+- **Değiştirilebilir model sağlayıcı.** Servisler `ports.py` arayüzlerine bağlıdır; başka bir
+  sağlayıcıya geçmek için `providers/` altına yeni bir uygulama yazıp `bootstrap.py`'de bağlamak yeter.
+- **Kaynak gösterimi.** Her yanıt, dayandığı sayfaların bağlantılarıyla birlikte döner.
 
-    python scrape.py    # sayfayı çeker, people.json üretir; çıktıdaki kişi sayısını kontrol et
-    python index.py     # embedding üretir, chroma_db/ klasörüne yazar
+## Kurulum
 
-Web arayüzü için iki terminal aç. İlk terminalde proje kökünden API'yi başlat:
+Gereksinimler: [uv](https://docs.astral.sh/uv/), Python 3.12 veya 3.13, Node.js 20+.
 
-    python server.py
+```bash
+cd backend
+uv sync                       # .venv oluşturur ve bağımlılıkları kurar
+cp .env.example .env          # ardından GEMINI_API_KEY değerini yaz
 
-İkinci terminalde React + TypeScript arayüzünü başlat:
+cd ../frontend
+npm install
+```
 
-    cd frontend
-    npm install
-    npm run dev
+## Çalıştırma
 
-Vite'ın gösterdiği yerel adresi tarayıcıda aç. Geliştirme sunucusu `/api` isteklerini Python API'sine yönlendirir. API `127.0.0.1:8000` adresinde, web arayüzü ise Vite'ın seçtiği adreste çalışır. Gemini anahtarı, akademik personel verisi ve indeksleme adımları yukarıdaki gibi önceden hazırlanmış olmalıdır.
+Backend komutları `backend/` klasöründen çalıştırılır:
 
-Üretim derlemesi için `cd frontend && npm run build` komutunu kullan. Derleme çıktısı `frontend/dist/` klasörüne yazılır; API için `python server.py` ayrıca çalışmaya devam etmelidir. `chat.py` terminalden doğrudan sohbet etmek için kullanılmaya devam eder.
+```bash
+uv run python -m atilim_assistant ingest    # kaynakları çek ve indeksle (backend/data/ altına yazar)
+uv run python -m atilim_assistant serve     # API: http://127.0.0.1:8000
+uv run python -m atilim_assistant chat      # terminalde sohbet (API gerekmez)
+```
 
-Örnek sorular:
-- Ali Yazıcı'nın araştırma konuları neler?
-- Makine öğrenmesi çalışanlar kimler?
+Arayüz için ikinci bir terminalde:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Vite'ın gösterdiği adresi tarayıcıda aç. Geliştirme sunucusu `/api` isteklerini
+`127.0.0.1:8000` adresindeki API'ye yönlendirir. Üretim derlemesi `npm run build` ile
+`frontend/dist/` klasörüne yazılır.
+
+İndeks yeniden oluşturulduğunda değişikliklerin görünmesi için API yeniden başlatılmalıdır.
+
+## API
+
+| Uç nokta | İstek | Yanıt |
+| --- | --- | --- |
+| `GET /api/health` | — | `{"status": "ok"}` |
+| `POST /api/chat` | `{"question": "..."}` (1-1000 karakter) | `{"answer": "...", "sources": [{"title": "...", "url": "..."}]}` |
+
+Hatalar `{"detail": "..."}` gövdesiyle döner: geçersiz soru için 422, yanıt üretilemediğinde 502.
+
+## Kapsamı genişletmek
+
+1. `backend/atilim_assistant/ingestion/sources.py` içindeki `SOURCES` listesine yeni bir `Source` ekle.
+2. Sayfa, mevcut ayrıştırıcılardan birinin beklediği yapıdaysa (ör. başka bir bölümün akademik
+   personel sayfası) o ayrıştırıcıyı kullan. Değilse `ingestion/parsers/` altına
+   `parse(html, source) -> list[Document]` imzalı yeni bir ayrıştırıcı ve `tests/` altına testini yaz.
+3. Üretilen belgeleri indekslemeden incele, sonra indeksle:
+
+   ```bash
+   uv run python -m atilim_assistant ingest --source <kaynak-id> --dry-run
+   uv run python -m atilim_assistant ingest --source <kaynak-id>
+   ```
+
+4. Arayüzdeki kapsam metinlerini ve öneri sorularını `frontend/src/config/assistant.ts` içinde güncelle.
+
+## Test
+
+```bash
+cd backend && uv run pytest
+cd frontend && npm run build      # tip denetimi + derleme
+```
+
+## Ayarlar
+
+`backend/.env` dosyasından ya da ortam değişkenlerinden okunur.
+
+| Değişken | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | — (zorunlu) | Google Gemini API anahtarı |
+| `LLM_MODEL` | `gemini-3.8-flash` | Yanıt üreten model |
+| `EMBED_MODEL` | `gemini-embedding-001` | Embedding modeli |
+| `RETRIEVAL_TOP_K` | `6` | Modele bağlam olarak verilen belge sayısı |
+| `DATA_DIR` | `backend/data` | İndeksin yazıldığı klasör |
+| `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | API'nin dinlediği adres |
+
+`EMBED_MODEL` değiştirilirse indeks `ingest` ile yeniden oluşturulmalıdır.
 
 ## Sorun giderme
-- scrape.py 0 kişi bulursa: sayfanın HTML'ini kaydedip `python scrape.py sayfa.html` ile test et, h4 seçicisini düzelt.
-- task_type hatası: common.py içinde EmbedContentConfig'den task_type'ı hem indekste hem sorguda kaldır.
-- 429 / RESOURCE_EXHAUSTED: ücretsiz kota doldu; bekle ya da başka model seç.
+
+- **"İndeks boş" hatası:** önce `ingest` komutunu çalıştır.
+- **"akademik personel kartı bulunamadı":** sitenin sayfa yapısı değişmiş olabilir. Sayfayı kaydedip
+  `ingest --source <kaynak-id> --html sayfa.html --dry-run` ile ayrıştırıcıyı dene.
+- **429 / RESOURCE_EXHAUSTED:** Gemini kotası doldu (ücretsiz katmanda model başına günlük istek
+  sınırı vardır). Bekle ya da `LLM_MODEL` ile başka bir model seç.
+- **Arayüzde "Sunucuya ulaşılamıyor":** API'nin `serve` komutuyla çalıştığını kontrol et.
