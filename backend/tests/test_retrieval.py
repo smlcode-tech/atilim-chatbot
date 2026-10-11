@@ -46,7 +46,9 @@ def test_lexical_search_returns_nothing_without_common_terms(staff_documents):
 
 
 def test_hybrid_retriever_merges_semantic_and_lexical_results(store, embedder):
-    # "Oyun" yalnızca vektör aramasında, "Ayşe Örnek" yalnızca anahtar kelime aramasında öne çıkar.
-    retriever = HybridRetriever(store, embedder, top_k=2)
+    # "Oyun" vektör aramasında, "Ayşe Örnek" anahtar kelime aramasında birinci gelir. Sahte
+    # embedder diğer belgelere aynı vektörü verdiği için kalan sıra belirsizdir; yalnızca
+    # iki aramanın birincilerinin sonuçta yer aldığı doğrulanır.
+    retriever = HybridRetriever(store, embedder, top_k=3)
     titles = {document.title for document in retriever.retrieve("Oyun mu, Ayşe Örnek mi?")}
-    assert titles == {"Öğr. Gör. Mehmet DENEME", "Prof. Dr. Ayşe ÖRNEK"}
+    assert {"Öğr. Gör. Mehmet DENEME", "Prof. Dr. Ayşe ÖRNEK"} <= titles
