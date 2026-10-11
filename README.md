@@ -42,11 +42,13 @@ backend/
     cli.py             Komut satırı: ingest, serve, chat
   tests/               Birim ve API testleri (ağ ve API anahtarı gerektirmez)
 frontend/
+  vercel.json          Yayındaki arayüzün /api isteklerini API'ye yönlendirir
   src/
     config/            Asistanın arayüzdeki adı, kapsam metinleri, öneri soruları
     api/               Backend istemcisi
     hooks/             Sohbet durumu (useChat)
     components/        Sidebar, Topbar, Welcome, MessageList, Composer
+render.yaml            API'nin Render'daki yayın tanımı
 ```
 
 Temel tasarım kararları:
@@ -141,6 +143,38 @@ cd backend && uv run pytest
 cd frontend && npm run build      # tip denetimi + derleme
 ```
 
+## Dağıtım
+
+Proje, ücretsiz katmanlarla iki parça hâlinde yayınlanır:
+
+| Parça | Platform | Tanım |
+| --- | --- | --- |
+| Arayüz | Vercel | GitHub deposu, kök klasör `frontend/` |
+| API | Render (web servisi) | `render.yaml` |
+
+Arayüz `/api/*` isteklerini `frontend/vercel.json` içindeki yönlendirmeyle API'ye iletir; API'nin
+adresi yalnızca bu dosyada durur. Render'ın ücretsiz katmanında disk kalıcı olmadığı için indeks,
+derleme sırasında `ingest` ile üretilir ve yayın paketine girer.
+
+### İlk kurulum
+
+1. Render'da **New → Blueprint** ile bu depoyu seç; `render.yaml` okunur ve servis oluşturulur.
+   Sorulduğunda `GEMINI_API_KEY` değerini gir.
+2. Servisin adresi `frontend/vercel.json` içindekinden farklıysa dosyayı güncelle.
+3. Vercel'de depoyu içe aktar; **Root Directory** olarak `frontend` seç.
+
+### Güncelleme
+
+- **Kod:** `git push origin main`. `frontend/` değişiklikleri Vercel'de, `backend/` değişiklikleri
+  Render'da kendiliğinden yeniden yayınlanır.
+- **İndeks:** kaynak sayfalar değiştiğinde Render'da **Manual Deploy → Deploy latest commit**;
+  derleme `ingest` komutunu baştan çalıştırır.
+- **Ayarlar:** [Ayarlar](#ayarlar) tablosundaki değişkenler (ör. `LLM_MODEL`) Render'da servisin
+  **Environment** bölümünden verilir.
+
+Ücretsiz Render servisi 15 dakika istek almazsa uyur; sonraki ilk istek servisi uyandırır ve
+yaklaşık bir dakika sürer.
+
 ## Ayarlar
 
 `backend/.env` dosyasından ya da ortam değişkenlerinden okunur.
@@ -169,4 +203,6 @@ cd frontend && npm run build      # tip denetimi + derleme
   sınırı vardır). Bekle ya da `LLM_MODEL` ile başka bir model seç.
 - **"Hazır yanıt bulunamadı" uyarısı (API açılışında):** indeks, hazır yanıtlar eklenmeden önce
   oluşturulmuş. `ingest` komutunu yeniden çalıştır.
-- **Arayüzde "Sunucuya ulaşılamıyor":** API'nin `serve` komutuyla çalıştığını kontrol et.
+- **Arayüzde "Sunucuya ulaşılamıyor":** API'nin `serve` komutuyla çalıştığını kontrol et. Yayında
+  ise Render servisi uykudan uyanıyor olabilir; bir dakika sonra yeniden dene, sürerse Render'daki
+  servis günlüğüne bak.

@@ -1,0 +1,19 @@
+# Render Blueprint: API servisinin yayın tanımı (https://render.com/docs/blueprint-spec).
+services:
+  - type: web
+    name: atilim-assistant-api
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    # Ücretsiz katmanda disk kalıcı değildir; indeks derleme sırasında üretilir ve yayın paketine girer.
+    buildCommand: pip install uv && uv sync --frozen --no-dev && .venv/bin/python -m atilim_assistant ingest
+    startCommand: API_PORT=$PORT .venv/bin/python -m atilim_assistant serve
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: GEMINI_API_KEY
+        sync: false
