@@ -471,6 +471,7 @@ textarea:focus-visible {
   font-size: 11px;
   text-align: start;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .history-open > svg {
@@ -506,6 +507,7 @@ textarea:focus-visible {
   border-radius: 5px;
   opacity: 0;
   cursor: pointer;
+  touch-action: manipulation;
   transition: color 140ms ease, opacity 140ms ease;
 }
 

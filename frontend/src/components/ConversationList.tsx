@@ -24,14 +24,20 @@ export function ConversationList({
         <ul className="history-list">
           {conversations.map(({ id, title }) => (
             <li key={id} className={`history-item ${id === activeId ? 'history-item-active' : ''}`}>
-              <button className="history-open" onClick={() => onOpen(id)} title={title}>
+              <button
+                className="history-open"
+                title={title}
+                onClick={() => onOpen(id)}
+                onTouchEnd={(e) => { e.preventDefault(); onOpen(id) }}
+              >
                 <MessageSquare size={15} />
                 <span>{title}</span>
               </button>
               <button
                 className="history-delete"
-                onClick={() => onDelete(id)}
                 aria-label={`${title} sohbetini sil`}
+                onClick={() => onDelete(id)}
+                onTouchEnd={(e) => { e.preventDefault(); onDelete(id) }}
               >
                 <Trash2 size={14} />
               </button>
