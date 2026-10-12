@@ -4,7 +4,9 @@ import logging
 
 from atilim_assistant.chat.service import ChatService
 from atilim_assistant.config import Settings
+from atilim_assistant.ports import ChatModel, Embedder
 from atilim_assistant.providers.gemini import GeminiProvider
+from atilim_assistant.providers.groq import GroqProvider
 from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher, PreparedAnswerStore
 from atilim_assistant.retrieval.retriever import HybridRetriever
 from atilim_assistant.retrieval.store import DocumentStore
@@ -17,13 +19,23 @@ from atilim_assistant.storage.mongo import (
 logger = logging.getLogger(__name__)
 
 
-def build_provider(settings: Settings) -> GeminiProvider:
-    return GeminiProvider(
+def build_provider(settings: Settings) -> tuple[ChatModel, Embedder]:
+    gemini = GeminiProvider(
         api_key=settings.gemini_api_key.get_secret_value(),
         llm_model=settings.llm_model,
         embed_model=settings.embed_model,
         embed_dimensions=settings.embed_dimensions,
     )
+    if settings.llm_provider == "groq":
+        groq_key = settings.groq_api_key.get_secret_value()
+        if not groq_key:
+            raise RuntimeError("LLM_PROVIDER=groq ama GROQ_API_KEY tanımlı değil.")
+        chat: ChatModel = GroqProvider(api_key=groq_key, llm_model=settings.llm_model)
+        logger.info("LLM: Groq (%s)", settings.llm_model)
+    else:
+        chat = gemini
+        logger.info("LLM: Gemini (%s)", settings.llm_model)
+    return chat, gemini  # (chat_model, embedder)
 
 
 def build_store(settings: Settings) -> DocumentStore:
@@ -55,11 +67,11 @@ def build_chat_service(settings: Settings) -> ChatService:
             "Hazır yanıt bulunamadı; model yanıt üretemediğinde yedek yanıt verilemeyecek. "
             "`python -m atilim_assistant ingest` komutunu yeniden çalıştır."
         )
-    provider = build_provider(settings)
-    retriever = HybridRetriever(store, provider, settings.retrieval_top_k)
+    chat_model, embedder = build_provider(settings)
+    retriever = HybridRetriever(store, embedder, settings.retrieval_top_k)
     return ChatService(
         retriever,
-        provider,
+        chat_model,
         PreparedAnswerMatcher(prepared_answers),
         settings.quota_cooldown_seconds,
     )

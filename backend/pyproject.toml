@@ -8,6 +8,7 @@ dependencies = [
     "chromadb>=1.5",
     "fastapi>=0.115",
     "google-genai>=2.0",
+    "openai>=1.0",
     "httpx>=0.28",
     "pydantic-settings>=2.6",
     "pymongo>=4.10",

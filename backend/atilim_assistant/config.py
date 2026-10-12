@@ -13,7 +13,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BACKEND_ROOT / ".env", extra="ignore")
 
     gemini_api_key: SecretStr
-    llm_model: str = "gemini-3.8-flash"
+    groq_api_key: SecretStr = SecretStr("")
+    # "groq" veya "gemini"; groq seçilirse GROQ_API_KEY zorunludur.
+    llm_provider: str = "groq"
+    llm_model: str = "openai/gpt-oss-120b"
     embed_model: str = "gemini-embedding-001"
     embed_dimensions: int = 768
 
