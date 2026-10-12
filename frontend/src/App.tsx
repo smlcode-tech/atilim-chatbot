@@ -12,11 +12,13 @@ import { assistant } from './config/assistant'
 import { useAuth } from './hooks/useAuth'
 import { useChat } from './hooks/useChat'
 import { useConversations } from './hooks/useConversations'
+import { useTheme } from './hooks/useTheme'
 
 // Splash screen en az bu kadar görünür (ms), auth ne kadar hızlı biterse bitsin.
 const SPLASH_MIN_MS = 2200
 
 function App() {
+  const { theme, toggle: toggleTheme } = useTheme()
   const { user, isChecking, error, mountGoogleButton, signOut } = useAuth()
   const { conversations, refresh, remove } = useConversations(user !== null)
   const { messages, conversationId, isLoading, apiStatus, sendMessage, startNew, open } = useChat({
@@ -116,7 +118,7 @@ function App() {
             />
 
             <section className="chat-panel" aria-label={`${assistant.name} sohbeti`}>
-              <Topbar status={apiStatus}>
+              <Topbar status={apiStatus} theme={theme} onToggleTheme={toggleTheme}>
                 <button
                   className="drawer-toggle"
                   onClick={() => setIsDrawerOpen((open) => !open)}
