@@ -1,16 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ApiUnreachableError, askQuestion, checkHealth } from '../api/client'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  ApiUnreachableError,
+  askQuestion,
+  checkHealth,
+  fetchConversation,
+} from '../api/client'
 import type { ApiStatus, Message } from '../types'
 
-function currentTime() {
-  return new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' }).format(new Date())
+type UseChatOptions = {
+  /** Yeni bir konuşma açıldığında ya da bir konuşmaya yazıldığında yan bar tazelenir. */
+  onConversationChanged: () => void
 }
 
-export function useChat() {
+export function useChat({ onConversationChanged }: UseChatOptions) {
   const [messages, setMessages] = useState<Message[]>([])
+  const [conversationId, setConversationId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
-  const nextId = useRef(1)
 
   useEffect(() => {
     let isMounted = true
@@ -22,8 +28,11 @@ export function useChat() {
     }
   }, [])
 
-  const append = useCallback((message: Omit<Message, 'id' | 'time'>) => {
-    setMessages((current) => [...current, { ...message, id: nextId.current++, time: currentTime() }])
+  const append = useCallback((message: Omit<Message, 'id' | 'createdAt'>) => {
+    setMessages((current) => [
+      ...current,
+      { ...message, id: crypto.randomUUID(), createdAt: new Date().toISOString() },
+    ])
   }, [])
 
   const sendMessage = useCallback(
@@ -34,9 +43,18 @@ export function useChat() {
       append({ role: 'user', content: question })
       setIsLoading(true)
       try {
-        const { answer, sources, prepared } = await askQuestion(question)
+        const answer = await askQuestion(question, conversationId)
         setApiStatus('online')
-        append({ role: 'assistant', content: answer, sources, isPrepared: prepared })
+        append({
+          role: 'assistant',
+          content: answer.answer,
+          sources: answer.sources,
+          isPrepared: answer.prepared,
+        })
+        if (answer.conversationId !== null) {
+          setConversationId(answer.conversationId)
+          onConversationChanged()
+        }
       } catch (error) {
         setApiStatus(error instanceof ApiUnreachableError ? 'offline' : 'online')
         append({
@@ -48,10 +66,27 @@ export function useChat() {
         setIsLoading(false)
       }
     },
-    [append, isLoading],
+    [append, conversationId, isLoading, onConversationChanged],
   )
 
-  const reset = useCallback(() => setMessages([]), [])
+  const startNew = useCallback(() => {
+    setMessages([])
+    setConversationId(null)
+  }, [])
 
-  return { messages, isLoading, apiStatus, sendMessage, reset }
+  const open = useCallback(async (id: string) => {
+    setIsLoading(true)
+    try {
+      const stored = await fetchConversation(id)
+      setMessages(stored)
+      setConversationId(id)
+    } catch {
+      setMessages([])
+      setConversationId(null)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  return { messages, conversationId, isLoading, apiStatus, sendMessage, startNew, open }
 }

@@ -4,10 +4,11 @@ export type SourceLink = {
 }
 
 export type Message = {
-  id: number
+  id: string
   role: 'assistant' | 'user'
   content: string
-  time: string
+  /** ISO zaman damgası; saat biçimlendirmesi görüntülenirken yapılır. */
+  createdAt: string
   isError?: boolean
   sources?: SourceLink[]
   /** Yanıt model tarafından üretilmedi, hazır yanıtlardan verildi. */
@@ -15,3 +16,15 @@ export type Message = {
 }
 
 export type ApiStatus = 'checking' | 'online' | 'offline'
+
+export type User = {
+  id: string
+  email: string
+  name: string
+}
+
+export type ConversationSummary = {
+  id: string
+  title: string
+  updatedAt: string
+}

@@ -10,6 +10,8 @@ type MessageListProps = {
   isLoading: boolean
 }
 
+const timeFormat = new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' })
+
 export function MessageList({ messages, isLoading }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -49,7 +51,7 @@ function MessageRow({ message }: { message: Message }) {
       <div className="message-content">
         <div className="message-meta">
           <strong>{isAssistant ? assistant.name : 'Sen'}</strong>
-          <span>{message.time}</span>
+          <span>{timeFormat.format(new Date(message.createdAt))}</span>
         </div>
         <div className={`message-bubble ${message.isError ? 'message-error' : ''}`}>
           {isAssistant && !message.isError ? (

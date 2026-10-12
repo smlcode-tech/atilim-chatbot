@@ -1,11 +1,27 @@
-import { ArrowUpRight, CircleHelp, GraduationCap, Plus, Sparkles } from 'lucide-react'
+import { ArrowUpRight, CircleHelp, GraduationCap, LogOut, Plus, Sparkles } from 'lucide-react'
 import { assistant } from '../config/assistant'
+import type { ConversationSummary, User } from '../types'
+import { ConversationList } from './ConversationList'
 
 type SidebarProps = {
+  user: User
+  conversations: ConversationSummary[]
+  activeConversationId: string | null
   onNewChat: () => void
+  onOpenConversation: (id: string) => void
+  onDeleteConversation: (id: string) => void
+  onSignOut: () => void
 }
 
-export function Sidebar({ onNewChat }: SidebarProps) {
+export function Sidebar({
+  user,
+  conversations,
+  activeConversationId,
+  onNewChat,
+  onOpenConversation,
+  onDeleteConversation,
+  onSignOut,
+}: SidebarProps) {
   return (
     <aside className="sidebar">
       <a
@@ -46,6 +62,13 @@ export function Sidebar({ onNewChat }: SidebarProps) {
         ))}
       </div>
 
+      <ConversationList
+        conversations={conversations}
+        activeId={activeConversationId}
+        onOpen={onOpenConversation}
+        onDelete={onDeleteConversation}
+      />
+
       <div className="sidebar-note">
         <span className="note-icon"><CircleHelp size={17} /></span>
         <div>
@@ -55,9 +78,15 @@ export function Sidebar({ onNewChat }: SidebarProps) {
       </div>
 
       <div className="sidebar-bottom">
-        <div className="privacy-note">
-          <span className="privacy-dot" />
-          Üniversite verileriyle desteklenir
+        <div className="sidebar-user">
+          <span className="user-initial">{user.name.slice(0, 1).toLocaleUpperCase('tr-TR')}</span>
+          <span className="user-copy">
+            <strong>{user.name}</strong>
+            <span>{user.email}</span>
+          </span>
+          <button className="sign-out" onClick={onSignOut} aria-label="Çıkış yap">
+            <LogOut size={15} />
+          </button>
         </div>
       </div>
     </aside>

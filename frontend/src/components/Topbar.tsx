@@ -9,11 +9,13 @@ const statusLabels: Record<ApiStatus, string> = {
 
 type TopbarProps = {
   status: ApiStatus
+  children?: React.ReactNode
 }
 
-export function Topbar({ status }: TopbarProps) {
+export function Topbar({ status, children }: TopbarProps) {
   return (
     <header className="topbar">
+      {children}
       <div className="breadcrumbs">
         <span>{assistant.university.name}</span>
         <span className="breadcrumb-divider">/</span>

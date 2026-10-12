@@ -49,6 +49,94 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
+/* Oturum doğrulanana kadar giriş ekranının bir an görünüp kaybolmaması için boş perde. */
+.boot-screen {
+  min-height: 100vh;
+  background: #f5f7fc;
+}
+
+.signin-shell {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(160deg, #f5f7fc, #eaeef9);
+}
+
+.signin-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(100%, 420px);
+  padding: 40px 32px 32px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: 5px;
+  box-shadow: 0 18px 44px rgba(26, 29, 38, 0.09);
+  text-align: center;
+}
+
+.signin-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+}
+
+.signin-card h1 {
+  margin: 20px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.signin-scope {
+  margin: 7px 0 0;
+  color: #9397a7;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.15px;
+}
+
+.signin-lead {
+  margin: 18px 0 26px;
+  color: #73788c;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.signin-button {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.signin-error {
+  margin: 16px 0 0;
+  padding: 10px 13px;
+  color: var(--accent-dark);
+  background: #fde8e9;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.signin-privacy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 24px 0 0;
+  color: #a1a4b2;
+  font-size: 9px;
+}
+
+/* Geniş ekranda yan bar kalıcıdır; çekmece düğmesi ve perdesi yalnızca dar ekranda görünür. */
+.drawer-toggle,
+.drawer-backdrop {
+  display: none;
+}
+
 .sidebar {
   position: relative;
   display: flex;
@@ -185,10 +273,173 @@ textarea:focus-visible {
   margin-left: auto;
 }
 
+/* Geçmiş listesi yan barın esneyen parçasıdır: uzadıkça kendi içinde kayar, altındaki
+   yardım notunu ve kullanıcı bloğunu aşağıda tutar. */
+.sidebar-history {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 28px;
+}
+
+.history-empty {
+  margin: 0 10px;
+  color: #a1a4b2;
+  font-size: 10px;
+}
+
+.history-list {
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  margin: 2px 0;
+  border-radius: 8px;
+  transition: background 140ms ease;
+}
+
+.history-item:hover,
+.history-item-active {
+  background: #fff4f4;
+}
+
+.history-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 4px 0 10px;
+  color: #73788c;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 11px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.history-open > svg {
+  flex: none;
+}
+
+.history-open > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.history-item:hover .history-open,
+.history-item-active .history-open {
+  color: var(--accent);
+}
+
+.history-item-active .history-open {
+  font-weight: 600;
+}
+
+.history-delete {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  padding: 0;
+  color: #b4b7c4;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  opacity: 0;
+  cursor: pointer;
+  transition: color 140ms ease, opacity 140ms ease;
+}
+
+.history-item:hover .history-delete,
+.history-delete:focus-visible {
+  opacity: 1;
+}
+
+.history-delete:hover {
+  color: var(--accent);
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 15px 2px 4px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.user-initial {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: #fff;
+  background: linear-gradient(145deg, #1F3D7C, #03326c);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.user-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-copy strong {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.user-copy > span {
+  overflow: hidden;
+  color: #a1a4b2;
+  font-size: 9px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sign-out {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  padding: 0;
+  color: #a1a4b2;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.sign-out:hover {
+  color: var(--accent);
+  background: #fff4f4;
+}
+
 .sidebar-note {
   display: flex;
   gap: 10px;
-  margin-top: 29px;
+  margin-top: 16px;
   padding: 13px 11px;
   background: #f9fbff;
   border: 1px solid #e5edf7;
@@ -224,16 +475,6 @@ textarea:focus-visible {
   margin-top: auto;
 }
 
-.privacy-note {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0 4px 15px;
-  color: #8c91a0;
-  font-size: 9px;
-}
-
-.privacy-dot,
 .status-indicator {
   width: 7px;
   height: 7px;
@@ -880,35 +1121,66 @@ textarea:focus-visible {
   }
 }
 
+/* Dar ekranda geçmiş listesi 70px'lik bir ikon rayına sığmaz; yan bar üstten kayan bir
+   çekmeceye dönüşür ve sohbet paneli tüm genişliği alır. */
 @media (max-width: 760px) {
   .sidebar {
-    flex-basis: 70px;
-    align-items: center;
-    padding: 20px 9px 12px;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    flex-basis: 280px;
+    width: 280px;
+    max-width: 85vw;
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
   }
 
-  .brand {
+  .drawer-open .sidebar {
+    transform: translateX(0);
+    box-shadow: 0 0 44px rgba(26, 29, 38, 0.22);
+  }
+
+  .drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 10;
     padding: 0;
+    background: rgba(26, 29, 38, 0.38);
+    border: none;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
   }
 
-  .brand-mark {
-    width: 41px;
-    height: 41px;
+  .drawer-open .drawer-backdrop {
+    opacity: 1;
+    pointer-events: auto;
   }
 
-  .brand-copy,
-  .new-chat-button > span,
-  .sidebar-section,
-  .sidebar-note,
-  .privacy-note {
+  .drawer-toggle {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    margin-right: 13px;
+    padding: 0;
+    color: #73788c;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  .drawer-toggle:hover {
+    color: var(--accent);
+    background: #fff4f4;
+  }
+
+  .sidebar-note {
     display: none;
-  }
-
-  .new-chat-button {
-    width: 42px;
-    justify-content: center;
-    margin-top: 28px;
-    padding: 0;
   }
 
   .topbar {
@@ -916,24 +1188,14 @@ textarea:focus-visible {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .drawer-backdrop {
+    transition: none;
+  }
+}
+
 @media (max-width: 580px) {
-  .sidebar {
-    flex-basis: 54px;
-    padding-right: 6px;
-    padding-left: 6px;
-  }
-
-  .brand-mark {
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
-  }
-
-  .new-chat-button {
-    width: 38px;
-    height: 38px;
-  }
-
   .topbar {
     flex-basis: 56px;
     padding: 0 14px;
