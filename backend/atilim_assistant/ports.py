@@ -10,6 +10,13 @@ class UserRepository(Protocol):
         """Kullanıcıyı kaydeder ya da günceller; kullanıcı kimliğini döndürür."""
         ...
 
+    def count_question(self, user_id: str, day: str) -> int:
+        """O gün sorulan soru sayısını bir artırır ve yeni değeri döndürür.
+
+        Gün değiştiğinde sayaç sıfırdan başlar.
+        """
+        ...
+
 
 class ConversationRepository(Protocol):
     def start(self, user_id: str, title: str) -> str:

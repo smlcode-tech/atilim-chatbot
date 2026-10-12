@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     mongodb_uri: SecretStr | None = None
     mongodb_db: str = "atilim_assistant"
 
+    # Gemini kotası anahtar başınadır, kullanıcı başına değil: tek kişi günlük kotayı
+    # bitirip asistanı herkese kapatabilir. Bu sınır onu engeller.
+    daily_question_limit: int = 30
+
     @property
     def vector_store_dir(self) -> Path:
         return self.data_dir / "chroma"

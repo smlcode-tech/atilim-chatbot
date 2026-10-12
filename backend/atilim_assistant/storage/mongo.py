@@ -62,6 +62,29 @@ class MongoUserRepository:
         )
         return existing["_id"]
 
+    def count_question(self, user_id: str, day: str) -> int:
+        # Tek bir atomik işlemde ya artır ya sıfırla: okuyup sonra yazmak eşzamanlı
+        # isteklerde sayacı eksik bırakırdı.
+        document = self._users.find_one_and_update(
+            {"_id": user_id},
+            [
+                {
+                    "$set": {
+                        "quota_day": day,
+                        "quota_count": {
+                            "$cond": [
+                                {"$eq": ["$quota_day", day]},
+                                {"$add": [{"$ifNull": ["$quota_count", 0]}, 1]},
+                                1,
+                            ]
+                        },
+                    }
+                }
+            ],
+            return_document=True,
+        )
+        return 1 if document is None else document["quota_count"]
+
 
 class MongoConversationRepository:
     def __init__(self, db: Database) -> None:

@@ -39,6 +39,15 @@ def test_a_returning_user_keeps_the_same_identity(db):
     assert db.users.find_one({"_id": first})["name"] == "Yeni Ad"
 
 
+def test_the_daily_counter_restarts_when_the_day_changes(db):
+    users = MongoUserRepository(db)
+    user_id = users.upsert("google-sub-1", "ogrenci@atilim.edu.tr", "Öğrenci")
+
+    assert users.count_question(user_id, "2026-10-12") == 1
+    assert users.count_question(user_id, "2026-10-12") == 2
+    assert users.count_question(user_id, "2026-10-13") == 1
+
+
 def test_turns_round_trip_with_their_timestamps(db):
     conversations = MongoConversationRepository(db)
     conversation_id = conversations.start("user-1", "Bölüm başkanı kim?")

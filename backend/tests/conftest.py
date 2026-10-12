@@ -72,10 +72,15 @@ class InMemoryUserRepository:
 
     def __init__(self) -> None:
         self.saved: dict[str, User] = {}
+        self.asked: dict[tuple[str, str], int] = {}
 
     def upsert(self, google_sub: str, email: str, name: str) -> str:
         self.saved[google_sub] = User(id=google_sub, email=email, name=name)
         return google_sub
+
+    def count_question(self, user_id: str, day: str) -> int:
+        self.asked[user_id, day] = self.asked.get((user_id, day), 0) + 1
+        return self.asked[user_id, day]
 
 
 class InMemoryConversationRepository:

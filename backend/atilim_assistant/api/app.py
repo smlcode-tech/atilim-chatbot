@@ -2,6 +2,7 @@
 
 import logging
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -20,13 +21,7 @@ from atilim_assistant.api.schemas import (
     TurnResponse,
     UserResponse,
 )
-from atilim_assistant.auth import (
-    AuthError,
-    current_user,
-    issue_token,
-    optional_user,
-    verify_google_token,
-)
+from atilim_assistant.auth import AuthError, current_user, issue_token, verify_google_token
 from atilim_assistant.bootstrap import build_chat_service, build_conversation_store
 from atilim_assistant.chat.service import ChatService
 from atilim_assistant.config import Settings, get_settings
@@ -110,16 +105,19 @@ def create_app(
 
     @app.post("/api/chat")
     def chat(
-        body: ChatRequest, request: Request, user: User | None = Depends(optional_user)
+        body: ChatRequest, request: Request, user: User = Depends(current_user)
     ) -> ChatResponse:
         service: ChatService = request.app.state.chat_service
+        settings: Settings = request.app.state.settings
         conversations: ConversationRepository | None = request.app.state.conversations
+
+        _check_daily_limit(request.app.state.users, user.id, settings.daily_question_limit)
 
         history: list[Turn] = []
         conversation_id = None
-        if conversations is not None and user is not None:
+        if conversations is not None:
             conversation_id, history = _resume(
-                conversations, user.id, body.conversation_id, request.app.state.settings
+                conversations, user.id, body.conversation_id, settings
             )
 
         try:
@@ -129,7 +127,7 @@ def create_app(
             raise HTTPException(status_code=502, detail=UNAVAILABLE_DETAIL)
 
         title = None
-        if conversations is not None and user is not None:
+        if conversations is not None:
             if conversation_id is None:
                 title = _title_from(body.question)
                 conversation_id = conversations.start(user.id, title)
@@ -187,6 +185,25 @@ def create_app(
             raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
 
     return app
+
+
+def _check_daily_limit(users: UserRepository | None, user_id: str, limit: int) -> None:
+    """Sayaç tutulamıyorsa soru geçer: depo kesintisi asistanı durdurmamalı."""
+    if users is None:
+        return
+    try:
+        asked = users.count_question(user_id, datetime.now(UTC).date().isoformat())
+    except Exception:
+        logger.exception("Günlük soru sayacı güncellenemedi")
+        return
+    if asked > limit:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Günlük {limit} soru sınırına ulaştın. Asistan ücretsiz bir kota ile "
+                "çalışıyor; yarın tekrar bekleriz."
+            ),
+        )
 
 
 def _require_history(request: Request) -> ConversationRepository:

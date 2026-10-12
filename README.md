@@ -112,12 +112,32 @@ Vite'ın gösterdiği adresi tarayıcıda aç. Geliştirme sunucusu `/api` istek
 | Uç nokta | İstek | Yanıt |
 | --- | --- | --- |
 | `GET /api/health` | — | `{"status": "ok"}` |
-| `POST /api/chat` | `{"question": "..."}` (1-1000 karakter) | `{"answer": "...", "sources": [{"title": "...", "url": "..."}], "prepared": false}` |
+| `POST /api/auth/google` | `{"id_token": "..."}` | `{"token": "...", "user": {...}}` |
+| `GET /api/auth/me` | — | `{"id": "...", "email": "...", "name": "..."}` |
+| `POST /api/chat` | `{"question": "...", "conversation_id": "..."}` | `{"answer": "...", "sources": [...], "prepared": false, "conversation_id": "...", "title": "..."}` |
+| `GET /api/conversations` | — | `[{"id": "...", "title": "...", "updated_at": "..."}]` |
+| `GET /api/conversations/{id}` | — | `{"id": "...", "turns": [{"role": "...", "content": "...", "created_at": "..."}]}` |
+| `DELETE /api/conversations/{id}` | — | 204 |
+
+`/api/health` dışındaki uç noktalar `Authorization: Bearer <token>` ister. Jeton
+`/api/auth/google` ile alınır ve kullanıcının kimliğini kendi içinde taşır; doğrulaması
+veritabanına gitmez.
 
 `prepared: true`, yanıtın model tarafından üretilmediğini, hazır yanıtlardan verildiğini belirtir.
+`conversation_id` verilmezse yeni bir konuşma açılır ve kimliği `title` ile birlikte döner;
+verilirse o konuşmanın son turları, soruyu bağlamlandırmak için kullanılır.
 
-Hatalar `{"detail": "..."}` gövdesiyle döner: geçersiz soru için 422; model yanıt üretemediğinde
-ve soruyu karşılayan hazır yanıt da olmadığında 502.
+Hatalar `{"detail": "..."}` gövdesiyle döner: geçersiz soru için 422; giriş yapılmamışsa 401;
+günlük soru sınırı aşıldığında 429; başkasının konuşmasına erişilmeye çalışıldığında 404;
+model yanıt üretemediğinde ve soruyu karşılayan hazır yanıt da olmadığında 502.
+
+### Takip soruları
+
+`POST /api/chat` bir konuşma kimliğiyle çağrıldığında soru, kendi başına anlaşılıp
+anlaşılmadığına göre değerlendirilir. "Araştırma konuları neler?" gibi öznesi geçmişte kalan
+sorular, arama yapılmadan önce modele yeniden yazdırılır ("Ali Yazıcı'nın araştırma konuları
+neler?"). Kendi konusunu kuran sorular bu adımı atlar; böylece ücretsiz kota her soruda iki kez
+harcanmaz. Geçmişte saklanan metin her zaman kullanıcının yazdığıdır, yeniden yazılmış hâli değil.
 
 ## Kapsamı genişletmek
 
@@ -158,10 +178,16 @@ derleme sırasında `ingest` ile üretilir ve yayın paketine girer.
 
 ### İlk kurulum
 
-1. Render'da **New → Blueprint** ile bu depoyu seç; `render.yaml` okunur ve servis oluşturulur.
-   Sorulduğunda `GEMINI_API_KEY` değerini gir.
-2. Servisin adresi `frontend/vercel.json` içindekinden farklıysa dosyayı güncelle.
-3. Vercel'de depoyu içe aktar; **Root Directory** olarak `frontend` seç.
+1. **MongoDB Atlas**'ta ücretsiz M0 kümesi aç. Network Access'e `0.0.0.0/0` ekle — Render'ın
+   ücretsiz katmanında sabit çıkış IP'si yoktur, IP kısıtlaması çalışmaz. Bağlantı dizesini al.
+2. **Google Cloud Console → Credentials → OAuth 2.0 Client ID** (tür: Web application) oluştur.
+   Authorized JavaScript origins: `http://localhost:5173` ve `https://atilim-chatbot.vercel.app`.
+3. Render'da **New → Blueprint** ile bu depoyu seç; `render.yaml` okunur ve servis oluşturulur.
+   Sorulduğunda `GEMINI_API_KEY`, `MONGODB_URI` ve `GOOGLE_CLIENT_ID` değerlerini gir
+   (`JWT_SECRET` kendiliğinden üretilir).
+4. Servisin adresi `frontend/vercel.json` içindekinden farklıysa dosyayı güncelle.
+5. Vercel'de depoyu içe aktar; **Root Directory** olarak `frontend` seç ve
+   `VITE_GOOGLE_CLIENT_ID` ortam değişkenini 2. adımdaki değerle ekle.
 
 ### Güncelleme
 
@@ -185,10 +211,25 @@ yaklaşık bir dakika sürer.
 | `LLM_MODEL` | `gemini-3.8-flash` | Yanıt üreten model |
 | `EMBED_MODEL` | `gemini-embedding-001` | Embedding modeli |
 | `RETRIEVAL_TOP_K` | `6` | Modele bağlam olarak verilen belge sayısı |
+| `MONGODB_URI` | — | Giriş ve konuşma geçmişi deposu; boşsa ikisi de kapalıdır |
+| `MONGODB_DB` | `atilim_assistant` | Veritabanı adı |
+| `GOOGLE_CLIENT_ID` | — | Google OAuth istemci kimliği |
+| `JWT_SECRET` | — | Oturum jetonlarının imza anahtarı (en az 32 bayt) |
+| `JWT_TTL_HOURS` | `720` | Oturumun geçerlilik süresi |
+| `HISTORY_TURNS` | `6` | Soruyu bağlamlandırırken bakılan geçmiş tur sayısı |
+| `DAILY_QUESTION_LIMIT` | `30` | Kullanıcı başına günlük soru sınırı |
+| `QUOTA_COOLDOWN_SECONDS` | `3600` | Kota bittiğinde modelin yeniden denenmeden önce beklediği süre |
 | `DATA_DIR` | `backend/data` | İndeksin yazıldığı klasör |
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | API'nin dinlediği adres |
 
+Arayüz tarafında `frontend/.env` içindeki `VITE_GOOGLE_CLIENT_ID`, backend'deki
+`GOOGLE_CLIENT_ID` ile aynı olmalıdır.
+
 `EMBED_MODEL` değiştirilirse indeks `ingest` ile yeniden oluşturulmalıdır.
+
+`MONGODB_URI` verilmediğinde ya da Mongo'ya ulaşılamadığında API çalışmaya devam eder; yalnızca
+giriş ve geçmiş devre dışı kalır. Oturum jetonu kendi içinde doğrulandığı için, Mongo kesintisi
+sırasında giriş yapmış kullanıcılar sohbet etmeyi sürdürür.
 
 ## Sorun giderme
 

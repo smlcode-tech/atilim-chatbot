@@ -126,9 +126,27 @@ def test_history_requires_signing_in(anon_client, method, path):
     assert getattr(anon_client, method)(path).status_code == 401
 
 
-def test_chatting_without_signing_in_leaves_no_history(anon_client, conversations):
-    body = anon_client.post("/api/chat", json={"question": "Bölüm başkanı kim?"}).json()
+def test_asking_requires_signing_in(anon_client, conversations):
+    response = anon_client.post("/api/chat", json={"question": "Bölüm başkanı kim?"})
 
-    assert body["answer"]
-    assert body["conversation_id"] is None
+    assert response.status_code == 401
     assert conversations.saved == {}
+
+
+def test_a_user_who_hits_the_daily_limit_is_asked_to_come_back_tomorrow(
+    client, settings, users, user
+):
+    for _ in range(settings.daily_question_limit):
+        assert client.post("/api/chat", json={"question": "Bölüm başkanı kim?"}).status_code == 200
+
+    response = client.post("/api/chat", json={"question": "Bir soru daha"})
+
+    assert response.status_code == 429
+    assert str(settings.daily_question_limit) in response.json()["detail"]
+
+
+def test_each_user_has_their_own_daily_allowance(client, other_client, settings):
+    for _ in range(settings.daily_question_limit):
+        client.post("/api/chat", json={"question": "Bölüm başkanı kim?"})
+
+    assert other_client.post("/api/chat", json={"question": "Hocalar kimler?"}).status_code == 200
