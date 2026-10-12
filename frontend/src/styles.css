@@ -622,14 +622,6 @@ textarea:focus-visible {
   margin-top: auto;
 }
 
-.status-indicator {
-  width: 7px;
-  height: 7px;
-  background: #48c696;
-  border-radius: 50%;
-  box-shadow: 0 0 0 3px #48c6961c;
-}
-
 .chat-panel {
   display: flex;
   flex: 1;
@@ -683,6 +675,9 @@ textarea:focus-visible {
 .status-indicator {
   width: 6px;
   height: 6px;
+  background: #48c696;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px #48c6961c;
 }
 
 .status-checking .status-indicator {

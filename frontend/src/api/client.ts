@@ -62,6 +62,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (response.status === 401) {
     writeToken(null)
+    window.dispatchEvent(new CustomEvent('atilim:unauthorized'))
     throw new UnauthorizedError(
       typeof payload.detail === 'string' ? payload.detail : 'Oturumunuz sona erdi.',
     )
@@ -141,8 +142,8 @@ export async function fetchConversation(id: string): Promise<Message[]> {
     turns: { role: 'user' | 'assistant'; content: string; created_at: string }[]
   }>(`/api/conversations/${encodeURIComponent(id)}`)
 
-  return body.turns.map((turn) => ({
-    id: crypto.randomUUID(),
+  return body.turns.map((turn, index) => ({
+    id: `${turn.role}-${turn.created_at}-${index}`,
     role: turn.role,
     content: turn.content,
     createdAt: turn.created_at,

@@ -33,6 +33,12 @@ def build_provider(settings: Settings) -> tuple[ChatModel, Embedder]:
         chat: ChatModel = GroqProvider(api_key=groq_key, llm_model=settings.llm_model)
         logger.info("LLM: Groq (%s)", settings.llm_model)
     else:
+        if settings.llm_model.startswith("openai/") or "gpt-" in settings.llm_model:
+            raise RuntimeError(
+                f"LLM_PROVIDER={settings.llm_provider!r} ama LLM_MODEL={settings.llm_model!r} "
+                "Groq'a özgü bir model adı. "
+                "LLM_MODEL'i geçerli bir Gemini model adıyla güncelle (örn. 'gemini-2.5-flash')."
+            )
         chat = gemini
         logger.info("LLM: Gemini (%s)", settings.llm_model)
     return chat, gemini  # (chat_model, embedder)

@@ -80,9 +80,18 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
       const stored = await fetchConversation(id)
       setMessages(stored)
       setConversationId(id)
-    } catch {
-      setMessages([])
+    } catch (error) {
       setConversationId(null)
+      setMessages([
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content:
+            error instanceof Error ? error.message : 'Konuşma yüklenemedi. Lütfen tekrar deneyin.',
+          isError: true,
+          createdAt: new Date().toISOString(),
+        },
+      ])
     } finally {
       setIsLoading(false)
     }

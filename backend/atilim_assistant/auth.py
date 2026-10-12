@@ -63,13 +63,13 @@ def read_token(token: str, secret: str) -> User:
 
 def current_user(request: Request) -> User:
     """`Authorization: Bearer` başlığındaki oturum jetonunu çözer."""
-    user = optional_user(request)
+    user = _optional_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Bu işlem için giriş yapmalısınız.")
     return user
 
 
-def optional_user(request: Request) -> User | None:
+def _optional_user(request: Request) -> User | None:
     """Jeton yoksa None; varsa geçerli olmak zorundadır."""
     scheme, _, token = request.headers.get("Authorization", "").partition(" ")
     if scheme.lower() != "bearer" or not token:

@@ -63,6 +63,15 @@ export function useAuth() {
     }
   }, [])
 
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      isInitialized.current = false
+      setUser(null)
+    }
+    window.addEventListener('atilim:unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('atilim:unauthorized', handleUnauthorized)
+  }, [])
+
   const mountGoogleButton = useCallback(async (parent: HTMLElement) => {
     if (isInitialized.current) return
     if (!CLIENT_ID) {

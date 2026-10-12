@@ -183,7 +183,7 @@ derleme sırasında `ingest` ile üretilir ve yayın paketine girer.
 2. **Google Cloud Console → Credentials → OAuth 2.0 Client ID** (tür: Web application) oluştur.
    Authorized JavaScript origins: `http://localhost:5173` ve `https://atilim-chatbot.vercel.app`.
 3. Render'da **New → Blueprint** ile bu depoyu seç; `render.yaml` okunur ve servis oluşturulur.
-   Sorulduğunda `GEMINI_API_KEY`, `MONGODB_URI` ve `GOOGLE_CLIENT_ID` değerlerini gir
+   Sorulduğunda `GEMINI_API_KEY`, `GROQ_API_KEY`, `MONGODB_URI` ve `GOOGLE_CLIENT_ID` değerlerini gir
    (`JWT_SECRET` kendiliğinden üretilir).
 4. Servisin adresi `frontend/vercel.json` içindekinden farklıysa dosyayı güncelle.
 5. Vercel'de depoyu içe aktar; **Root Directory** olarak `frontend` seç ve
@@ -207,8 +207,10 @@ yaklaşık bir dakika sürer.
 
 | Değişken | Varsayılan | Açıklama |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | — (zorunlu) | Google Gemini API anahtarı |
-| `LLM_MODEL` | `gemini-3.8-flash` | Yanıt üreten model |
+| `GEMINI_API_KEY` | — (zorunlu) | Google Gemini API anahtarı (embedding için her zaman gerekli) |
+| `GROQ_API_KEY` | — (zorunlu) | Groq API anahtarı (yanıt üretimi için) |
+| `LLM_PROVIDER` | `groq` | `groq` veya `gemini` |
+| `LLM_MODEL` | `openai/gpt-oss-120b` | Yanıt üreten model (Groq: `openai/gpt-oss-120b`, Gemini: `gemini-2.5-flash`) |
 | `EMBED_MODEL` | `gemini-embedding-001` | Embedding modeli |
 | `RETRIEVAL_TOP_K` | `6` | Modele bağlam olarak verilen belge sayısı |
 | `MONGODB_URI` | — | Giriş ve konuşma geçmişi deposu; boşsa ikisi de kapalıdır |

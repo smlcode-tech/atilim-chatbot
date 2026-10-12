@@ -1,4 +1,5 @@
 import { motion } from 'motion/react'
+import { assistant } from '../config/assistant'
 
 export function SplashScreen() {
   return (
@@ -27,7 +28,7 @@ export function SplashScreen() {
       >
         <img
           src="/favicon.svg"
-          alt="Atılım Asistan"
+          alt={assistant.name}
           width={120}
           height={120}
           style={{ borderRadius: 24 }}
