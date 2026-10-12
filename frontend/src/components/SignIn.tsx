@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { GraduationCap, ShieldCheck } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 import { assistant } from '../config/assistant'
 
 type SignInProps = {
@@ -16,27 +16,40 @@ export function SignIn({ error, onMountGoogleButton }: SignInProps) {
 
   return (
     <main className="signin-shell">
-      <section className="signin-card">
-        <span className="brand-mark signin-mark">
-          <GraduationCap size={26} strokeWidth={1.8} />
-        </span>
+      {/* Sol — marka */}
+      <div className="signin-brand">
+        <div className="signin-brand-content">
+          <img src="/favicon.svg" alt="Logo" className="signin-logo" />
+          <p className="signin-brand-uni">{assistant.university.name}</p>
+          <h1 className="signin-brand-name">{assistant.name}</h1>
+          <p className="signin-brand-desc">{assistant.welcomeDescription}</p>
 
-        <h1>{assistant.name}</h1>
-        <p className="signin-scope">{assistant.scopeLabel}</p>
-        <p className="signin-lead">
-          Sohbetlerinin kaydedilmesi ve sorularının önceki yanıtlarla birlikte anlaşılması için
-          Google hesabınla giriş yap.
-        </p>
+          <div className="signin-brand-divider" />
 
-        <div className="signin-button" ref={buttonRef} />
+          <p className="signin-brand-footnote">{assistant.welcomeFootnote}</p>
+        </div>
+      </div>
 
-        {error && <p className="signin-error">{error}</p>}
+      {/* Sağ — giriş formu */}
+      <div className="signin-form-panel">
+        <div className="signin-form-inner">
+          <div className="signin-form-header">
+            <h2 className="signin-form-title">Giriş yap</h2>
+            <p className="signin-lead">
+              Sohbet geçmişine erişmek ve daha akıllı yanıtlar almak için Google hesabınla devam et.
+            </p>
+          </div>
 
-        <p className="signin-privacy">
-          <ShieldCheck size={13} />
-          Yalnızca adın ve e-posta adresin saklanır.
-        </p>
-      </section>
+          <div className="signin-button" ref={buttonRef} />
+
+          {error && <p className="signin-error">{error}</p>}
+
+          <p className="signin-privacy">
+            <ShieldCheck size={14} />
+            Yalnızca adın ve e-posta adresin saklanır.
+          </p>
+        </div>
+      </div>
     </main>
   )
 }

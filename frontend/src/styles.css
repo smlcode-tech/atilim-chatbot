@@ -55,70 +55,150 @@ textarea:focus-visible {
   background: #f5f7fc;
 }
 
+/* ── Giriş ekranı ── */
 .signin-shell {
-  display: grid;
-  place-items: center;
-  min-height: 100vh;
-  padding: 24px;
-  background: linear-gradient(160deg, #f5f7fc, #eaeef9);
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
 }
 
-.signin-card {
+/* Sol panel — marka */
+.signin-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48%;
+  background: #283480;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Dekoratif arka plan dairesi */
+.signin-brand::before {
+  content: '';
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  bottom: -160px;
+  right: -140px;
+  pointer-events: none;
+}
+
+.signin-brand-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 380px;
+  padding: 0 56px;
+}
+
+.signin-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  margin-bottom: 36px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.signin-brand-uni {
+  margin: 0 0 14px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.signin-brand-name {
+  margin: 0 0 20px;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  line-height: 1.1;
+  color: #fff;
+}
+
+.signin-brand-desc {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.signin-brand-divider {
+  width: 40px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 32px 0;
+  border-radius: 2px;
+}
+
+.signin-brand-footnote {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  line-height: 1.6;
+}
+
+/* Sağ panel — form */
+.signin-form-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+
+.signin-form-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: min(100%, 420px);
-  padding: 40px 32px 32px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-top: 3px solid var(--accent);
-  border-radius: 5px;
-  box-shadow: 0 18px 44px rgba(26, 29, 38, 0.09);
+  width: min(100%, 340px);
+  padding: 0 24px;
   text-align: center;
 }
 
-.signin-mark {
-  width: 48px;
-  height: 48px;
-  border-radius: 15px;
+.signin-form-header {
+  margin-bottom: 32px;
 }
 
-.signin-card h1 {
-  margin: 20px 0 0;
-  font-size: 20px;
+.signin-form-title {
+  margin: 0 0 14px;
+  font-size: 26px;
   font-weight: 700;
-  letter-spacing: -0.3px;
-}
-
-.signin-scope {
-  margin: 7px 0 0;
-  color: #9397a7;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 1.15px;
+  letter-spacing: -0.5px;
+  color: var(--ink);
 }
 
 .signin-lead {
-  margin: 18px 0 26px;
-  color: #73788c;
-  font-size: 12px;
-  line-height: 1.7;
+  margin: 0;
+  color: #7a7f94;
+  font-size: 14px;
+  line-height: 1.75;
 }
 
 .signin-button {
   display: flex;
   justify-content: center;
   min-height: 44px;
+  width: 100%;
 }
 
 .signin-error {
-  margin: 16px 0 0;
-  padding: 10px 13px;
+  margin: 20px 0 0;
+  padding: 12px 14px;
   color: var(--accent-dark);
   background: #fde8e9;
-  border-radius: 5px;
-  font-size: 11px;
+  border-radius: 6px;
+  font-size: 12px;
   line-height: 1.6;
+  width: 100%;
+  text-align: left;
 }
 
 .signin-privacy {
@@ -126,9 +206,38 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  margin: 24px 0 0;
-  color: #a1a4b2;
-  font-size: 9px;
+  margin: 28px 0 0;
+  color: #b0b5c8;
+  font-size: 11px;
+}
+
+/* Mobil — alt alta */
+@media (max-width: 680px) {
+  .signin-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .signin-brand {
+    width: 100%;
+    padding: 48px 0;
+  }
+
+  .signin-brand-content {
+    align-items: center;
+    text-align: center;
+    padding: 0 32px;
+  }
+
+  .signin-brand-name {
+    font-size: 28px;
+  }
+
+  .signin-form-panel {
+    flex: none;
+    padding: 48px 0 64px;
+  }
 }
 
 /* Geniş ekranda yan bar kalıcıdır; çekmece düğmesi ve perdesi yalnızca dar ekranda görünür. */
