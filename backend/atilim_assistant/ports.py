@@ -1,6 +1,30 @@
-"""Dış model sağlayıcılarının uyması gereken arayüzler."""
+"""Dış model sağlayıcılarının ve kalıcı depoların uyması gereken arayüzler."""
 
 from typing import Protocol
+
+from atilim_assistant.domain import ConversationSummary, Turn
+
+
+class UserRepository(Protocol):
+    def upsert(self, google_sub: str, email: str, name: str) -> str:
+        """Kullanıcıyı kaydeder ya da günceller; kullanıcı kimliğini döndürür."""
+        ...
+
+
+class ConversationRepository(Protocol):
+    def start(self, user_id: str, title: str) -> str:
+        """Yeni konuşma açar; kimliğini döndürür."""
+        ...
+
+    def add_turns(self, conversation_id: str, user_id: str, turns: list[Turn]) -> None: ...
+
+    def turns(self, conversation_id: str, user_id: str) -> list[Turn] | None:
+        """Konuşma yoksa ya da başkasına aitse None."""
+        ...
+
+    def list_for(self, user_id: str) -> list[ConversationSummary]: ...
+
+    def delete(self, conversation_id: str, user_id: str) -> bool: ...
 
 
 class Embedder(Protocol):

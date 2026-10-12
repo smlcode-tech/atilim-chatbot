@@ -8,6 +8,11 @@ from atilim_assistant.providers.gemini import GeminiProvider
 from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher, PreparedAnswerStore
 from atilim_assistant.retrieval.retriever import HybridRetriever
 from atilim_assistant.retrieval.store import DocumentStore
+from atilim_assistant.storage.mongo import (
+    MongoConversationRepository,
+    MongoUserRepository,
+    connect,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,17 @@ def build_store(settings: Settings) -> DocumentStore:
 
 def build_prepared_answer_store(settings: Settings) -> PreparedAnswerStore:
     return PreparedAnswerStore(settings.prepared_answers_path)
+
+
+def build_conversation_store(
+    settings: Settings,
+) -> tuple[MongoUserRepository | None, MongoConversationRepository | None]:
+    """MONGODB_URI tanımlı değilse geçmiş kapalıdır; asistan yine çalışır."""
+    if settings.mongodb_uri is None:
+        logger.warning("MONGODB_URI tanımlı değil; konuşma geçmişi ve giriş devre dışı.")
+        return None, None
+    db = connect(settings.mongodb_uri.get_secret_value(), settings.mongodb_db)
+    return MongoUserRepository(db), MongoConversationRepository(db)
 
 
 def build_chat_service(settings: Settings) -> ChatService:

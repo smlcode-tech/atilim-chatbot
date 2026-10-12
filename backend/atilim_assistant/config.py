@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8000
 
+    # Google Cloud Console'dan alınan OAuth istemci kimliği; boşsa giriş uç noktası kapalıdır.
+    google_client_id: str = ""
+    jwt_secret: SecretStr = SecretStr("")
+    jwt_ttl_hours: int = 720
+
+    # Boşsa asistan konuşma geçmişi olmadan çalışır; sohbet etmek yine mümkündür.
+    mongodb_uri: SecretStr | None = None
+    mongodb_db: str = "atilim_assistant"
+
     @property
     def vector_store_dir(self) -> Path:
         return self.data_dir / "chroma"

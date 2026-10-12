@@ -17,3 +17,11 @@ services:
         value: 0.0.0.0
       - key: GEMINI_API_KEY
         sync: false
+      # Atlas'ta Network Access 0.0.0.0/0 olmalı: Render ücretsiz katmanın sabit çıkış IP'si yok.
+      - key: MONGODB_URI
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      # Servis yeniden oluşturulursa yeni değer üretilir ve herkes çıkış yapmış olur.
+      - key: JWT_SECRET
+        generateValue: true

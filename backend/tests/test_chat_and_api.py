@@ -1,43 +1,8 @@
 import pytest
-from fastapi.testclient import TestClient
 
-from atilim_assistant.api.app import UNAVAILABLE_DETAIL, create_app
+from atilim_assistant.api.app import UNAVAILABLE_DETAIL
 from atilim_assistant.chat import service as chat_service
-from atilim_assistant.chat.service import ChatService
 from atilim_assistant.domain import Turn
-from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher
-
-
-class FakeRetriever:
-    def __init__(self, documents):
-        self._documents = documents
-
-    def retrieve(self, query):
-        return self._documents
-
-
-class FakeModel:
-    def __init__(self, reply="Bölüm başkanı Prof. Dr. Ayşe ÖRNEK'tir."):
-        self.reply = reply
-        self.prompt = None
-        self.calls = 0
-
-    def generate(self, system, prompt):
-        self.calls += 1
-        self.prompt = prompt
-        if isinstance(self.reply, Exception):
-            raise self.reply
-        return self.reply
-
-
-@pytest.fixture
-def model() -> FakeModel:
-    return FakeModel()
-
-
-@pytest.fixture
-def service(staff_documents, staff_answers, model) -> ChatService:
-    return ChatService(FakeRetriever(staff_documents), model, PreparedAnswerMatcher(staff_answers))
 
 
 @pytest.fixture
@@ -46,12 +11,6 @@ def history() -> list[Turn]:
         Turn(role="user", content="Ayşe Örnek kim?"),
         Turn(role="assistant", content="Prof. Dr. Ayşe ÖRNEK, Test Bölümü başkanıdır."),
     ]
-
-
-@pytest.fixture
-def client(service):
-    with TestClient(create_app(service)) as client:
-        yield client
 
 
 def test_answer_grounds_the_model_and_cites_each_page_once(service, model, staff_source):
@@ -154,11 +113,10 @@ def test_chat_returns_answer_with_sources(client, staff_source):
     response = client.post("/api/chat", json={"question": "  Bölüm başkanı kim?  "})
 
     assert response.status_code == 200
-    assert response.json() == {
-        "answer": "Bölüm başkanı Prof. Dr. Ayşe ÖRNEK'tir.",
-        "sources": [{"title": staff_source.title, "url": staff_source.url}],
-        "prepared": False,
-    }
+    body = response.json()
+    assert body["answer"] == "Bölüm başkanı Prof. Dr. Ayşe ÖRNEK'tir."
+    assert body["sources"] == [{"title": staff_source.title, "url": staff_source.url}]
+    assert body["prepared"] is False
 
 
 def test_chat_marks_prepared_answers(client, model):

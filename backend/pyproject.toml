@@ -10,6 +10,10 @@ dependencies = [
     "google-genai>=2.0",
     "httpx>=0.28",
     "pydantic-settings>=2.6",
+    "pymongo>=4.10",
+    # Hem kendi oturum jetonumuzu üretir hem de Google kimlik jetonunu Google'ın JWKS'ine karşı
+    # doğrular; ayrı bir Google kütüphanesi gerekmiyor.
+    "pyjwt[crypto]>=2.10",
     "uvicorn>=0.34",
 ]
 
