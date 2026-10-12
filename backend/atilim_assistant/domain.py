@@ -1,7 +1,9 @@
 """Katmanlar arasında taşınan çekirdek veri tipleri."""
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,3 +67,12 @@ class Answer:
     text: str
     citations: list[Citation]
     prepared: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class Turn:
+    """Bir konuşmadaki tek bir söz: kullanıcının sorusu ya da asistanın yanıtı."""
+
+    role: Literal["user", "assistant"]
+    content: str
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))

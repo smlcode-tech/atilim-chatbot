@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     collection: str = "atilim_documents"
     retrieval_top_k: int = 6
 
+    # Kota bittiğinde modelin yeniden denenmeden önce bekleyeceği süre.
+    quota_cooldown_seconds: int = 3600
+    # Takip sorusunu bağlamlandırırken modele verilen geçmiş tur sayısı.
+    history_turns: int = 6
+
     api_host: str = "127.0.0.1"
     api_port: int = 8000
 

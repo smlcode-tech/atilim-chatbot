@@ -37,8 +37,11 @@ def create_app(chat_service: ChatService | None = None) -> FastAPI:
     app = FastAPI(title="Atılım Akademik Asistan API", lifespan=lifespan)
 
     @app.exception_handler(RequestValidationError)
-    async def invalid_request(_: Request, __: RequestValidationError) -> JSONResponse:
-        detail = f"Soru 1-{MAX_QUESTION_LENGTH} karakter uzunluğunda bir metin olmalıdır."
+    async def invalid_request(_: Request, error: RequestValidationError) -> JSONResponse:
+        if any("question" in failure["loc"] for failure in error.errors()):
+            detail = f"Soru 1-{MAX_QUESTION_LENGTH} karakter uzunluğunda bir metin olmalıdır."
+        else:
+            detail = "İstek geçersiz."
         return JSONResponse(status_code=422, content={"detail": detail})
 
     @app.get("/api/health")

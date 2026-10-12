@@ -41,4 +41,9 @@ def build_chat_service(settings: Settings) -> ChatService:
         )
     provider = build_provider(settings)
     retriever = HybridRetriever(store, provider, settings.retrieval_top_k)
-    return ChatService(retriever, provider, PreparedAnswerMatcher(prepared_answers))
+    return ChatService(
+        retriever,
+        provider,
+        PreparedAnswerMatcher(prepared_answers),
+        settings.quota_cooldown_seconds,
+    )

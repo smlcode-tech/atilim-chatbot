@@ -11,21 +11,11 @@ from dataclasses import asdict
 from pathlib import Path
 
 from atilim_assistant.domain import PreparedAnswer
-from atilim_assistant.text import stem, tokenize
+from atilim_assistant.text import FILLER_WORDS, stem, tokenize
 
 # Sorunun içerik sözcüklerinin (ağırlıkça) en az bu kadarı bir soru kalıbında geçmelidir.
 # Daha düşük eşik, sorunun asıl konusunu karşılamayan yanıtların verilmesine yol açar.
 _MIN_COVERAGE = 0.75
-
-# Soru kalıbı, ek ve dolgu sözcükleri (normalleştirilmiş); eşleşmeyi içerik sözcükleri belirler.
-_FILLER_WORDS = frozenset(
-    """
-    acaba bana baska bir bize bu da dan de den dir dur hakkinda hangi hangileri hangisi icin ile
-    in kac kim kimdir kimler kimlerdir la le lutfen merhaba mi misin misiniz mu musun musunuz
-    na nasil ne nedir neler nelerdir nerede ni nin nun olan olarak selam soyle soyler su ta te
-    tir tur un var ve ver verir ya ye yi
-    """.split()
-)
 
 
 class PreparedAnswerStore:
@@ -89,7 +79,7 @@ class PreparedAnswerMatcher:
 
 
 def _terms(text: str) -> frozenset[str]:
-    return frozenset(stem(token) for token in tokenize(text) if token not in _FILLER_WORDS)
+    return frozenset(stem(token) for token in tokenize(text) if token not in FILLER_WORDS)
 
 
 def _rarity(frequency: int, total: int) -> float:
