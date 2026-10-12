@@ -49,7 +49,8 @@ def _ingest(args: argparse.Namespace) -> None:
 
     if not args.dry_run:
         settings = get_settings()
-        provider, store = build_provider(settings), build_store(settings)
+        _chat_model, provider = build_provider(settings)
+        store = build_store(settings)
         prepared_answers = build_prepared_answer_store(settings)
 
     for source in sources:
