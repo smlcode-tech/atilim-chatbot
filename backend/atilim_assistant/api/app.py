@@ -111,7 +111,7 @@ def create_app(
         settings: Settings = request.app.state.settings
         conversations: ConversationRepository | None = request.app.state.conversations
 
-        _check_daily_limit(request.app.state.users, user.id, settings.daily_question_limit)
+        # _check_daily_limit(request.app.state.users, user.id, settings.daily_question_limit)
 
         history: list[Turn] = []
         conversation_id = None
