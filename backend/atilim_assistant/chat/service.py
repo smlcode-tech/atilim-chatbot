@@ -42,16 +42,15 @@ class ChatService:
         """Model de hazır yanıtlar da soruyu karşılayamazsa modelin hatasını yükseltir."""
         search_question = self._standalone(question, history or [])
         prepared = self._prepared_answers.match(search_question)
-        if prepared and self._cooling():
+        # Eşleşen hazır yanıt her zaman önceliklidir: biçim ve içerik kasıtlı olarak
+        # seçilmiştir; LLM bağlamdan farklı belgeler karıştırabilir.
+        if prepared:
             return _prepared_answer(prepared)
         try:
             return self._generate(search_question)
         except Exception as error:
             self._note_failure(error)
-            if prepared is None:
-                raise
-            logger.warning("Model yanıt üretemedi, hazır yanıt veriliyor: %s", error)
-            return _prepared_answer(prepared)
+            raise
 
     def _standalone(self, question: str, history: list[Turn]) -> str:
         """Takip sorusunu bağımsız hâle getirir; gerekmiyorsa soruyu aynen döndürür.

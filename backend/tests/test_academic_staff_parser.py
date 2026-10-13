@@ -40,9 +40,9 @@ def test_section_heading_marks_employment_type(staff_documents):
 def test_roster_lists_every_member(staff_documents):
     assert staff_documents[0].text == (
         "Test Bölümü akademik kadrosu (3 kişi):\n"
-        "- Prof. Dr. Ayşe ÖRNEK (Bölüm Başkanı)\n"
+        "- Prof. Dr. Ayşe ÖRNEK – Bölüm Başkanı\n"
         "- Arş. Gör. Işıl ÇALIŞKAN\n"
-        "- Öğr. Gör. Mehmet DENEME (Yarı Zamanlı Öğretim Elemanları)"
+        "- Öğr. Gör. Mehmet DENEME – Yarı Zamanlı Öğretim Elemanları"
     )
 
 
@@ -95,9 +95,9 @@ def test_answers_mark_fields_missing_from_the_page(staff_answers):
 def test_unit_answers_cover_roster_officers_and_employment_groups(staff_answers):
     assert _answer_to(staff_answers, "Test Bölümü akademik kadrosunda kimler var?").answer == (
         "Test Bölümü akademik kadrosu (3 kişi):\n"
-        "- Prof. Dr. Ayşe ÖRNEK (Bölüm Başkanı)\n"
+        "- Prof. Dr. Ayşe ÖRNEK – Bölüm Başkanı\n"
         "- Arş. Gör. Işıl ÇALIŞKAN\n"
-        "- Öğr. Gör. Mehmet DENEME (Yarı Zamanlı Öğretim Elemanları)"
+        "- Öğr. Gör. Mehmet DENEME – Yarı Zamanlı Öğretim Elemanları"
     )
     assert _answer_to(staff_answers, "Test Bölümü Bölüm Başkanı kim?").answer == (
         "Test Bölümü görevlileri:\n- Prof. Dr. Ayşe ÖRNEK (Bölüm Başkanı)"
