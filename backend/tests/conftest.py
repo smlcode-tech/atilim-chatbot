@@ -18,7 +18,7 @@ from atilim_assistant.domain import (
     Turn,
     User,
 )
-from atilim_assistant.ingestion.parsers import academic_staff
+from atilim_assistant.ingestion.parsers.departments.software_engineering import academic_staff
 from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher
 
 FIXTURES = Path(__file__).parent / "fixtures"

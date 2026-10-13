@@ -5,7 +5,10 @@ ayrıştırıcılardan birine uymuyorsa `parsers/` altına yeni bir ayrıştır�
 """
 
 from atilim_assistant.domain import Source
-from atilim_assistant.ingestion.parsers import academic_staff, department_intro
+from atilim_assistant.ingestion.parsers.departments.software_engineering import (
+    academic_staff,
+    department_intro,
+)
 
 SOURCES: tuple[Source, ...] = (
     Source(

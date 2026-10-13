@@ -1,6 +1,6 @@
 import pytest
 
-from atilim_assistant.ingestion.parsers import academic_staff
+from atilim_assistant.ingestion.parsers.departments.software_engineering import academic_staff
 
 
 def test_produces_roster_and_one_document_per_member(staff_documents):
