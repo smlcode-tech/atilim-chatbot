@@ -5,9 +5,17 @@ ayrıştırıcılardan birine uymuyorsa `parsers/` altına yeni bir ayrıştır�
 """
 
 from atilim_assistant.domain import Source
-from atilim_assistant.ingestion.parsers import academic_staff
+from atilim_assistant.ingestion.parsers import academic_staff, department_intro
 
 SOURCES: tuple[Source, ...] = (
+    Source(
+        id="se-tanitim",
+        title="Yazılım Mühendisliği Bölümü — Tanıtım",
+        url="https://www.atilim.edu.tr/tr/se",
+        unit="Atılım Üniversitesi Yazılım Mühendisliği Bölümü",
+        category="bolum-tanitim",
+        parser=department_intro.parse,
+    ),
     Source(
         id="se-akademik-personel",
         title="Yazılım Mühendisliği Bölümü — Akademik Personel",
