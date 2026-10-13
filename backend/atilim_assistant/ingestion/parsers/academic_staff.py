@@ -101,8 +101,9 @@ def _member_fields(member: _StaffMember) -> list[str]:
 def _roster_text(members: list[_StaffMember], source: Source) -> str:
     entries = []
     for member in members:
-        details = ", ".join(filter(None, [member.role, member.employment]))
-        entries.append(member.name + (f" ({details})" if details else ""))
+        # Önce görev unvanı (Bölüm Başkanı vb.), yoksa kadro türü (Yarı Zamanlı vb.) göster
+        label = member.role or member.employment
+        entries.append(f"{member.name} – {label}" if label else member.name)
     return _bullets(f"{source.unit} akademik kadrosu ({len(members)} kişi):", entries)
 
 
