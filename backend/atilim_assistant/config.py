@@ -12,13 +12,11 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BACKEND_ROOT / ".env", extra="ignore")
 
-    gemini_api_key: SecretStr
-    groq_api_key: SecretStr = SecretStr("")
-    # "groq" veya "gemini"; groq seçilirse GROQ_API_KEY zorunludur.
+    groq_api_key: SecretStr
+    voyage_api_key: SecretStr
     llm_provider: str = "groq"
     llm_model: str = "openai/gpt-oss-120b"
-    embed_model: str = "gemini-embedding-001"
-    embed_dimensions: int = 768
+    embed_model: str = "voyage-multilingual-2"
 
     data_dir: Path = BACKEND_ROOT / "data"
     collection: str = "atilim_documents"

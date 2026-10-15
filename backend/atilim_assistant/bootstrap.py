@@ -5,8 +5,8 @@ import logging
 from atilim_assistant.chat.service import ChatService
 from atilim_assistant.config import Settings
 from atilim_assistant.ports import ChatModel, Embedder
-from atilim_assistant.providers.gemini import GeminiProvider
 from atilim_assistant.providers.groq import GroqProvider
+from atilim_assistant.providers.voyage import VoyageEmbedder
 from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher, PreparedAnswerStore
 from atilim_assistant.retrieval.retriever import HybridRetriever
 from atilim_assistant.retrieval.store import DocumentStore
@@ -20,28 +20,17 @@ logger = logging.getLogger(__name__)
 
 
 def build_provider(settings: Settings) -> tuple[ChatModel, Embedder]:
-    gemini = GeminiProvider(
-        api_key=settings.gemini_api_key.get_secret_value(),
-        llm_model=settings.llm_model,
-        embed_model=settings.embed_model,
-        embed_dimensions=settings.embed_dimensions,
+    embedder: Embedder = VoyageEmbedder(
+        api_key=settings.voyage_api_key.get_secret_value(),
+        model=settings.embed_model,
     )
-    if settings.llm_provider == "groq":
-        groq_key = settings.groq_api_key.get_secret_value()
-        if not groq_key:
-            raise RuntimeError("LLM_PROVIDER=groq ama GROQ_API_KEY tanımlı değil.")
-        chat: ChatModel = GroqProvider(api_key=groq_key, llm_model=settings.llm_model)
-        logger.info("LLM: Groq (%s)", settings.llm_model)
-    else:
-        if settings.llm_model.startswith("openai/") or "gpt-" in settings.llm_model:
-            raise RuntimeError(
-                f"LLM_PROVIDER={settings.llm_provider!r} ama LLM_MODEL={settings.llm_model!r} "
-                "Groq'a özgü bir model adı. "
-                "LLM_MODEL'i geçerli bir Gemini model adıyla güncelle (örn. 'gemini-2.5-flash')."
-            )
-        chat = gemini
-        logger.info("LLM: Gemini (%s)", settings.llm_model)
-    return chat, gemini  # (chat_model, embedder)
+    logger.info("Embedder: Voyage AI (%s)", settings.embed_model)
+
+    groq_key = settings.groq_api_key.get_secret_value()
+    chat: ChatModel = GroqProvider(api_key=groq_key, llm_model=settings.llm_model)
+    logger.info("LLM: Groq (%s)", settings.llm_model)
+
+    return chat, embedder
 
 
 def build_store(settings: Settings) -> DocumentStore:

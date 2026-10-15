@@ -151,7 +151,8 @@ def conversations() -> InMemoryConversationRepository:
 def settings() -> Settings:
     """Gerçek ayarlar `.env` ve bir Gemini anahtarı ister; testler kendi ayarlarını kurar."""
     return Settings(
-        gemini_api_key=SecretStr("test-key"),
+        voyage_api_key=SecretStr("test-voyage-key"),
+        groq_api_key=SecretStr("test-groq-key"),
         jwt_secret=SecretStr("test-secret-at-least-32-bytes-long!"),
         google_client_id="test-client-id",
     )
