@@ -13,6 +13,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     endustri_danisma_kurulu,
     idari_personel,
     komiteler,
+    mufredat,
     ogrenci_danisma_kurulu,
     program_ciktilari,
     sikca_sorulan_sorular,
@@ -92,6 +93,14 @@ SOURCES: tuple[Source, ...] = (
         unit=_SE,
         category="akademik-personel",
         parser=academic_staff.parse,
+    ),
+    Source(
+        id="se-mufredat",
+        title="Yazılım Mühendisliği Bölümü — Müfredat",
+        url="https://www.atilim.edu.tr/tr/se/page/2284/mufredat",
+        unit=_SE,
+        category="lisans-programi",
+        parser=mufredat.parse,
     ),
     Source(
         id="se-idari-personel",
