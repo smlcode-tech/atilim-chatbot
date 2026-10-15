@@ -9,6 +9,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     academic_staff,
     bolum_baskani_mesaji,
     department_intro,
+    dersler,
     egitim_amaclari,
     endustri_danisma_kurulu,
     idari_personel,
@@ -101,6 +102,14 @@ SOURCES: tuple[Source, ...] = (
         unit=_SE,
         category="lisans-programi",
         parser=mufredat.parse,
+    ),
+    Source(
+        id="se-dersler",
+        title="Yazılım Mühendisliği Bölümü — Dersler",
+        url="https://www.atilim.edu.tr/tr/se/page/2285/dersler",
+        unit=_SE,
+        category="lisans-programi",
+        parser=dersler.parse,
     ),
     Source(
         id="se-idari-personel",
