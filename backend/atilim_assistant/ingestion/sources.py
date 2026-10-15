@@ -12,6 +12,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     bolum_baskani_mesaji,
     department_intro,
     dersler,
+    dilekce_ornekleri,
     egitim_amaclari,
     endustri_danisma_kurulu,
     idari_personel,
@@ -133,6 +134,14 @@ SOURCES: tuple[Source, ...] = (
         unit=_SE,
         category="idari-personel",
         parser=idari_personel.parse,
+    ),
+    Source(
+        id="se-dilekce-ornekleri",
+        title="Yazılım Mühendisliği Bölümü — Dilekçe Örnekleri",
+        url="https://www.atilim.edu.tr/tr/se/page/5217/dilekce-ornekleri",
+        unit=_SE,
+        category="ogrenci-hizmetleri",
+        parser=dilekce_ornekleri.parse,
     ),
     Source(
         id="se-yaz-stajlari",
