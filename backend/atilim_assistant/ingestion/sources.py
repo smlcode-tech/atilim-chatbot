@@ -16,6 +16,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     komiteler,
     mufredat,
     ogrenci_danisma_kurulu,
+    ortak_egitim,
     program_ciktilari,
     sikca_sorulan_sorular,
 )
@@ -110,6 +111,14 @@ SOURCES: tuple[Source, ...] = (
         unit=_SE,
         category="lisans-programi",
         parser=dersler.parse,
+    ),
+    Source(
+        id="se-ortak-egitim",
+        title="Yazılım Mühendisliği Bölümü — Ortak Eğitim",
+        url="https://www.atilim.edu.tr/tr/se/page/3591/ortak-egitim",
+        unit=_SE,
+        category="lisans-programi",
+        parser=ortak_egitim.parse,
     ),
     Source(
         id="se-idari-personel",
