@@ -19,8 +19,15 @@ def fetch_html(url: str) -> str:
 
 
 def load_content(source: Source, html: str | None = None) -> SourceContent:
-    """`html` verilmezse sayfa siteden çekilir; verilirse (hata ayıklama) doğrudan o ayrıştırılır."""
-    return source.parser(html if html is not None else fetch_html(source.url), source)
+    """`html` verilmezse sayfa siteden çekilir; verilirse (hata ayıklama) doğrudan o ayrıştırılır.
+    `source.local_content_path` tanımlıysa ağ isteği yapılmaz, dosya okunur."""
+    if html is not None:
+        raw = html
+    elif source.local_content_path is not None:
+        raw = source.local_content_path.read_text(encoding="utf-8")
+    else:
+        raw = fetch_html(source.url)
+    return source.parser(raw, source)
 
 
 def index_content(

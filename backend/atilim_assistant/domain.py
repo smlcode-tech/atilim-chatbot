@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Literal
 
 
@@ -52,6 +53,7 @@ class Source:
     unit: str
     category: str
     parser: Callable[[str, "Source"], SourceContent]
+    local_content_path: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)

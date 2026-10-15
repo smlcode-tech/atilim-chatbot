@@ -4,6 +4,8 @@ Kapsamı genişletmek için buraya yeni bir Source eklenir; sayfa yapısı mevcu
 ayrıştırıcılardan birine uymuyorsa `parsers/` altına yeni bir ayrıştırıcı yazılır.
 """
 
+from pathlib import Path
+
 from atilim_assistant.domain import Source
 from atilim_assistant.ingestion.parsers.departments.software_engineering import (
     academic_staff,
@@ -16,10 +18,13 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     komiteler,
     mufredat,
     ogrenci_danisma_kurulu,
+    onkosullar,
     ortak_egitim,
     program_ciktilari,
     sikca_sorulan_sorular,
 )
+
+_SE_DATA = Path(__file__).parent / "parsers/departments/software_engineering/data"
 
 _SE = "Atılım Üniversitesi Yazılım Mühendisliği Bölümü"
 
@@ -127,6 +132,15 @@ SOURCES: tuple[Source, ...] = (
         unit=_SE,
         category="idari-personel",
         parser=idari_personel.parse,
+    ),
+    Source(
+        id="se-onkosullar",
+        title="Yazılım Mühendisliği Bölümü — Ders Ön Koşul Zinciri",
+        url="https://www.atilim.edu.tr/tr/se/page/6188/onkosul-zinciri-2024-2025",
+        unit=_SE,
+        category="lisans-programi",
+        parser=onkosullar.parse,
+        local_content_path=_SE_DATA / "onkosullar.txt",
     ),
 )
 
