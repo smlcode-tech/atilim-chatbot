@@ -20,6 +20,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     ogrenci_danisma_kurulu,
     onkosullar,
     ortak_egitim,
+    yaz_stajlari,
     program_ciktilari,
     sikca_sorulan_sorular,
 )
@@ -132,6 +133,14 @@ SOURCES: tuple[Source, ...] = (
         unit=_SE,
         category="idari-personel",
         parser=idari_personel.parse,
+    ),
+    Source(
+        id="se-yaz-stajlari",
+        title="Yazılım Mühendisliği Bölümü — Yaz Stajları",
+        url="https://www.atilim.edu.tr/tr/se/page/3451/yaz-stajlari",
+        unit=_SE,
+        category="staj",
+        parser=yaz_stajlari.parse,
     ),
     Source(
         id="se-onkosullar",
