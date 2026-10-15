@@ -11,6 +11,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     department_intro,
     egitim_amaclari,
     endustri_danisma_kurulu,
+    idari_personel,
     komiteler,
     ogrenci_danisma_kurulu,
     program_ciktilari,
@@ -91,6 +92,14 @@ SOURCES: tuple[Source, ...] = (
         unit=_SE,
         category="akademik-personel",
         parser=academic_staff.parse,
+    ),
+    Source(
+        id="se-idari-personel",
+        title="Yazılım Mühendisliği Bölümü — İdari Personel",
+        url="https://www.atilim.edu.tr/tr/se/page/2287/idari-personel",
+        unit=_SE,
+        category="idari-personel",
+        parser=idari_personel.parse,
     ),
 )
 
