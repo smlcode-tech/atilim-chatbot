@@ -100,6 +100,7 @@ def parse(html: str, source: Source) -> SourceContent:
 
     # Her ders için ayrı belge + hazır yanıt
     for tab in tabs:
+        seen: set[str] = set()
         for c in tab.courses:
             lines = [
                 f"{c.code} — {c.name} ({source.unit}, {tab.label})",
@@ -110,7 +111,10 @@ def parse(html: str, source: Source) -> SourceContent:
             if c.content:
                 lines.append(f"İçerik: {c.content}")
             doc_text = "\n".join(lines)
-            documents.append(_doc(source, c.code.lower(), c.name, doc_text))
+            base = f"{tab.id}-{c.code.lower()}"
+            local_id = base if base not in seen else f"{base}-2"
+            seen.add(local_id)
+            documents.append(_doc(source, local_id, c.name, doc_text))
 
             questions = [
                 f"{c.code} dersi nedir?",
