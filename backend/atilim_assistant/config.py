@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     data_dir: Path = BACKEND_ROOT / "data"
     collection: str = "atilim_documents"
     retrieval_top_k: int = 6
+    # Modele verilen bağlamın karakter sınırı. Groq ücretsiz katmanı dakikada 8000 token kabul
+    # eder; Türkçe metinde bu bütçe yaklaşık 2500 token tutar, soru ve yanıta yer kalır.
+    retrieval_max_chars: int = 8000
 
     # Kota bittiğinde modelin yeniden denenmeden önce bekleyeceği süre.
     quota_cooldown_seconds: int = 3600
@@ -39,7 +42,7 @@ class Settings(BaseSettings):
     mongodb_uri: SecretStr | None = None
     mongodb_db: str = "atilim_assistant"
 
-    # Gemini kotası anahtar başınadır, kullanıcı başına değil: tek kişi günlük kotayı
+    # Model kotası API anahtarı başınadır, kullanıcı başına değil: tek kişi günlük kotayı
     # bitirip asistanı herkese kapatabilir. Bu sınır onu engeller.
     daily_question_limit: int = 30
 

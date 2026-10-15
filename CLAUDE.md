@@ -1,6 +1,6 @@
 # Atılım Akademik Asistan — Proje Haritası
 
-Atılım Üniversitesi web sitesi için Türkçe RAG chatbot. Kullanıcılar Google ile giriş yapar, soru sorar; sistem ChromaDB'den belge getirir, Gemini/Groq ile yanıt üretir.
+Atılım Üniversitesi web sitesi için Türkçe RAG chatbot. Kullanıcılar Google ile giriş yapar, soru sorar; sistem ChromaDB'den belge getirir (Voyage embedding), Groq ile yanıt üretir.
 
 ## Dağıtım
 - **Backend**: Render.com (ücretsiz) → `render.yaml`
@@ -18,7 +18,7 @@ backend/atilim_assistant/
 │   ├── prompts.py      SYSTEM_PROMPT ve build_prompt(); CONTEXTUALIZE_PROMPT
 │   └── contextualize.py  needs_context() + rewrite() — takip sorusu bağlamlandırma
 ├── providers/
-│   ├── gemini.py       Google Gemini adaptörü (LLM + embedder)
+│   ├── voyage.py       Voyage AI embedder adaptörü
 │   └── groq.py         Groq adaptörü (yalnızca LLM, OpenAI uyumlu)
 ├── retrieval/
 │   ├── retriever.py    HybridRetriever — vektör + BM25 birleşik arama
@@ -51,10 +51,10 @@ frontend/src/
 ## Kritik Bağımlılıklar
 | Servis | Amaç | Not |
 |--------|------|-----|
-| Google Gemini | Embedding (her zaman) + LLM (default) | Günlük 20 istek kotası ücretsiz katmanda |
-| Groq | LLM (LLM_PROVIDER=groq) | Varsayılan aktif provider |
+| Voyage AI | Embedding (`voyage-multilingual-2`, 1024 boyut) | Model değişirse indeks silinip yeniden kurulmalı; `DocumentStore` uyuşmazlıkta açılmaz |
+| Groq | LLM (`openai/gpt-oss-120b`) | Ücretsiz katman dakikada 8000 token; bağlam `RETRIEVAL_MAX_CHARS` ile sınırlı |
 | ChromaDB | Vektör depo (disk: `backend/data/chroma/`) | İndeks boşsa başlamaz |
-| MongoDB | Konuşma geçmişi + kullanıcı | Opsiyonel; kapalıysa geçmişsiz çalışır |
+| MongoDB | Konuşma geçmişi + kullanıcı | Opsiyonel; yoksa (ya da GOOGLE_CLIENT_ID yoksa) sorular misafir olarak, geçmişsiz yanıtlanır |
 
 ## Önemli Desenler
 - **Ports/Adapters**: `ports.py`'daki Protocol'ler → somut implementasyonlar `providers/`, `storage/`

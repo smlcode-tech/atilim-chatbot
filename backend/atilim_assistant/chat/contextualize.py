@@ -76,5 +76,14 @@ def rewrite(question: str, history: list[Turn], model: ChatModel) -> str:
 
 def _names_an_entity(question: str) -> bool:
     """İlk sözcükten sonra büyük harfle başlayan bir sözcük özel ad sayılır: soru kendi öznesini
-    getirmiştir."""
-    return any(word[:1].isupper() for word in question.split()[1:])
+    getirmiştir. Yalnızca büyük harften oluşan kısaltmalar ("AKTS", "GPA") sayılmaz; bunlar
+    nitelik bildirir, özne değildir. Ders kodu gibi rakam içerenler ("SE322") yine özne sayılır."""
+    return any(_is_name(word.strip("?!.,;:'\"’")) for word in question.split()[1:])
+
+
+def _is_name(word: str) -> bool:
+    if not word[:1].isupper():
+        return False
+    letters = "".join(ch for ch in word.split("'")[0].split("’")[0] if ch.isalpha())
+    is_acronym = letters.isupper() and not any(ch.isdigit() for ch in word)
+    return not is_acronym

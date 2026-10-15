@@ -7,7 +7,7 @@ import logging
 import time
 
 from atilim_assistant.chat.contextualize import needs_context, rewrite
-from atilim_assistant.chat.prompts import SYSTEM_PROMPT, build_prompt
+from atilim_assistant.chat.prompts import NO_ANSWER, SYSTEM_PROMPT, build_prompt
 from atilim_assistant.domain import Answer, Citation, Document, PreparedAnswer, Turn
 from atilim_assistant.ports import ChatModel
 from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher
@@ -37,6 +37,7 @@ class ChatService:
         self._prepared_answers = prepared_answers
         self._quota_cooldown_seconds = quota_cooldown_seconds
         self._model_retry_at = 0.0
+        self._quota_reset_at = 0.0
 
     def answer(self, question: str, history: list[Turn] | None = None) -> Answer:
         """Model de hazır yanıtlar da soruyu karşılayamazsa modelin hatasını yükseltir."""
@@ -46,6 +47,10 @@ class ChatService:
         # seçilmiştir; LLM bağlamdan farklı belgeler karıştırabilir.
         if prepared:
             return _prepared_answer(prepared)
+        # Kota bitmişken her soruyu modele göndermek yalnızca reddedilen istek biriktirir.
+        # Geçici hatalarda ise model denenmeye devam eder: kesinti tek bir isteğe özgü olabilir.
+        if time.monotonic() < self._quota_reset_at:
+            raise RuntimeError("Model kotası doldu; bekleme süresi bitmedi.")
         try:
             return self._generate(search_question)
         except Exception as error:
@@ -75,13 +80,17 @@ class ChatService:
         quota = any(marker in str(error) for marker in _QUOTA_MARKERS)
         wait = self._quota_cooldown_seconds if quota else _TRANSIENT_COOLDOWN_SECONDS
         self._model_retry_at = time.monotonic() + wait
+        if quota:
+            self._quota_reset_at = self._model_retry_at
 
     def _generate(self, question: str) -> Answer:
         documents = self._retriever.retrieve(question)
         text = self._model.generate(SYSTEM_PROMPT, build_prompt(question, documents)).strip()
         if not text:
             raise RuntimeError("Model boş yanıt döndürdü.")
-        return Answer(text=text, citations=_citations(documents))
+        # Model bağlamı yetersiz bulduysa getirilen sayfalar yanıtın kaynağı değildir.
+        citations = [] if text.startswith(NO_ANSWER) else _citations(documents)
+        return Answer(text=text, citations=citations)
 
 
 def _prepared_answer(prepared: PreparedAnswer) -> Answer:

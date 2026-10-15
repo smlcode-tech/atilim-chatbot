@@ -21,7 +21,13 @@ from atilim_assistant.api.schemas import (
     TurnResponse,
     UserResponse,
 )
-from atilim_assistant.auth import AuthError, current_user, issue_token, verify_google_token
+from atilim_assistant.auth import (
+    AuthError,
+    chat_user,
+    current_user,
+    issue_token,
+    verify_google_token,
+)
 from atilim_assistant.bootstrap import build_chat_service, build_conversation_store
 from atilim_assistant.chat.service import ChatService
 from atilim_assistant.config import Settings, get_settings
@@ -64,6 +70,12 @@ def create_app(
                 )
             except Exception:
                 logger.exception("Konuşma geçmişi deposuna bağlanılamadı; geçmişsiz devam ediliyor")
+        # Giriş kurulamıyorsa asistan kilitlenmez; sorular misafir olarak, geçmişsiz yanıtlanır.
+        app.state.auth_enabled = bool(app.state.settings.google_client_id) and (
+            app.state.users is not None
+        )
+        if not app.state.auth_enabled:
+            logger.warning("Google girişi yapılandırılmamış; sorular misafir olarak yanıtlanıyor.")
         yield
 
     app = FastAPI(title="Atılım Akademik Asistan API", lifespan=lifespan)
@@ -77,8 +89,8 @@ def create_app(
         return JSONResponse(status_code=422, content={"detail": detail})
 
     @app.get("/api/health")
-    def health() -> HealthResponse:
-        return HealthResponse(status="ok")
+    def health(request: Request) -> HealthResponse:
+        return HealthResponse(status="ok", auth_required=request.app.state.auth_enabled)
 
     @app.post("/api/auth/google")
     def sign_in(body: GoogleSignInRequest, request: Request) -> SignInResponse:
@@ -105,17 +117,21 @@ def create_app(
 
     @app.post("/api/chat")
     def chat(
-        body: ChatRequest, request: Request, user: User = Depends(current_user)
+        body: ChatRequest, request: Request, user: User | None = Depends(chat_user)
     ) -> ChatResponse:
         service: ChatService = request.app.state.chat_service
         settings: Settings = request.app.state.settings
-        conversations: ConversationRepository | None = request.app.state.conversations
+        # Misafirin geçmişi tutulmaz; konuşma kimliği de yalnızca giriş yapan kullanıcıya aittir.
+        conversations: ConversationRepository | None = (
+            request.app.state.conversations if user is not None else None
+        )
 
-        # _check_daily_limit(request.app.state.users, user.id, settings.daily_question_limit)
+        if user is not None:
+            _check_daily_limit(request.app.state.users, user.id, settings.daily_question_limit)
 
         history: list[Turn] = []
         conversation_id = None
-        if conversations is not None:
+        if conversations is not None and user is not None:
             conversation_id, history = _resume(
                 conversations, user.id, body.conversation_id, settings
             )
@@ -127,7 +143,7 @@ def create_app(
             raise HTTPException(status_code=502, detail=UNAVAILABLE_DETAIL)
 
         title = None
-        if conversations is not None:
+        if conversations is not None and user is not None:
             if conversation_id is None:
                 title = _title_from(body.question)
                 conversation_id = conversations.start(user.id, title)
@@ -138,7 +154,7 @@ def create_app(
                 user.id,
                 [
                     Turn(role="user", content=body.question),
-                    Turn(role="assistant", content=answer.text),
+                    Turn(role="assistant", content=answer.text, sources=answer.citations),
                 ],
             )
 
@@ -172,7 +188,12 @@ def create_app(
         return ConversationResponse(
             id=conversation_id,
             turns=[
-                TurnResponse(role=t.role, content=t.content, created_at=t.created_at)
+                TurnResponse(
+                    role=t.role,
+                    content=t.content,
+                    created_at=t.created_at,
+                    sources=[SourceLink(title=s.title, url=s.url) for s in t.sources],
+                )
                 for t in turns
             ],
         )

@@ -54,6 +54,9 @@ def parse(html: str, source: Source) -> SourceContent:
                 source,
                 [
                     f"{source.unit} bölüm başkanı kim?",
+                    # Kısa kalıp şarttır: yoksa "Bölüm başkanı kim?" eşit puanla mesaj
+                    # yanıtının "Bölüm başkanından mesaj" kalıbına gider.
+                    "Bölüm başkanı kim?",
                     "Bölüm başkanının adı nedir?",
                 ],
                 f"{source.unit} Bölüm Başkanı: **{chair_name}**",

@@ -5,7 +5,7 @@ Sayfa yapısı (div.detail-container):
   - Sayfanın alt kısmında müfredat detaylarını içeren bir tablo bulunur.
 """
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.text import collapse_whitespace

@@ -1,4 +1,10 @@
-from atilim_assistant.text import collapse_whitespace, normalize, slugify, stem, tokenize
+from atilim_assistant.text import (
+    collapse_whitespace,
+    normalize,
+    slugify,
+    stem,
+    tokenize,
+)
 
 
 def test_normalize_folds_turkish_letters_and_punctuation():

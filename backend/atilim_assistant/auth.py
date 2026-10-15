@@ -69,6 +69,14 @@ def current_user(request: Request) -> User:
     return user
 
 
+def chat_user(request: Request) -> User | None:
+    """Giriş yapılandırılmamışsa (Google istemci kimliği ya da kullanıcı deposu yok) soru misafir
+    olarak sorulur ve None döner; yapılandırılmışsa giriş zorunludur."""
+    if not request.app.state.auth_enabled:
+        return None
+    return current_user(request)
+
+
 def _optional_user(request: Request) -> User | None:
     """Jeton yoksa None; varsa geçerli olmak zorundadır."""
     scheme, _, token = request.headers.get("Authorization", "").partition(" ")

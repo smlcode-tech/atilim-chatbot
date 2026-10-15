@@ -6,7 +6,7 @@ Sayfa yapısı (div.detail-container > div.col-md-12):
     adımlar bu dosyadaki sabit metinden alınmıştır.
 """
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.text import collapse_whitespace
@@ -42,6 +42,8 @@ _SECTIONS_META: dict[str, tuple[str, str, list[str]]] = {
             "Yaz stajı nedir?",
             "SE399 ve SE499 stajları hakkında bilgi",
             "Yaz stajı kaç gün?",
+            "Staj zorunlu mu?",
+            "Staj yapmak zorunda mıyım?",
             "Staj koordinatörü kim?",
             "Staj yaparken yaz okulu alınabilir mi?",
         ],

@@ -54,6 +54,8 @@ def test_following_up_appends_to_the_same_conversation(client):
         "Bölüm başkanı kim?",
         "Hocalar kimler?",
     ]
+    # Yeniden açılan konuşmada yanıtların kaynakları da görünür.
+    assert all(turn["sources"] for turn in turns if turn["role"] == "assistant")
 
 
 def test_the_stored_question_is_what_the_user_typed_not_the_rewrite(client, model):

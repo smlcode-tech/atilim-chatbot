@@ -81,12 +81,20 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return payload as T
 }
 
-export async function checkHealth(): Promise<boolean> {
+export type Health = {
+  online: boolean
+  /** false ise sunucuda giriş yapılandırılmamıştır; sorular misafir olarak sorulur. */
+  authRequired: boolean
+}
+
+export async function checkHealth(): Promise<Health> {
   try {
     const response = await fetch('/api/health')
-    return response.ok
+    if (!response.ok) return { online: false, authRequired: true }
+    const body: { auth_required?: boolean } = await response.json().catch(() => ({}))
+    return { online: true, authRequired: body.auth_required !== false }
   } catch {
-    return false
+    return { online: false, authRequired: true }
   }
 }
 
@@ -139,7 +147,12 @@ export async function fetchConversations(): Promise<ConversationSummary[]> {
 
 export async function fetchConversation(id: string): Promise<Message[]> {
   const body = await request<{
-    turns: { role: 'user' | 'assistant'; content: string; created_at: string }[]
+    turns: {
+      role: 'user' | 'assistant'
+      content: string
+      created_at: string
+      sources?: SourceLink[]
+    }[]
   }>(`/api/conversations/${encodeURIComponent(id)}`)
 
   return body.turns.map((turn, index) => ({
@@ -147,6 +160,7 @@ export async function fetchConversation(id: string): Promise<Message[]> {
     role: turn.role,
     content: turn.content,
     createdAt: turn.created_at,
+    sources: turn.sources?.length ? turn.sources : undefined,
   }))
 }
 

@@ -9,11 +9,23 @@ from atilim_assistant.domain import Document
 
 
 class DocumentStore:
-    def __init__(self, path: Path, collection: str) -> None:
+    def __init__(self, path: Path, collection: str, embed_model: str) -> None:
         client = chromadb.PersistentClient(path=str(path))
         self._collection = client.get_or_create_collection(
-            collection, configuration={"hnsw": {"space": "cosine"}}
+            collection,
+            metadata={"embed_model": embed_model},
+            configuration={"hnsw": {"space": "cosine"}},
         )
+        # Farklı embedding modellerinin vektörleri aynı uzayda değildir: eski indeksle sorgu ya
+        # boyut hatası verir ya da sessizce alakasız belgeler getirir.
+        indexed_with = (self._collection.metadata or {}).get("embed_model")
+        if indexed_with != embed_model:
+            if self._collection.count():
+                raise RuntimeError(
+                    f"İndeks '{indexed_with}' ile kurulmuş, ayarlardaki model '{embed_model}'. "
+                    f"{path} dizinini silip `python -m atilim_assistant ingest` komutunu çalıştır."
+                )
+            self._collection.modify(metadata={"embed_model": embed_model})
 
     def replace_source(
         self, source_id: str, documents: list[Document], embeddings: list[list[float]]

@@ -10,7 +10,8 @@ type SidebarProps = {
   onNewChat: () => void
   onOpenConversation: (id: string) => void
   onDeleteConversation: (id: string) => void
-  onSignOut: () => void
+  /** Misafir kipinde verilmez; çıkış düğmesi gösterilmez. */
+  onSignOut?: () => void
 }
 
 export function Sidebar({
@@ -84,9 +85,11 @@ export function Sidebar({
             <strong>{user.name}</strong>
             <span>{user.email}</span>
           </span>
-          <button className="sign-out" onClick={onSignOut} aria-label="Çıkış yap">
-            <LogOut size={15} />
-          </button>
+          {onSignOut && (
+            <button className="sign-out" onClick={onSignOut} aria-label="Çıkış yap">
+              <LogOut size={15} />
+            </button>
+          )}
         </div>
       </div>
     </aside>

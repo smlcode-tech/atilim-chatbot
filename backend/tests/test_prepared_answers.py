@@ -2,7 +2,10 @@ from dataclasses import replace
 
 import pytest
 
-from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher, PreparedAnswerStore
+from atilim_assistant.retrieval.prepared import (
+    PreparedAnswerMatcher,
+    PreparedAnswerStore,
+)
 
 
 @pytest.fixture
@@ -24,6 +27,7 @@ def matcher(staff_answers) -> PreparedAnswerMatcher:
         ("Bölümde kaç öğretim üyesi var?", "Test Bölümü akademik kadrosu"),
         ("Hocalar kimler?", "Test Bölümü akademik kadrosu"),
         ("Bölüm başkanı kim?", "Test Bölümü görevlileri"),
+        ("Test bölümü başkanı kim?", "Test Bölümü görevlileri"),
         ("yarı zamanlı hocalar kimler", "Test Bölümü — Yarı Zamanlı Öğretim Elemanları"),
         ("Veri madenciliği üzerine çalışan akademisyenler kimler?", "Test Bölümü — araştırma"),
         ("oyun teknolojisi ile ilgilenen hoca var mı", "Test Bölümü — araştırma"),
@@ -42,6 +46,8 @@ def test_matches_questions_despite_phrasing_suffixes_and_casing(matcher, questio
         "Burs olanakları neler?",
         "Merhaba",
         "kim?",
+        # Başka bir bölümün başkanı: Test Bölümü'nün yanıtı verilmemeli.
+        "Bilgisayar mühendisliği bölüm başkanı kim?",
     ],
 )
 def test_does_not_answer_questions_the_prepared_answers_do_not_cover(matcher, question):

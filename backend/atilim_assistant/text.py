@@ -28,7 +28,8 @@ def normalize(text: str) -> str:
 
 
 def tokenize(text: str) -> list[str]:
-    return [token for token in normalize(text).split() if len(token) >= 2]
+    """Tek harfler atılır, tek haneli sayılar kalır: "3. sınıf" ile "1. sınıf" ayrı sorulardır."""
+    return [token for token in normalize(text).split() if len(token) >= 2 or token.isdigit()]
 
 
 def stem(token: str) -> str:

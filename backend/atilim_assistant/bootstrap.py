@@ -7,7 +7,10 @@ from atilim_assistant.config import Settings
 from atilim_assistant.ports import ChatModel, Embedder
 from atilim_assistant.providers.groq import GroqProvider
 from atilim_assistant.providers.voyage import VoyageEmbedder
-from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher, PreparedAnswerStore
+from atilim_assistant.retrieval.prepared import (
+    PreparedAnswerMatcher,
+    PreparedAnswerStore,
+)
 from atilim_assistant.retrieval.retriever import HybridRetriever
 from atilim_assistant.retrieval.store import DocumentStore
 from atilim_assistant.storage.mongo import (
@@ -34,7 +37,7 @@ def build_provider(settings: Settings) -> tuple[ChatModel, Embedder]:
 
 
 def build_store(settings: Settings) -> DocumentStore:
-    return DocumentStore(settings.vector_store_dir, settings.collection)
+    return DocumentStore(settings.vector_store_dir, settings.collection, settings.embed_model)
 
 
 def build_prepared_answer_store(settings: Settings) -> PreparedAnswerStore:
@@ -63,7 +66,9 @@ def build_chat_service(settings: Settings) -> ChatService:
             "`python -m atilim_assistant ingest` komutunu yeniden çalıştır."
         )
     chat_model, embedder = build_provider(settings)
-    retriever = HybridRetriever(store, embedder, settings.retrieval_top_k)
+    retriever = HybridRetriever(
+        store, embedder, settings.retrieval_top_k, settings.retrieval_max_chars
+    )
     return ChatService(
         retriever,
         chat_model,

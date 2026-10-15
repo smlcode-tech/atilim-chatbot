@@ -34,6 +34,9 @@ class ChatResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+    # False ise giriş yapılandırılmamıştır; arayüz giriş ekranını atlar, sorular misafir olarak
+    # yanıtlanır.
+    auth_required: bool
 
 
 class GoogleSignInRequest(BaseModel):
@@ -63,6 +66,7 @@ class TurnResponse(BaseModel):
     role: str
     content: str
     created_at: datetime
+    sources: list[SourceLink] = []
 
 
 class ConversationResponse(BaseModel):

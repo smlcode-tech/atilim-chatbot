@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ApiUnreachableError,
   askQuestion,
@@ -17,11 +17,14 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
+  // Ekrandaki konuşma her değiştiğinde artar. Yanıtı beklenen istek döndüğünde sayı değişmişse
+  // kullanıcı başka bir konuşmaya geçmiştir; sonuç oraya yazılmaz.
+  const view = useRef(0)
 
   useEffect(() => {
     let isMounted = true
-    void checkHealth().then((isOnline) => {
-      if (isMounted) setApiStatus(isOnline ? 'online' : 'offline')
+    void checkHealth().then(({ online }) => {
+      if (isMounted) setApiStatus(online ? 'online' : 'offline')
     })
     return () => {
       isMounted = false
@@ -42,9 +45,15 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
 
       append({ role: 'user', content: question })
       setIsLoading(true)
+      const ticket = view.current
       try {
         const answer = await askQuestion(question, conversationId)
         setApiStatus('online')
+        if (ticket !== view.current) {
+          // Soru sunucuda kendi konuşmasına kaydedildi; yalnızca yan bar tazelenir.
+          if (answer.conversationId !== null) onConversationChanged()
+          return
+        }
         append({
           role: 'assistant',
           content: answer.answer,
@@ -57,30 +66,36 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
         }
       } catch (error) {
         setApiStatus(error instanceof ApiUnreachableError ? 'offline' : 'online')
+        if (ticket !== view.current) return
         append({
           role: 'assistant',
           content: error instanceof Error ? error.message : 'Beklenmeyen bir hata oluştu.',
           isError: true,
         })
       } finally {
-        setIsLoading(false)
+        if (ticket === view.current) setIsLoading(false)
       }
     },
     [append, conversationId, isLoading, onConversationChanged],
   )
 
   const startNew = useCallback(() => {
+    view.current += 1
     setMessages([])
     setConversationId(null)
+    setIsLoading(false)
   }, [])
 
   const open = useCallback(async (id: string) => {
+    const ticket = ++view.current
     setIsLoading(true)
     try {
       const stored = await fetchConversation(id)
+      if (ticket !== view.current) return
       setMessages(stored)
       setConversationId(id)
     } catch (error) {
+      if (ticket !== view.current) return
       setConversationId(null)
       setMessages([
         {
@@ -93,7 +108,7 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
         },
       ])
     } finally {
-      setIsLoading(false)
+      if (ticket === view.current) setIsLoading(false)
     }
   }, [])
 

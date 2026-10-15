@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from atilim_assistant.domain import Turn
+from atilim_assistant.domain import Citation, Turn
 from atilim_assistant.storage.mongo import (
     MongoConversationRepository,
     MongoUserRepository,
@@ -51,12 +51,18 @@ def test_the_daily_counter_restarts_when_the_day_changes(db):
 def test_turns_round_trip_with_their_timestamps(db):
     conversations = MongoConversationRepository(db)
     conversation_id = conversations.start("user-1", "Bölüm başkanı kim?")
-    written = [Turn(role="user", content="Soru"), Turn(role="assistant", content="Yanıt")]
+    sources = [Citation(title="Akademik Personel", url="https://www.atilim.edu.tr/x")]
+    written = [
+        Turn(role="user", content="Soru"),
+        Turn(role="assistant", content="Yanıt", sources=sources),
+    ]
 
     conversations.add_turns(conversation_id, "user-1", written)
 
     read = conversations.turns(conversation_id, "user-1")
-    assert [(t.role, t.content) for t in read] == [(t.role, t.content) for t in written]
+    assert [(t.role, t.content, t.sources) for t in read] == [
+        (t.role, t.content, t.sources) for t in written
+    ]
     # tz_aware bağlantı sayesinde zaman damgaları saat dilimiyle birlikte döner.
     assert read[0].created_at.tzinfo is not None
 

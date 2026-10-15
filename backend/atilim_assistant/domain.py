@@ -87,6 +87,8 @@ class Turn:
     role: Literal["user", "assistant"]
     content: str
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    # Asistan yanıtının kaynak sayfaları; konuşma yeniden açıldığında da gösterilir.
+    sources: list["Citation"] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

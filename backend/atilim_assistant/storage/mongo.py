@@ -10,8 +10,9 @@ from uuid import uuid4
 
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.database import Database
+from pymongo.errors import PyMongoError
 
-from atilim_assistant.domain import ConversationSummary, Turn
+from atilim_assistant.domain import Citation, ConversationSummary, Turn
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +39,17 @@ def connect(uri: str, database: str) -> Database:
         appname="atilim-assistant",
     )
     db = client[database]
-    db.users.create_index([("google_sub", ASCENDING)], unique=True)
-    db.conversations.create_index([("user_id", ASCENDING), ("updated_at", DESCENDING)])
-    db.conversations.create_index(
-        [("updated_at", ASCENDING)], expireAfterSeconds=_RETENTION_DAYS * 86400
-    )
+    # İndeks kurulumu açılışta ağa çıkan tek işlemdir. Mongo o an ulaşılamazsa depolar yine
+    # kurulur: istemci sonraki işlemlerde yeniden bağlanır, giriş ve geçmiş kendiliğinden döner.
+    # Burada hata fırlatmak asistanı süreç yeniden başlayana kadar misafir kipinde bırakırdı.
+    try:
+        db.users.create_index([("google_sub", ASCENDING)], unique=True)
+        db.conversations.create_index([("user_id", ASCENDING), ("updated_at", DESCENDING)])
+        db.conversations.create_index(
+            [("updated_at", ASCENDING)], expireAfterSeconds=_RETENTION_DAYS * 86400
+        )
+    except PyMongoError:
+        logger.exception("MongoDB indeksleri kurulamadı; bağlantı sonraki işlemlerde denenecek")
     return db
 
 
@@ -141,10 +148,19 @@ class MongoConversationRepository:
 
 
 def _as_document(turn: Turn) -> dict:
-    return {"role": turn.role, "content": turn.content, "created_at": turn.created_at}
+    return {
+        "role": turn.role,
+        "content": turn.content,
+        "created_at": turn.created_at,
+        "sources": [{"title": s.title, "url": s.url} for s in turn.sources],
+    }
 
 
 def _as_turn(document: dict) -> Turn:
     return Turn(
-        role=document["role"], content=document["content"], created_at=document["created_at"]
+        role=document["role"],
+        content=document["content"],
+        created_at=document["created_at"],
+        # Bu alan eklenmeden önce kaydedilen turlarda yoktur.
+        sources=[Citation(**source) for source in document.get("sources", [])],
     )

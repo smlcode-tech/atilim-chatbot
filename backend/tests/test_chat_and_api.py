@@ -1,6 +1,7 @@
 import pytest
+from fastapi.testclient import TestClient
 
-from atilim_assistant.api.app import UNAVAILABLE_DETAIL
+from atilim_assistant.api.app import UNAVAILABLE_DETAIL, create_app
 from atilim_assistant.chat import service as chat_service
 from atilim_assistant.domain import Turn
 
@@ -105,6 +106,11 @@ def test_exhausted_quota_waits_longer_than_a_transient_failure(service, model, m
     assert service.answer("Hocalar kimler?").prepared is True
     assert model.calls == 1
 
+    # Kota soğuması sürerken hazır yanıtı olmayan soru modele hiç gönderilmez.
+    with pytest.raises(RuntimeError, match="kota"):
+        service.answer("Öğrenci kulüpleri neler?")
+    assert model.calls == 1
+
     # Kota soğuması bittikten sonra hazır yanıtı olmayan soru modele gider.
     now += 3600
     assert service.answer("Öğrenci kulüpleri neler?").text == "Model yeniden yanıt veriyor."
@@ -115,11 +121,24 @@ def test_model_is_still_tried_during_cooldown_when_no_prepared_answer_exists(ser
     service.answer("Bölüm başkanı kim?")
     model.reply = "Bu bilgi elimdeki verilerde yok."
 
-    assert service.answer("Yemekhane menüsü nedir?").text == "Bu bilgi elimdeki verilerde yok."
+    answer = service.answer("Yemekhane menüsü nedir?")
+    assert answer.text == "Bu bilgi elimdeki verilerde yok."
+    # Model bağlamı yetersiz bulduğunda getirilen sayfalar kaynak olarak gösterilmez.
+    assert answer.citations == []
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"status": "ok"}
+    assert client.get("/api/health").json() == {"status": "ok", "auth_required": True}
+
+
+def test_without_sign_in_configured_questions_are_answered_as_guest(service, settings):
+    guest_settings = settings.model_copy(update={"google_client_id": ""})
+    with TestClient(create_app(service, settings=guest_settings)) as guest:
+        assert guest.get("/api/health").json()["auth_required"] is False
+        response = guest.post("/api/chat", json={"question": "Öğrenci kulüpleri neler?"})
+
+    assert response.status_code == 200
+    assert response.json()["conversation_id"] is None
 
 
 def test_chat_returns_answer_with_sources(client, staff_source):

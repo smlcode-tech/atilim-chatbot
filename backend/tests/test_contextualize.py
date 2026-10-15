@@ -31,6 +31,9 @@ class FakeModel:
         "bu bölümde kaç öğretim üyesi var?",
         "detay ver",
         "ofisi nerede?",
+        # Kısaltma özel ad değildir: hangi dersin AKTS'si sorulduğu geçmişte.
+        "Kaç AKTS?",
+        "Kaç AKTS'lik?",
     ],
 )
 def test_questions_leaning_on_earlier_turns_are_rewritten(question, history):
@@ -44,6 +47,7 @@ def test_questions_leaning_on_earlier_turns_are_rewritten(question, history):
         "Yazılım Mühendisliği bölüm başkanı kim?",
         "Blok zinciri ile ilgilenen öğretim üyeleri kimler?",
         "Bilgisayar Mühendisliği bölümünde bu yıl kaç öğrenci mezun oldu?",
+        "Kaç AKTS SE322?",
     ],
 )
 def test_self_contained_questions_do_not_spend_a_model_call(question, history):

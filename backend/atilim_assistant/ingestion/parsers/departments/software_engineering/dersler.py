@@ -62,7 +62,8 @@ def parse(html: str, source: Source) -> SourceContent:
         for c in tab.courses:
             all_lines.append(f"  {c.code} — {c.name} (AKTS: {c.akts})")
     full_text = "\n".join(all_lines)
-    documents.append(_doc(source, "ozet", source.title, full_text))
+    # Tüm ders listesi belge olarak indekslenmez: model bağlamının tek başına sınırını aşar ve
+    # aynı bilgi sekme özetlerinde zaten var. Yalnızca hazır yanıt olarak verilir.
     answers.append(
         _answer(
             source,
@@ -95,6 +96,25 @@ def parse(html: str, source: Source) -> SourceContent:
                     f"{tab.label} listesi",
                 ],
                 tab_text,
+            )
+        )
+
+    # "Seçmeli dersler neler?" iki sekmeyi birden sorar. Birleşik liste bağlam bütçesine
+    # sığmayacağı için belge değil, yalnızca hazır yanıt olur.
+    electives = [tab for tab in tabs if tab.id != "required_les" and tab.courses]
+    if electives:
+        elective_text = "\n\n".join(
+            "\n".join(
+                [f"{tab.label} ({len(tab.courses)} ders):"]
+                + [f"- {c.code} {c.name} | AKTS:{c.akts}" for c in tab.courses]
+            )
+            for tab in electives
+        )
+        answers.append(
+            _answer(
+                source,
+                ["Seçmeli dersler nelerdir?", "Seçmeli ders listesi"],
+                f"{source.unit} seçmeli dersleri:\n\n{elective_text}",
             )
         )
 

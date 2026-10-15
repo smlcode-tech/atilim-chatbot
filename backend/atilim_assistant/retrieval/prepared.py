@@ -6,16 +6,25 @@ bu yüzden eşleştirme hiçbir dış servise değil, yalnızca yerel sözcük k
 
 import json
 import math
+import re
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 
 from atilim_assistant.domain import PreparedAnswer
-from atilim_assistant.text import FILLER_WORDS, stem, tokenize
+from atilim_assistant.text import FILLER_WORDS, normalize, stem, tokenize
 
 # Sorunun içerik sözcüklerinin (ağırlıkça) en az bu kadarı bir soru kalıbında geçmelidir.
 # Daha düşük eşik, sorunun asıl konusunu karşılamayan yanıtların verilmesine yol açar.
 _MIN_COVERAGE = 0.75
+
+# "Bilgisayar mühendisliği", "Hukuk fakültesi" gibi birim adlarının niteleyicisi. Bölüm adı
+# tek bir sözcükle değişir ve kapsam ölçüsünü pek etkilemez; bu yüzden ayrıca denetlenir.
+_UNIT_QUALIFIER = re.compile(r"(\w+) (?:muhendislig|bolum|fakulte|program)\w*")
+_UNIT_WORDS = ("muhendislig", "bolum", "fakulte", "program")
+# Niteleyici karşılaştırmasında kullanılan önek uzunluğu; `stem`in 5 harfi "bilgisayar" ile
+# "bilgi"yi ayırt etmez.
+_QUALIFIER_PREFIX = 7
 
 
 class PreparedAnswerStore:
@@ -44,6 +53,7 @@ class PreparedAnswerMatcher:
     def __init__(self, answers: list[PreparedAnswer]) -> None:
         self._answers = answers
         self._patterns = [[_terms(question) for question in a.questions] for a in answers]
+        self._scopes = [_prefixes(" ".join([a.source_title, *a.questions])) for a in answers]
 
         # Az sayıda yanıtta geçen terimler (kişi adı, konu) ayırt edicidir ve daha ağır sayılır.
         answer_frequency = Counter(
@@ -61,8 +71,12 @@ class PreparedAnswerMatcher:
         if not terms:
             return None
 
+        qualifiers = _unit_qualifiers(question)
         best_score, best_answer = (0.0, 0.0), None
-        for answer, patterns in zip(self._answers, self._patterns):
+        for answer, patterns, scope in zip(self._answers, self._patterns, self._scopes):
+            # Soru başka bir birimi adıyla soruyorsa o birimi anmayan yanıt verilmez.
+            if not qualifiers <= scope:
+                continue
             for pattern in patterns:
                 if not terms & pattern:
                     continue
@@ -80,6 +94,19 @@ class PreparedAnswerMatcher:
 
 def _terms(text: str) -> frozenset[str]:
     return frozenset(stem(token) for token in tokenize(text) if token not in FILLER_WORDS)
+
+
+def _prefixes(text: str) -> frozenset[str]:
+    return frozenset(token[:_QUALIFIER_PREFIX] for token in tokenize(text))
+
+
+def _unit_qualifiers(question: str) -> frozenset[str]:
+    """Sorudaki birim adlarının niteleyicileri: "bilgisayar mühendisliği" → {"bilgisa"}."""
+    return frozenset(
+        word[:_QUALIFIER_PREFIX]
+        for word in _UNIT_QUALIFIER.findall(normalize(question))
+        if not word.startswith(_UNIT_WORDS) and word not in FILLER_WORDS
+    )
 
 
 def _rarity(frequency: int, total: int) -> float:

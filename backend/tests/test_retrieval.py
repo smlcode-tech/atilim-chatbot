@@ -15,13 +15,18 @@ def prepared_store(tmp_path) -> PreparedAnswerStore:
 
 @pytest.fixture
 def store(tmp_path, staff_source, staff_content, embedder, prepared_store) -> DocumentStore:
-    store = DocumentStore(tmp_path / "chroma", "test")
+    store = DocumentStore(tmp_path / "chroma", "test", "fake-model")
     index_content(staff_source, staff_content, embedder, store, prepared_store)
     return store
 
 
 def test_store_round_trips_documents(store, staff_documents):
     assert sorted(store.all(), key=lambda d: d.id) == sorted(staff_documents, key=lambda d: d.id)
+
+
+def test_store_refuses_index_built_with_another_embed_model(store, tmp_path):
+    with pytest.raises(RuntimeError, match="fake-model"):
+        DocumentStore(tmp_path / "chroma", "test", "other-model")
 
 
 def test_reindexing_a_source_replaces_its_content(
@@ -49,6 +54,15 @@ def test_hybrid_retriever_merges_semantic_and_lexical_results(store, embedder):
     # "Oyun" vektör aramasında, "Ayşe Örnek" anahtar kelime aramasında birinci gelir. Sahte
     # embedder diğer belgelere aynı vektörü verdiği için kalan sıra belirsizdir; yalnızca
     # iki aramanın birincilerinin sonuçta yer aldığı doğrulanır.
-    retriever = HybridRetriever(store, embedder, top_k=3)
+    retriever = HybridRetriever(store, embedder, top_k=3, max_chars=100_000)
     titles = {document.title for document in retriever.retrieve("Oyun mu, Ayşe Örnek mi?")}
     assert {"Öğr. Gör. Mehmet DENEME", "Prof. Dr. Ayşe ÖRNEK"} <= titles
+
+
+def test_hybrid_retriever_skips_documents_that_overflow_the_context_budget(
+    store, embedder, staff_documents
+):
+    budget = min(len(document.text) for document in staff_documents)
+    retriever = HybridRetriever(store, embedder, top_k=3, max_chars=budget)
+    results = retriever.retrieve("Oyun mu, Ayşe Örnek mi?")
+    assert sum(len(document.text) for document in results) <= budget

@@ -21,9 +21,9 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     ogrenci_danisma_kurulu,
     onkosullar,
     ortak_egitim,
-    yaz_stajlari,
     program_ciktilari,
     sikca_sorulan_sorular,
+    yaz_stajlari,
 )
 
 _SE_DATA = Path(__file__).parent / "parsers/departments/software_engineering/data"

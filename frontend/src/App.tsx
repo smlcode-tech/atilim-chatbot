@@ -19,11 +19,17 @@ const SPLASH_MIN_MS = 2200
 
 function App() {
   const { theme, toggle: toggleTheme } = useTheme()
-  const { user, isChecking, error, mountGoogleButton, signOut } = useAuth()
-  const { conversations, refresh, remove } = useConversations(user !== null)
+  const { user, isGuest, isChecking, error, mountGoogleButton, signOut } = useAuth()
+  const { conversations, refresh, remove } = useConversations(user !== null && !isGuest)
   const { messages, conversationId, isLoading, apiStatus, sendMessage, startNew, open } = useChat({
     onConversationChanged: refresh,
   })
+
+  // Çıkışta ya da oturum düştüğünde sohbet ekranda kalmamalı: aynı tarayıcıda giriş yapan
+  // bir sonraki kişi öncekinin konuşmasını görürdü.
+  useEffect(() => {
+    if (user === null) startNew()
+  }, [user, startNew])
 
   const [chatKey, setChatKey] = useState(0)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -107,7 +113,7 @@ function App() {
               onNewChat={startNewChat}
               onOpenConversation={openConversation}
               onDeleteConversation={deleteConversation}
-              onSignOut={signOut}
+              onSignOut={isGuest ? undefined : signOut}
             />
 
             <button

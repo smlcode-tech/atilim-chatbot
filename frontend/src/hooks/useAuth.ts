@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchMe, readToken, signInWithGoogle, writeToken } from '../api/client'
+import { checkHealth, fetchMe, readToken, signInWithGoogle, writeToken } from '../api/client'
 import type { User } from '../types'
 
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
+/** Sunucuda giriş yapılandırılmamışken kullanılan kimlik; geçmiş tutulmaz. */
+const GUEST: User = { id: 'guest', email: 'Geçmiş kaydedilmiyor', name: 'Misafir' }
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
 
 type GoogleCredentialResponse = { credential: string }
@@ -41,23 +43,32 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [isChecking, setIsChecking] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isGuest, setIsGuest] = useState(false)
   // StrictMode etkileri iki kez çalıştırır; Google'ın düğmesi iki kez kurulmamalı.
   const isInitialized = useRef(false)
 
   useEffect(() => {
-    if (readToken() === null) {
-      setIsChecking(false)
-      return
-    }
     let isMounted = true
-    void fetchMe()
-      .then((me) => {
+    const resolveUser = async () => {
+      const health = await checkHealth()
+      if (health.online && !health.authRequired) {
+        if (isMounted) {
+          setIsGuest(true)
+          setUser(GUEST)
+        }
+        return
+      }
+      if (readToken() === null) return
+      try {
+        const me = await fetchMe()
         if (isMounted) setUser(me)
-      })
-      .catch(() => writeToken(null))
-      .finally(() => {
-        if (isMounted) setIsChecking(false)
-      })
+      } catch {
+        // Geçersiz oturumu istemci 401'de zaten siler; sunucuya ulaşılamaması oturumu bitirmez.
+      }
+    }
+    void resolveUser().finally(() => {
+      if (isMounted) setIsChecking(false)
+    })
     return () => {
       isMounted = false
     }
@@ -116,5 +127,5 @@ export function useAuth() {
     setUser(null)
   }, [])
 
-  return { user, isChecking, error, mountGoogleButton, signOut }
+  return { user, isGuest, isChecking, error, mountGoogleButton, signOut }
 }

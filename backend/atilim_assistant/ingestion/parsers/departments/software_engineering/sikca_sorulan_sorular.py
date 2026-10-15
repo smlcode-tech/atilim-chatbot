@@ -5,7 +5,7 @@ Sayfa yapısı (div.detail-container > div.col-md-12):
   - Son bölümde Erasmus ortağı üniversitelerin iki sütunlu tablosu (Üniversite | Ülke)
 """
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.text import collapse_whitespace
@@ -27,6 +27,14 @@ def parse(html: str, source: Source) -> SourceContent:
 
     documents: list[Document] = []
     answers: list[PreparedAnswer] = []
+
+    # Erasmus sorusunun cevabı "aşağıda verilmiştir" der; liste ise ayrı bir tablodadır.
+    if erasmus:
+        listing = "\n".join(f"- {uni} ({country})" for uni, country in erasmus)
+        qa_pairs = [
+            (question, f"{answer}\n\n{listing}" if "erasmus" in question.lower() else answer)
+            for question, answer in qa_pairs
+        ]
 
     # Her soru-cevap çifti kendi belgesi olur; hazır yanıt da üretilir.
     for i, (question, answer_text) in enumerate(qa_pairs):
@@ -78,17 +86,31 @@ def _extract_qa(col: Tag) -> list[tuple[str, str]]:
             continue
         if child.name == "table":
             break
-        if child.name == "p":
-            strong = child.find("strong")
-            text = collapse_whitespace(child.get_text())
-            if strong and collapse_whitespace(strong.get_text()) == text and text:
+        if child.name != "p":
+            continue
+        # Sayfada bir sonraki soru bazen önceki cevabın paragrafının sonunda, <br> ardından
+        # <strong> içinde durur; paragraf soru başlıklarında bölünür.
+        pending: list[str] = []
+        for node in child.children:
+            if isinstance(node, Tag) and node.name == "strong" and _is_question(node):
+                text = collapse_whitespace(" ".join(pending))
+                if text and current_question is not None:
+                    current_answer_parts.append(text)
                 _flush()
-                current_question = text
+                current_question = collapse_whitespace(node.get_text())
                 current_answer_parts = []
-            elif text and current_question is not None:
-                current_answer_parts.append(text)
+                pending = []
+            else:
+                pending.append(node.get_text(" ") if isinstance(node, Tag) else str(node))
+        text = collapse_whitespace(" ".join(pending))
+        if text and current_question is not None:
+            current_answer_parts.append(text)
     _flush()
     return qa
+
+
+def _is_question(strong: Tag) -> bool:
+    return collapse_whitespace(strong.get_text()).endswith("?")
 
 
 def _extract_erasmus(col: Tag) -> list[tuple[str, str]]:
