@@ -1,6 +1,6 @@
 import pytest
 
-from atilim_assistant.domain import SourceContent
+from atilim_assistant.domain import Document, SourceContent
 from atilim_assistant.ingestion.pipeline import index_content
 from atilim_assistant.retrieval.lexical import LexicalIndex
 from atilim_assistant.retrieval.prepared import PreparedAnswerStore
@@ -66,3 +66,24 @@ def test_hybrid_retriever_skips_documents_that_overflow_the_context_budget(
     retriever = HybridRetriever(store, embedder, top_k=3, max_chars=budget)
     results = retriever.retrieve("Oyun mu, Ayşe Örnek mi?")
     assert sum(len(document.text) for document in results) <= budget
+
+
+_META = {"source_id": "s", "source_title": "s", "url": "", "unit": "", "category": ""}
+
+
+def test_lexical_search_ignores_filler_words():
+    # "nasıl" içerik taşımaz; sayılsaydı yalnızca onu paylaşan belge staj belgesinin önüne geçerdi.
+    documents = [
+        Document(id="1", title="Ortak eğitim nasıl notlandırılır?", text="Nasıl? Nasıl?", **_META),
+        Document(id="2", title="Yaz Stajı Genel Bilgi", text="Yaz stajı uzun açıklama", **_META),
+    ]
+    assert [d.id for d in LexicalIndex(documents).search("Yaz stajı nasıl yapılır?", 5)] == ["2"]
+
+
+@pytest.mark.parametrize("query", ["SE212 ön koşulu", "SE 212 ön koşulu"])
+def test_lexical_search_matches_course_codes_with_or_without_space(query):
+    documents = [
+        Document(id="1", title="SE212 Ön Koşulu", text="SE212 için ön koşul yok", **_META),
+        Document(id="2", title="CMPE325 Ön Koşulu", text="Ön koşul: CMPE 225", **_META),
+    ]
+    assert LexicalIndex(documents).search(query, 1)[0].id == "1"
