@@ -1,4 +1,7 @@
+import pytest
+
 from atilim_assistant.text import (
+    canonicalize,
     collapse_whitespace,
     normalize,
     slugify,
@@ -27,3 +30,24 @@ def test_slugify():
 
 def test_collapse_whitespace():
     assert collapse_whitespace("  Algoritmalar,\n\n   Veri  ") == "Algoritmalar, Veri"
+
+
+@pytest.mark.parametrize(
+    ("variants", "canonical"),
+    [
+        (["mail adresi", "e-postası", "E-Mail", "elektronik posta"], "eposta adresi"),
+        (["öğretim üyeleri", "akademisyenler", "hocası", "öğretmen"], "hoca"),
+        (["ön şartı", "önkoşulu", "ön koşul", "prerequisite"], "onkosul"),
+        (["mecburi", "zorunlu mu", "şart mı"], "zorunlu"),
+    ],
+)
+def test_canonicalize_folds_synonyms_and_their_suffixes(variants, canonical):
+    for variant in variants:
+        assert canonicalize(variant).startswith(canonical.split()[0])
+    assert canonicalize("Hocanın mail adresi") == "hoca eposta adresi"
+
+
+def test_canonicalize_leaves_unrelated_words_alone():
+    # Sözcük ortasında ya da başka bir sözcüğün başında geçen öğe eşleşmez.
+    assert canonicalize("Gmail telefon başvurusu") == "gmail telefon basvuru"
+    assert canonicalize("Ali Yazıcı") == "ali yazici"

@@ -178,6 +178,8 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
                 f"{name} kimdir?",
                 f"{name} hakkında bilgi verir misin?",
                 f"{name} görevi ve unvanı nedir?",
+                f"{name} hoca kim, ne iş yapıyor?",
+                f"{name} hangi bölümde, ne pozisyonda çalışıyor?",
             ],
             profile,
         ),
@@ -187,6 +189,9 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
                 f"{name} araştırma konuları neler?",
                 f"{name} hangi alanda, hangi alanlarda çalışıyor?",
                 f"{name} uzmanlık ve çalışma alanı nedir?",
+                f"{name} ilgi alanları neler?",
+                f"{name} ne üzerine çalışıyor, hangi konularla uğraşıyor?",
+                f"{name} hangi konularda araştırma yapıyor?",
             ],
             f"**{name}** — araştırma konuları: {member.research or _UNSPECIFIED}",
         ),
@@ -197,6 +202,9 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
                 f"{name} iletişim bilgileri neler?",
                 f"{name} e-posta, mail adresi nedir?",
                 f"{name} nasıl ulaşırım, nasıl ulaşabilirim?",
+                f"{name} ile nasıl iletişime geçerim?",
+                f"{name} hocanın maili ve telefonu ne?",
+                f"{name} ofis telefonu, dahili numarası kaç?",
             ],
             f"**{name}** — {_contact(member)}"
             + ("" if member.email else f". {_SEE_SOURCE_FOR_EMAIL}"),
@@ -207,6 +215,9 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
                 f"{name} eğitim bilgileri neler?",
                 f"{name} hangi üniversiteden mezun?",
                 f"{name} lisans, yüksek lisans ve doktorasını nerede yaptı?",
+                f"{name} nereden mezun oldu, hangi okulu bitirdi?",
+                f"{name} doktorasını hangi üniversitede tamamladı?",
+                f"{name} eğitim geçmişi ve akademik geçmişi nedir?",
             ],
             f"**{name}** — eğitim: {member.education or _UNSPECIFIED}",
         ),
@@ -220,6 +231,9 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
         "akademik personelini tanıtır mısın?",
         "akademisyenler, hocalar ve öğretim üyeleri kimler?",
         "kaç hoca, kaç öğretim üyesi var?",
+        "bölümün hocaları kimler?",
+        "bölümde hangi hocalar ders veriyor?",
+        "bölümün öğretim kadrosu kimlerden oluşuyor?",
     ]
     contact_questions = [
         "akademik personelinin iletişim bilgileri neler?",
@@ -228,6 +242,7 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
         "hocaların telefon numaraları neler?",
         "hocaların e-posta, mail adresleri neler?",
         "hocalara nasıl ulaşırım?",
+        "hocalarla nasıl iletişime geçebilirim?",
     ]
     answers = [
         _answer(
@@ -249,7 +264,12 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
             _answer(
                 source,
                 [f"{unit} {member.role} kim?" for member in officers]
-                + [f"{unit} bölüm başkanı, başkan yardımcısı ve yöneticileri kimler?"],
+                + [
+                    f"{unit} bölüm başkanı, başkan yardımcısı ve yöneticileri kimler?",
+                    "Bölümü kim yönetiyor?",
+                    "Bölüm yönetimi kimlerden oluşuyor?",
+                    "Bölüm başkan yardımcısı kim?",
+                ],
                 _bullets(
                     f"{unit} görevlileri:",
                     [f"{member.name} ({member.role})" for member in officers],
@@ -260,7 +280,11 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
     for employment in dict.fromkeys(member.employment for member in members if member.employment):
         names = [member.name for member in members if member.employment == employment]
         answers.append(
-            _answer(source, [f"{unit} {employment} kimler?"], _bullets(f"{unit} — {employment}:", names))
+            _answer(
+                source,
+                [f"{unit} {employment} kimler?", f"{employment} kimler?"],
+                _bullets(f"{unit} — {employment}:", names),
+            )
         )
     return answers
 
@@ -285,6 +309,8 @@ def _topic_answers(members: list[_StaffMember], source: Source) -> list[Prepared
                     f"{topic} üzerine çalışan akademisyenler kimler?",
                     f"{topic} alanında çalışan hocalar ve öğretim üyeleri kimler?",
                     f"{topic} konusunda çalışan, {topic} ile ilgilenen hoca var mı?",
+                    f"{topic} ile uğraşan, {topic} uzmanı hocalar kimler?",
+                    f"{topic} alanında kimden danışmanlık alabilirim?",
                 ],
                 _bullets(f"{source.unit} — araştırma konuları arasında {topic} olanlar:", names),
             )

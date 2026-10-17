@@ -2,6 +2,7 @@ from dataclasses import replace
 
 import pytest
 
+from atilim_assistant.domain import PreparedAnswer
 from atilim_assistant.retrieval.prepared import (
     PreparedAnswerMatcher,
     PreparedAnswerStore,
@@ -31,6 +32,14 @@ def matcher(staff_answers) -> PreparedAnswerMatcher:
         ("yarı zamanlı hocalar kimler", "Test Bölümü — Yarı Zamanlı Öğretim Elemanları"),
         ("Veri madenciliği üzerine çalışan akademisyenler kimler?", "Test Bölümü — araştırma"),
         ("oyun teknolojisi ile ilgilenen hoca var mı", "Test Bölümü — araştırma"),
+        # Eş anlamlı söylenişler
+        ("Ayşe Örnek hocanın maili ne?", "**Prof. Dr. Ayşe ÖRNEK** — telefon"),
+        ("Ayşe Örnek ile nasıl iletişime geçerim?", "**Prof. Dr. Ayşe ÖRNEK** — telefon"),
+        ("Ayşe Örnek'in uzmanlık alanı", "**Prof. Dr. Ayşe ÖRNEK** — araştırma"),
+        ("Ayşe Örnek'in ilgi alanları neler?", "**Prof. Dr. Ayşe ÖRNEK** — araştırma"),
+        ("Ayşe Örnek nereden mezun oldu?", "**Prof. Dr. Ayşe ÖRNEK** — eğitim"),
+        ("Öğretmenler kimler?", "Test Bölümü akademik kadrosu"),
+        ("Akademisyenlerin e-posta adresleri", "Test Bölümü akademik kadrosu iletişim"),
     ],
 )
 def test_matches_questions_despite_phrasing_suffixes_and_casing(matcher, question, answer_start):
@@ -71,3 +80,12 @@ def test_store_replaces_one_source_and_keeps_the_others(tmp_path, staff_answers)
     store.replace_source(staff_answers[0].source_id, staff_answers[:2])
 
     assert store.all() == other + staff_answers[:2]
+
+
+def test_synonyms_match_patterns_written_with_another_word():
+    answer = PreparedAnswer(
+        source_id="s", source_title="Staj", url="", questions=["Staj zorunlu mu?"], answer="Evet."
+    )
+    matcher = PreparedAnswerMatcher([answer])
+    assert matcher.match("Staj mecburi mi?") is answer
+    assert matcher.match("Internship şart mı?") is answer

@@ -47,6 +47,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 "Program eğitim amaçları neler?",
                 "Yazılım mühendisliği bölümünün hedefleri nelerdir?",
                 "Mezunlar hangi alanlarda çalışacak şekilde yetiştirilir?",
+                "Bölümün eğitim hedefleri, amaçları neler?",
+                "Bölüm öğrencilerini nasıl yetiştiriyor?",
             ],
             goals_text,
         )

@@ -8,7 +8,52 @@ Sayfa yapısı (div.detail-container > div.col-md-12):
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
-from atilim_assistant.text import collapse_whitespace
+from atilim_assistant.text import collapse_whitespace, normalize
+
+# Sayfadaki her soru tek bir söylenişle yazılmış; kullanıcılar aynı şeyi başka sözcüklerle sorar.
+# Anahtar, sayfa sorusunun normalleştirilmiş metninde geçen bir parçadır; sayfada soru
+# değişirse yalnızca ek kalıplar düşer, sayfanın kendi sorusu yine kullanılır.
+_EXTRA_QUESTIONS = {
+    "neden atilim": [
+        "Atılım'da yazılım mühendisliği okumak için nedenler neler?",
+        "Bu bölümü neden seçmeliyim, avantajları ne?",
+        "Yazılım mühendisliği okumaya değer mi?",
+    ],
+    "bilgisayar muhendisliginden farki": [
+        "Yazılım mühendisliği ile bilgisayar mühendisliği arasındaki fark ne?",
+        "Yazılım mühendisliği bilgisayar mühendisliğinden nasıl ayrılır?",
+        "SE ile CENG, CMPE farkı nedir?",
+    ],
+    "nerelerde is": [
+        "Yazılım mühendisliği mezunları nerede çalışır?",
+        "Mezunların iş imkânları ve kariyer olanakları neler?",
+        "Mezun olunca hangi sektörlerde iş bulunur?",
+    ],
+    "kontenjan": [
+        "Bölüm kaç öğrenci alıyor?",
+        "Yazılım mühendisliği kontenjanı, burslu kontenjan kaç?",
+        "Bölümde kaç burslu kontenjan var?",
+    ],
+    "zorunlu mu": [
+        "Ortak eğitim zorunlu mu, isteğe bağlı mı?",
+        "Co-op programına katılmak zorunlu mu?",
+    ],
+    "staj mecburi": [
+        "Staj zorunlu mu, kaç staj yapmam gerekiyor?",
+        "Kaç iş günü staj yapılıyor?",
+        "Staj süresi ne kadar?",
+    ],
+    "akademik kadro": [
+        "Bölümde kaç öğrenci ve kaç öğretim üyesi var?",
+        "Bölümün öğrenci sayısı kaç?",
+        "Kaç tam zamanlı, kaç yarı zamanlı hoca var?",
+    ],
+    "erasmus": [
+        "Erasmus ile yurt dışına gidebilir miyim?",
+        "Yurt dışı değişim programı var mı?",
+        "Erasmus anlaşmalı üniversiteler hangileri?",
+    ],
+}
 
 
 def parse(html: str, source: Source) -> SourceContent:
@@ -40,13 +85,9 @@ def parse(html: str, source: Source) -> SourceContent:
     for i, (question, answer_text) in enumerate(qa_pairs):
         doc_text = f"S: {question}\nC: {answer_text}"
         documents.append(_doc(source, f"sss-{i + 1}", question[:80], doc_text))
-        answers.append(
-            _answer(
-                source,
-                [question],
-                answer_text,
-            )
-        )
+        key = normalize(question)
+        extras = [q for part, qs in _EXTRA_QUESTIONS.items() if part in key for q in qs]
+        answers.append(_answer(source, [question, *extras], answer_text))
 
     # Erasmus tablosu
     if erasmus:
@@ -63,6 +104,8 @@ def parse(html: str, source: Source) -> SourceContent:
                     "Yazılım mühendisliği Erasmus anlaşmaları olan üniversiteler neler?",
                     "Erasmus kapsamında hangi ülkelere gidebilirim?",
                     "Erasmus+ ortakları neler?",
+                    "Erasmus ile hangi okullara, hangi ülkelere gidebilirim?",
+                    "Yurt dışında anlaşmalı okullar hangileri?",
                 ],
                 erasmus_text,
             )

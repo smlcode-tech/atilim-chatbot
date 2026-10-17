@@ -133,3 +133,11 @@ def test_lexical_search_matches_course_codes_with_or_without_space(query):
         Document(id="2", title="CMPE325 Ön Koşulu", text="Ön koşul: CMPE 225", **_META),
     ]
     assert LexicalIndex(documents).search(query, 1)[0].id == "1"
+
+
+def test_lexical_search_matches_synonyms():
+    documents = [
+        Document(id="1", title="SE212", text="Ön koşul: SE112", **_META),
+        Document(id="2", title="SE212", text="AKTS: 6", **_META),
+    ]
+    assert LexicalIndex(documents).search("ön şartı ne", 1)[0].id == "1"

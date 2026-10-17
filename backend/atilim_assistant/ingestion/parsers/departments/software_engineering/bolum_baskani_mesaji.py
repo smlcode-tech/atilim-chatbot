@@ -44,6 +44,7 @@ def parse(html: str, source: Source) -> SourceContent:
                 "Bölüm başkanı öğrencilere ne diyor?",
                 f"{chair_name} öğrencilere mesajı",
                 "Bölüm başkanından mesaj",
+                "Bölüm başkanının öğrencilere mesajı, konuşması",
             ],
             "\n\n".join(paragraphs),
         )
@@ -58,6 +59,8 @@ def parse(html: str, source: Source) -> SourceContent:
                     # yanıtının "Bölüm başkanından mesaj" kalıbına gider.
                     "Bölüm başkanı kim?",
                     "Bölüm başkanının adı nedir?",
+                    "Bölümün başında kim var?",
+                    "Bölüm şefi kim?",
                 ],
                 f"{source.unit} Bölüm Başkanı: **{chair_name}**",
             )

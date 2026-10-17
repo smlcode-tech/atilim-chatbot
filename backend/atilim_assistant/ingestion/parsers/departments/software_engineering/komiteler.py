@@ -49,6 +49,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 f"{source.unit} komiteleri nelerdir?",
                 "Bölüm komitesi üyeleri kimler?",
                 "Yazılım mühendisliği bölüm komiteleri",
+                "Bölümde hangi komisyonlar var, kimler görevli?",
+                "Komitelerde hangi hocalar görev alıyor?",
             ],
             roster_text,
         )
@@ -62,6 +64,9 @@ def parse(html: str, source: Source) -> SourceContent:
                 [
                     f"{name} komitesi kimlerden oluşuyor?",
                     f"{name} komitesi üyeleri kimler?",
+                    f"{name} komitesinde kimler var?",
+                    f"{name} komisyonunda hangi hocalar görevli?",
+                    f"{name} komitesinden kim sorumlu, kime başvurmalıyım?",
                 ],
                 f"**{name} komitesi:** {members}",
             )

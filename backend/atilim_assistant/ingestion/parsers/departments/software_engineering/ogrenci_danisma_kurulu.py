@@ -42,6 +42,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 f"{source.unit} öğrenci danışma kurulu kimlerden oluşuyor?",
                 "Öğrenci danışma kurulu üyeleri kimler?",
                 "Yazılım mühendisliği öğrenci temsilcileri kimler?",
+                "Bölüm öğrenci temsilcisi kim?",
+                "Öğrenci danışma kurulunda kimler var?",
             ],
             "\n".join(roster_lines),
         )

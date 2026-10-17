@@ -82,7 +82,9 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
     entries = []
     for m in members:
         label = m.title or "İdari Personel"
-        entries.append(f"{m.name} – {label}")
+        # "Bölüm sekreterine nasıl ulaşırım?" da bu yanıtla karşılanır; iletişim bilgisi eklenir.
+        contact = ", ".join(value for value in (m.phone, m.email) if value)
+        entries.append(f"{m.name} – {label}" + (f" ({contact})" if contact else ""))
     roster_text = f"{unit} idari kadrosu ({len(members)} kişi):\n" + "\n".join(f"- {e}" for e in entries)
     return [
         _answer(
@@ -92,6 +94,10 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
                 f"{unit} idari kadrosu",
                 "Bölüm sekreteri kim?",
                 "İdari personele nasıl ulaşırım?",
+                "Bölüm sekreterine nasıl ulaşırım?",
+                "Bölüm sekreterliğinin telefonu ve maili ne?",
+                "Bölüm sekreterliği ile nasıl iletişime geçerim?",
+                "Bölümün idari işlerine kim bakıyor?",
             ],
             roster_text,
         )
@@ -115,6 +121,7 @@ def _member_answers(m: _StaffMember, source: Source) -> list[PreparedAnswer]:
                 m.name,
                 f"{m.name} kimdir?",
                 f"{m.name} unvanı nedir?",
+                f"{m.name} bölümde ne iş yapıyor, görevi ne?",
             ],
             "\n".join(profile_lines),
         )
@@ -129,6 +136,7 @@ def _member_answers(m: _StaffMember, source: Source) -> list[PreparedAnswer]:
                     f"{m.name} telefon numarası nedir?",
                     f"{m.name} iletişim bilgileri",
                     f"{m.name} e-posta, mail adresi nedir?",
+                    f"{m.name} nasıl ulaşırım, nasıl iletişime geçerim?",
                 ],
                 f"**{m.name}** — {', '.join(contact)}",
             )

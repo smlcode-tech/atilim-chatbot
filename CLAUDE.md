@@ -62,6 +62,7 @@ frontend/src/
 - **Graceful degradation**: MongoDB, model veya kota hatası asistanı durdurmaz
 - **Cooldown mekanizması**: Model hata verince `_model_retry_at` saati ilerletilir; hazır yanıtlar kullanılır
 - **Bağlamlandırma**: geçmişi olan her soru modelle yeniden yazılır; ilk soruda ve soğuma süresinde atlanır. Sözcük kurallarıyla takip sorusu sezmek eş anlamlı ifadeleri kaçırdığı için bırakıldı
+- **Eş anlamlı sözlük**: `text.SYNONYMS` / `canonicalize()` — "mail"/"e-posta", "hoca"/"öğretim üyesi" gibi söylenişleri kanonik biçime indirir; hazır yanıt eşleştirme ve BM25 hem soruya hem kalıba/belgeye uygular. Parser'larda soru kalıbı yazarken farklı söylenişler eklenir, ama veride olmayan bilgiyi soran kalıp eklenmez
 - **Soru kalıbı indeksi**: hazır yanıtların soru kalıpları `<collection>_questions` koleksiyonunda embedding'lenir; retrieval'a üçüncü sıralama olarak katılır ve yanıtı bağlam olarak modele verir (eşik yok, alaka kararını model verir)
 
 ## Geliştirme Komutları

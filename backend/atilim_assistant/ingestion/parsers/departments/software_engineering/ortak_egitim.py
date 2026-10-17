@@ -8,7 +8,47 @@ Sayfa yapısı (div.detail-container):
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
-from atilim_assistant.text import collapse_whitespace
+from atilim_assistant.text import collapse_whitespace, normalize
+
+# Sayfadaki sorular tek bir söylenişle yazılmış; kullanıcılar aynı şeyi başka sözcüklerle sorar.
+# Anahtar, sayfa sorusunun normalleştirilmiş metninde geçen bir parçadır; sayfada soru
+# değişirse yalnızca ek kalıplar düşer, sayfanın kendi sorusu yine kullanılır.
+_EXTRA_QUESTIONS = {
+    "notlandir": [
+        "Ortak eğitim dersleri nasıl notlandırılıyor, not nasıl veriliyor?",
+        "Co-op sırasında hangi derslere kayıt olunur ve nasıl değerlendirilir?",
+    ],
+    "anlasmasi olan firma": [
+        "Hangi şirketlerle ortak eğitim yapılabiliyor?",
+        "Co-op yapılabilecek, anlaşmalı firmalar hangileri?",
+    ],
+    "basvuru sartlari": [
+        "Ortak eğitime kimler başvurabilir?",
+        "Co-op başvuru koşulları neler?",
+    ],
+    "ne zaman ve nereye": [
+        "Ortak eğitim başvuruları ne zaman yapılıyor?",
+        "Ortak eğitime nasıl ve nereye başvururum?",
+        "Co-op başvurusu nereye yapılır?",
+    ],
+    "firma nasil belirlenir": [
+        "Ortak eğitim yapacağım firmayı nasıl seçerim?",
+        "Co-op öğrencileri şirketlere nasıl yerleştiriliyor?",
+    ],
+    "ders degisiklik": [
+        "Ortak eğitime katılacaksam derslerimi nasıl planlamalıyım?",
+        "Co-op öncesinde hangi dersleri tamamlamalıyım?",
+    ],
+    "kayit olacaklari dersler": [
+        "Ortak eğitim döneminde hangi derslere kaydolurum?",
+        "Co-op dersleri, ortak eğitim uygulaması dersleri nelerdir?",
+    ],
+    "iletisim": [
+        "Ortak eğitim için kiminle iletişime geçmeliyim?",
+        "Ortak eğitim koordinatörü kim?",
+        "Co-op sorumlusuna nasıl ulaşırım?",
+    ],
+}
 
 
 def parse(html: str, source: Source) -> SourceContent:
@@ -39,6 +79,9 @@ def parse(html: str, source: Source) -> SourceContent:
                 "Ortak eğitim programı hakkında bilgi",
                 f"{source.unit} ortak eğitim",
                 "Co-op programı nedir?",
+                "Ortak eğitim programı nasıl işliyor?",
+                "Okurken şirkette çalışabilir miyim?",
+                "İş yeri eğitimi, co-op hakkında bilgi verir misin?",
             ],
             summary,
         )
@@ -48,13 +91,25 @@ def parse(html: str, source: Source) -> SourceContent:
     for i, (q, a) in enumerate(qa_pairs):
         doc_text = f"{q}\n\n{a}"
         documents.append(_doc(source, f"soru-{i + 1}", q, doc_text))
-        answers.append(_answer(source, [q], doc_text))
+        answers.append(_answer(source, _questions(q), doc_text))
 
     # Tablo ayrı belge
     if table_text:
         documents.append(_doc(source, "tablo", "Ortak Eğitim Müfredat Tablosu", table_text))
 
     return SourceContent(documents=documents, prepared_answers=answers)
+
+
+def _questions(question: str) -> list[str]:
+    # "İletişim Bilgileri:" gibi başlıklar konuyu anmaz; kalıp olarak her iletişim sorusuna
+    # uyardı. Konu adı eklenir.
+    question = question.rstrip(": ")
+    if "ortak" not in normalize(question):
+        question = f"Ortak eğitim {question[0].lower()}{question[1:]}"
+    key = normalize(question)
+    return [question] + [
+        extra for part, extras in _EXTRA_QUESTIONS.items() if part in key for extra in extras
+    ]
 
 
 def _extract_qa(container: Tag) -> list[tuple[str, str]]:

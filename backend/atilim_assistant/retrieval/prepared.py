@@ -12,7 +12,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from atilim_assistant.domain import PreparedAnswer
-from atilim_assistant.text import FILLER_WORDS, normalize, stem, tokenize
+from atilim_assistant.text import FILLER_WORDS, canonicalize, normalize, stem, tokenize
 
 # Sorunun içerik sözcüklerinin (ağırlıkça) en az bu kadarı bir soru kalıbında geçmelidir.
 # Daha düşük eşik, sorunun asıl konusunu karşılamayan yanıtların verilmesine yol açar.
@@ -93,7 +93,9 @@ class PreparedAnswerMatcher:
 
 
 def _terms(text: str) -> frozenset[str]:
-    return frozenset(stem(token) for token in tokenize(text) if token not in FILLER_WORDS)
+    return frozenset(
+        stem(token) for token in tokenize(canonicalize(text)) if token not in FILLER_WORDS
+    )
 
 
 def _prefixes(text: str) -> frozenset[str]:

@@ -96,6 +96,8 @@ def _prepared_answers(
                 "Yazılım mühendisliği bölümünü tanıtır mısın?",
                 "SE bölümü hakkında genel bilgi",
                 "Atılım yazılım mühendisliği bölümü",
+                "Yazılım mühendisliği bölümünü anlatır mısın?",
+                "Bölüm ne zaman açıldı, kaç yıllık?",
             ],
             intro,
         ),
@@ -105,6 +107,7 @@ def _prepared_answers(
                 f"{unit} misyonu nedir?",
                 "Bölümün misyon ifadesi nedir?",
                 "Yazılım mühendisliği bölümünün amacı ne?",
+                "Bölümün görevi, misyonu ne?",
             ],
             f"**{unit} Misyonu:** {mission}",
         ),
@@ -114,6 +117,7 @@ def _prepared_answers(
                 f"{unit} vizyonu nedir?",
                 "Bölümün vizyon ifadesi nedir?",
                 "Yazılım mühendisliği bölümünün hedefi ne?",
+                "Bölüm gelecekte ne olmayı hedefliyor?",
             ],
             f"**{unit} Vizyonu:** {vision}",
         ),
@@ -124,6 +128,8 @@ def _prepared_answers(
                 "EUR-ACE etiketi nedir?",
                 "Bölüm akredite mi?",
                 "Yazılım mühendisliği mezunları Avrupa'da geçerli mi?",
+                "Bölümün akreditasyonu var mı, ne zamana kadar geçerli?",
+                "Diploma yurt dışında tanınıyor mu?",
             ],
             (
                 f"{unit}, MÜDEK tarafından 30 Eylül 2030 tarihine kadar akredite edilmiş "
@@ -138,6 +144,8 @@ def _prepared_answers(
                 "Yazılım mühendisliği mezunları nerede çalışabilir?",
                 "Mezun iş imkânları neler?",
                 "Bölüm mezunları hangi sektörlerde iş bulabilir?",
+                "Yazılım mühendisleri nerelerde iş bulur, kariyer olanakları neler?",
+                "Mezunlar hangi kurum ve firmalarda çalışıyor?",
             ],
             (
                 f"{unit} mezunları; yazılım ve AR-GE firmalarında (Teknoparklarda), "
@@ -153,6 +161,8 @@ def _prepared_answers(
                 "Yüksek lisans programı var mı?",
                 "Lisansüstü eğitim imkânı nedir?",
                 "Türkiye'de yazılım mühendisliği doktorası hangi üniversitelerde var?",
+                "Mezun olduktan sonra master veya doktora yapabilir miyim?",
+                "Bölümde lisansüstü program var mı?",
             ],
             (
                 f"{unit}, Lisans, Yüksek Lisans ve Doktora düzeyinde eğitim vermektedir. "

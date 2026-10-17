@@ -47,6 +47,8 @@ def parse(text: str, source: Source) -> SourceContent:
                 "Derslerin ön koşulları nelerdir?",
                 f"{source.unit} ön koşul tablosu",
                 "Hangi dersi almak için hangi ders gerekli?",
+                "Ön şartlı dersler listesi",
+                "Hangi derslerin ön koşulu var?",
             ],
             summary,
         )
@@ -70,6 +72,8 @@ def parse(text: str, source: Source) -> SourceContent:
                     f"{course} dersinin ön koşulu nedir?",
                     f"{course} alabilmek için ne gerekir?",
                     f"{course} öncesinde hangi dersi almam lazım?",
+                    f"{course} almadan önce hangi dersi geçmeliyim?",
+                    f"{course} ön şartı var mı?",
                 ],
                 doc_text,
             )
@@ -90,6 +94,8 @@ def parse(text: str, source: Source) -> SourceContent:
                     f"{prereq} sonrasında hangi dersler açılır?",
                     f"{prereq} hangi derslerin ön koşuludur?",
                     f"{prereq} aldıktan sonra ne alabilirim?",
+                    f"{prereq} geçince hangi derslere kaydolabilirim?",
+                    f"{prereq} kalırsam hangi dersleri alamam?",
                 ],
                 doc_text,
             )

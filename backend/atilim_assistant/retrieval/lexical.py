@@ -8,7 +8,7 @@ import re
 from collections import Counter
 
 from atilim_assistant.domain import Document
-from atilim_assistant.text import FILLER_WORDS, tokenize
+from atilim_assistant.text import FILLER_WORDS, canonicalize, tokenize
 
 _K1 = 1.5
 _B = 0.75
@@ -53,8 +53,9 @@ class LexicalIndex:
 def _terms(text: str) -> list[str]:
     """Dolgu sözcükleri atılır: BM25 anlamı bilmez, "için" gibi bir bağlaç az belgede geçtiği
     için yüksek ağırlık alıp alakasız belgeleri öne çıkarabilir. Ders kodları hem "SE212" hem
-    "SE 212" yazıldığından boşluklu yazıma birleşik terim de eklenir."""
-    tokens = tokenize(text)
+    "SE 212" yazıldığından boşluklu yazıma birleşik terim de eklenir. Eş anlamlılar kanonik
+    biçime indirilir ("ön şart" sorusu "ön koşul" geçen belgeyi bulur)."""
+    tokens = tokenize(canonicalize(text))
     terms = [token for token in tokens if token not in FILLER_WORDS]
     for subject, number in zip(tokens, tokens[1:]):
         if _SUBJECT.fullmatch(subject) and _COURSE_NUMBER.fullmatch(number):

@@ -43,6 +43,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 f"{source.unit} endüstri danışma kurulu kimlerden oluşuyor?",
                 "Endüstri danışma kurulu üyeleri kimler?",
                 "Yazılım mühendisliği bölümünün sektör danışmanları kimler?",
+                "Bölümün sanayi, endüstri kurulunda hangi şirketler var?",
+                "Endüstri danışma kurulunda kimler görev alıyor?",
             ],
             "\n".join(roster_lines),
         )

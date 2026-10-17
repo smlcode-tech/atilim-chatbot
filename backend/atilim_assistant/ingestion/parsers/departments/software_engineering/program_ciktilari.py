@@ -52,6 +52,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 "Yazılım mühendisliği program çıktıları",
                 "PÇ listesi nedir?",
                 "Bölüm mezunları hangi yetkinliklere sahip olur?",
+                "Öğrenme çıktıları, kazanımlar neler?",
+                "Mezunlar bölümden ne kazanır, hangi becerileri edinir?",
             ],
             "\n".join(roster_lines),
         )
@@ -66,12 +68,22 @@ def parse(html: str, source: Source) -> SourceContent:
                 [
                     f"{code} program çıktısı nedir?",
                     f"{code} açıklaması nedir?",
+                    f"{code} nedir?",
+                    *_number_questions(code),
                 ],
                 answer_text,
             )
         )
 
     return SourceContent(documents=documents, prepared_answers=answers)
+
+
+def _number_questions(code: str) -> list[str]:
+    """"PÇ3" → "3. program çıktısı nedir?"; harfli kodlarda ("PÇ9a") sayı tek başına yetmez."""
+    number = code.removeprefix("PÇ").strip()
+    if not number.isdigit():
+        return []
+    return [f"{number}. program çıktısı nedir?", f"{number} numaralı öğrenme çıktısı nedir?"]
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:

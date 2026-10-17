@@ -10,7 +10,7 @@ _RRF_K = 60
 
 # Hazır yanıtların her biri birkaç soru kalıbıyla indekslenir; `top_k` farklı yanıta ulaşmak
 # için o kadar kat fazla kalıp getirilir.
-_QUESTIONS_PER_ANSWER = 4
+_QUESTIONS_PER_ANSWER = 8
 
 
 class HybridRetriever:

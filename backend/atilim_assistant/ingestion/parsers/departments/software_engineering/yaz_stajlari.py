@@ -46,6 +46,9 @@ _SECTIONS_META: dict[str, tuple[str, str, list[str]]] = {
             "Staj yapmak zorunda mıyım?",
             "Staj koordinatörü kim?",
             "Staj yaparken yaz okulu alınabilir mi?",
+            "Kaç iş günü staj yapmam gerekiyor?",
+            "Staj mecburi mi, kaç staj var?",
+            "Staj sorumlusu, staj komisyonu kim?",
         ],
     ),
     "STAJ BAŞVURUSU İÇİN GEREKLİ BELGELER": (
@@ -55,6 +58,7 @@ _SECTIONS_META: dict[str, tuple[str, str, list[str]]] = {
             "Staj başvurusu için hangi belgeler gerekli?",
             "Staj zorunluluk belgesi nedir?",
             "Staja başvurmak için ne yapmalıyım?",
+            "Staj için hangi evraklar, dokümanlar isteniyor?",
         ],
     ),
     "SIGORTA İÇİN GEREKLİ BELGELER": (
@@ -64,6 +68,7 @@ _SECTIONS_META: dict[str, tuple[str, str, list[str]]] = {
             "Staj sigortası için hangi belgeler lazım?",
             "Staj sigortası nasıl yapılır?",
             "Sigorta için hangi evrakları hazırlamalıyım?",
+            "Stajda SGK sigortası için gereken belgeler neler?",
         ],
     ),
     "SIGORTA İÇİN BAŞVURU SÜRECİ": (
@@ -73,6 +78,7 @@ _SECTIONS_META: dict[str, tuple[str, str, list[str]]] = {
             "Staj sigortası başvuru süreci nasıl?",
             "İşe giriş bildirgesi nasıl alınır?",
             "Staj için ne zaman sigorta başvurusu yapmalıyım?",
+            "SGK işe giriş belgesi ne zaman ve nasıl çıkar?",
         ],
     ),
     "STAJ BİTİŞİNDE GEREKLİ BELGELER": (
@@ -83,6 +89,8 @@ _SECTIONS_META: dict[str, tuple[str, str, list[str]]] = {
             "Staj raporu nasıl teslim edilir?",
             "SE399 veya SE499 dersine nasıl kayıt olunur?",
             "Staj değerlendirme formu nasıl doldurulur?",
+            "Staj bitince hangi belgeleri teslim etmeliyim?",
+            "Staj raporunu ne zaman, nereye teslim ederim?",
         ],
     ),
 }
@@ -143,6 +151,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 "Staj için hangi adımları izlemeliyim?",
                 "Staj başvurusu nasıl yapılır?",
                 "Yaz stajını nasıl tamamlarım?",
+                "Staj süreci baştan sona nasıl ilerliyor?",
+                "Staj yapmak için sırayla ne yapmam gerekiyor?",
             ],
             _PROSEDUR_ADIMLARI,
         )

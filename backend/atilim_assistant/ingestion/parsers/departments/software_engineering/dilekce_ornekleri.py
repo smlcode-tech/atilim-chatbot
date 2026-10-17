@@ -116,6 +116,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 "Hangi dilekçe örnekleri var?",
                 "Staj veya ders ile ilgili dilekçe nereden indirilir?",
                 "Bölümün resmi dilekçeleri nelerdir?",
+                "Dilekçe formları, şablonları nereden indirilir?",
+                "Bölüme dilekçe nasıl verilir?",
             ],
             summary,
         )
@@ -151,11 +153,15 @@ def _slugify(title: str) -> str:
 
 def _questions(title: str, url: str) -> list[str]:
     base = title.rstrip(".")
+    subject = base.removesuffix("Dilekçesi").strip()
     return [
         f"{base} nasıl yazılır?",
         f"{base} şablonu nedir?",
         f"{base} nereden indirilir?",
         f"{base} için ne yapmalıyım?",
+        # Öğrenciler dilekçeyi çoğu zaman konusuyla anar: "kayıt dondurma formu".
+        f"{subject} formu, belgesi nereden bulunur?",
+        f"{subject} için nasıl başvururum?",
     ]
 
 

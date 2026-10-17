@@ -82,6 +82,9 @@ def parse(html: str, source: Source) -> SourceContent:
                 "Yazılım mühendisliği bölümünde hangi dersler var?",
                 "Lisans programı dersleri neler?",
                 "SE bölümü müfredatı",
+                "Ders planı, öğretim planı nedir?",
+                "Dört yıl boyunca hangi dersleri alacağım?",
+                "Yarıyıllara göre ders dağılımı nasıl?",
             ],
             full_roster,
         )
@@ -105,6 +108,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 [
                     f"{sem.name} dersleri neler?",
                     f"Yazılım mühendisliği {sem.name.lower()} hangi dersleri alıyorum?",
+                    f"{sem.name}da hangi dersler okunuyor, görülüyor?",
+                    f"{sem.name}{_year_label(sem.name)} dersleri neler?",
                 ],
                 sem_text,
             )
@@ -134,6 +139,9 @@ def parse(html: str, source: Source) -> SourceContent:
                     f"{year}. sınıf dersleri neler?",
                     f"{_ORDINALS[year]} sınıf dersleri neler?",
                     f"Yazılım mühendisliği {year}. sınıfta hangi dersleri alıyorum?",
+                    f"{year}. sınıfta hangi dersler okunuyor, görülüyor?",
+                    f"{_ORDINALS[year]} sınıfta hangi dersler okunuyor, görülüyor?",
+                    f"{year}. sınıf güz ve bahar dönemi dersleri",
                 ],
                 year_text,
             )

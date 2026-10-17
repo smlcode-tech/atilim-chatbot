@@ -71,6 +71,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 f"{source.unit} dersleri nelerdir?",
                 "Yazılım mühendisliğinde hangi dersler var?",
                 "SE bölümü ders listesi",
+                "Bölümde hangi dersleri alacağım?",
+                "Tüm derslerin listesi",
             ],
             full_text,
         )
@@ -94,6 +96,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 [
                     f"{source.unit} {tab.label.lower()} nelerdir?",
                     f"{tab.label} listesi",
+                    f"Hangi {tab.label.lower()} var?",
+                    f"{tab.label} kaç tane, kaç AKTS?",
                 ],
                 tab_text,
             )
@@ -113,7 +117,12 @@ def parse(html: str, source: Source) -> SourceContent:
         answers.append(
             _answer(
                 source,
-                ["Seçmeli dersler nelerdir?", "Seçmeli ders listesi"],
+                [
+                    "Seçmeli dersler nelerdir?",
+                    "Seçmeli ders listesi",
+                    "Hangi seçmeli dersleri alabilirim?",
+                    "Seçmeli ders seçenekleri neler?",
+                ],
                 f"{source.unit} seçmeli dersleri:\n\n{elective_text}",
             )
         )
@@ -140,9 +149,21 @@ def parse(html: str, source: Source) -> SourceContent:
                 f"{c.code} dersi nedir?",
                 f"{c.name} dersi hakkında bilgi",
                 f"{c.code} içeriği nedir?",
+                f"{c.code} kaç AKTS, kaç kredi?",
+                f"{c.name} dersi kaç AKTS, kaç kredi?",
+                f"{c.code} haftada kaç saat teorik, uygulama ve lab?",
+                f"{c.code} zorunlu mu, seçmeli mi?",
             ]
+            if c.content:
+                questions += [
+                    f"{c.code} dersinin konuları neler, neler anlatılıyor?",
+                    f"{c.name} dersinde ne öğreniliyor?",
+                ]
             if c.precondition:
-                questions.append(f"{c.code} dersinin ön koşulu nedir?")
+                questions += [
+                    f"{c.code} dersinin ön koşulu nedir?",
+                    f"{c.name} dersini almak için önce hangi dersi almalıyım?",
+                ]
             answers.append(_answer(source, questions, doc_text))
 
     return SourceContent(documents=documents, prepared_answers=answers)
