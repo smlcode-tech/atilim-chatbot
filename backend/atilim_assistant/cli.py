@@ -10,6 +10,7 @@ from atilim_assistant.bootstrap import (
     build_chat_service,
     build_prepared_answer_store,
     build_provider,
+    build_question_store,
     build_store,
 )
 from atilim_assistant.config import get_settings
@@ -52,6 +53,7 @@ def _ingest(args: argparse.Namespace) -> None:
         _chat_model, provider = build_provider(settings)
         store = build_store(settings)
         prepared_answers = build_prepared_answer_store(settings)
+        questions = build_question_store(settings)
 
     for source in sources:
         content = load_content(source, html)
@@ -61,7 +63,7 @@ def _ingest(args: argparse.Namespace) -> None:
             for prepared in content.prepared_answers:
                 print(f"\n=== Hazır yanıt: {' | '.join(prepared.questions)} ===\n{prepared.answer}")
         else:
-            index_content(source, content, provider, store, prepared_answers)
+            index_content(source, content, provider, store, prepared_answers, questions)
         print(
             f"{source.id}: {len(content.documents)} belge, "
             f"{len(content.prepared_answers)} hazır yanıt"

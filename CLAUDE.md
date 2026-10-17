@@ -16,12 +16,12 @@ backend/atilim_assistant/
 ├── chat/
 │   ├── service.py      Ana soru-cevap akışı; model hata yönetimi ve cooldown
 │   ├── prompts.py      SYSTEM_PROMPT ve build_prompt(); CONTEXTUALIZE_PROMPT
-│   └── contextualize.py  needs_context() + rewrite() — takip sorusu bağlamlandırma
+│   └── contextualize.py  rewrite() — takip sorusu bağlamlandırma
 ├── providers/
 │   ├── voyage.py       Voyage AI embedder adaptörü
 │   └── groq.py         Groq adaptörü (yalnızca LLM, OpenAI uyumlu)
 ├── retrieval/
-│   ├── retriever.py    HybridRetriever — vektör + BM25 birleşik arama
+│   ├── retriever.py    HybridRetriever — vektör + BM25 + soru kalıbı birleşik arama
 │   ├── store.py        ChromaDB sarmalayıcı
 │   ├── lexical.py      BM25 anahtar kelime araması
 │   └── prepared.py     PreparedAnswerMatcher — model olmadan hazır yanıt
@@ -61,7 +61,8 @@ frontend/src/
 - **Uygulama fabrikası**: `create_app()` — testler sahte bileşen enjekte eder
 - **Graceful degradation**: MongoDB, model veya kota hatası asistanı durdurmaz
 - **Cooldown mekanizması**: Model hata verince `_model_retry_at` saati ilerletilir; hazır yanıtlar kullanılır
-- **Bağlamlandırma**: `needs_context()` False dönerse modele ikinci çağrı yapılmaz (kota koruması)
+- **Bağlamlandırma**: geçmişi olan her soru modelle yeniden yazılır; ilk soruda ve soğuma süresinde atlanır. Sözcük kurallarıyla takip sorusu sezmek eş anlamlı ifadeleri kaçırdığı için bırakıldı
+- **Soru kalıbı indeksi**: hazır yanıtların soru kalıpları `<collection>_questions` koleksiyonunda embedding'lenir; retrieval'a üçüncü sıralama olarak katılır ve yanıtı bağlam olarak modele verir (eşik yok, alaka kararını model verir)
 
 ## Geliştirme Komutları
 ```bash

@@ -2,7 +2,7 @@
 
 Sayfa yapısı academic_staff ile aynı (div.staff-academician kartları),
 ancak kartlarda araştırma konusu ve eğitim alanı bulunmaz; yalnızca ad,
-unvan ve telefon bilgisi yer alır.
+unvan, telefon ve (resim olarak yayınlanan, bkz. `staff_emails`) e-posta bilgisi yer alır.
 """
 
 import re
@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.departments.software_engineering.staff_emails import (
+    card_email,
+    known_emails,
+)
 from atilim_assistant.text import collapse_whitespace, slugify
 
 _PHONE = re.compile(r"\+90[\d ()]{10,}")
@@ -21,11 +25,13 @@ class _StaffMember:
     name: str
     title: str
     phone: str
+    email: str
 
 
 def parse(html: str, source: Source) -> SourceContent:
     cards = BeautifulSoup(html, "html.parser").select("div.staff-academician")
-    members = [_parse_card(card) for card in cards]
+    emails = known_emails()
+    members = [_parse_card(card, emails) for card in cards]
     if not members:
         raise ValueError(f"{source.url} sayfasında idari personel kartı bulunamadı.")
 
@@ -37,7 +43,7 @@ def parse(html: str, source: Source) -> SourceContent:
     )
 
 
-def _parse_card(card: Tag) -> _StaffMember:
+def _parse_card(card: Tag, emails: dict[str, str]) -> _StaffMember:
     h4 = card.find("h4")
     small = h4.find("small") if h4 else None
     title = collapse_whitespace(small.extract().get_text()).lstrip("/ ") if small else ""
@@ -47,6 +53,7 @@ def _parse_card(card: Tag) -> _StaffMember:
         name=name,
         title=title,
         phone=phone_m.group(0).strip() if phone_m else "",
+        email=card_email(card, name, emails),
     )
 
 
@@ -65,6 +72,8 @@ def _member_document(m: _StaffMember, source: Source) -> Document:
         lines.append(f"Unvan: {m.title}")
     if m.phone:
         lines.append(f"Telefon: {m.phone}")
+    if m.email:
+        lines.append(f"E-posta: {m.email}")
     return _doc(source, slugify(m.name), m.name, "\n".join(lines))
 
 
@@ -96,6 +105,8 @@ def _member_answers(m: _StaffMember, source: Source) -> list[PreparedAnswer]:
         profile_lines.append(f"- Unvan: {m.title}")
     if m.phone:
         profile_lines.append(f"- Telefon: {m.phone}")
+    if m.email:
+        profile_lines.append(f"- E-posta: {m.email}")
 
     answers.append(
         _answer(
@@ -108,15 +119,18 @@ def _member_answers(m: _StaffMember, source: Source) -> list[PreparedAnswer]:
             "\n".join(profile_lines),
         )
     )
-    if m.phone:
+    contact = [f"telefon: {m.phone}"] if m.phone else []
+    contact += [f"e-posta: {m.email}"] if m.email else []
+    if contact:
         answers.append(
             _answer(
                 source,
                 [
                     f"{m.name} telefon numarası nedir?",
                     f"{m.name} iletişim bilgileri",
+                    f"{m.name} e-posta, mail adresi nedir?",
                 ],
-                f"**{m.name}** — telefon: {m.phone}",
+                f"**{m.name}** — {', '.join(contact)}",
             )
         )
     return answers

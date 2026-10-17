@@ -38,8 +38,18 @@ def test_follow_up_questions_are_rewritten_before_retrieval(service, model, hist
     assert answer.prepared is True
 
 
-def test_self_contained_questions_spare_the_contextualization_call(service, model, history):
-    service.answer("Blok zinciri ile ilgilenen öğretim üyeleri kimler?", history)
+def test_follow_ups_are_rewritten_however_they_are_phrased(service, model, history):
+    # Önceki tura yaslanmanın sözcük kuralıyla sezilemeyecek bir biçimi: zamir yok, kısa değil.
+    model.reply = "Prof. Dr. Ayşe ÖRNEK telefon numarası nedir?"
+
+    answer = service.answer("Kendisini aramak istiyorum, numarasını paylaşabilir misin?", history)
+
+    assert "SON SORU: Kendisini aramak istiyorum" in model.prompt
+    assert answer.text.startswith("**Prof. Dr. Ayşe ÖRNEK** — telefon:")
+
+
+def test_the_first_question_spares_the_contextualization_call(service, model):
+    service.answer("Blok zinciri ile ilgilenen öğretim üyeleri kimler?")
 
     assert model.calls == 1
     assert model.prompt.endswith("SORU: Blok zinciri ile ilgilenen öğretim üyeleri kimler?")

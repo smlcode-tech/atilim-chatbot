@@ -1,4 +1,4 @@
-"""Vektör ve anahtar kelime aramalarını birleştiren hibrit getirici."""
+"""Vektör, anahtar kelime ve soru kalıbı aramalarını birleştiren hibrit getirici."""
 
 from atilim_assistant.domain import Document
 from atilim_assistant.ports import Embedder
@@ -8,10 +8,19 @@ from atilim_assistant.retrieval.store import DocumentStore
 # Reciprocal Rank Fusion sabiti; literatürdeki standart değer.
 _RRF_K = 60
 
+# Hazır yanıtların her biri birkaç soru kalıbıyla indekslenir; `top_k` farklı yanıta ulaşmak
+# için o kadar kat fazla kalıp getirilir.
+_QUESTIONS_PER_ANSWER = 4
+
 
 class HybridRetriever:
     def __init__(
-        self, store: DocumentStore, embedder: Embedder, top_k: int, max_chars: int
+        self,
+        store: DocumentStore,
+        embedder: Embedder,
+        top_k: int,
+        max_chars: int,
+        questions: DocumentStore | None = None,
     ) -> None:
         self._store = store
         self._embedder = embedder
@@ -20,20 +29,30 @@ class HybridRetriever:
         # Anahtar kelime indeksi açılışta bir kez kurulur; yeni indekslenen
         # belgelerin görünmesi için süreç yeniden başlatılmalıdır.
         self._lexical = LexicalIndex(store.all())
+        # Soru kalıbı indeksi henüz kurulmamışsa (eski indeks) arama onsuz sürer.
+        self._questions = questions if questions is not None and questions.count() else None
 
     def retrieve(self, query: str) -> list[Document]:
-        semantic = self._store.search(self._embedder.embed_query(query), self._top_k)
-        lexical = self._lexical.search(query, self._top_k)
+        embedding = self._embedder.embed_query(query)
+        rankings = [
+            self._store.search(embedding, self._top_k),
+            self._lexical.search(query, self._top_k),
+        ]
+        if self._questions is not None:
+            matches = self._questions.search(embedding, self._top_k * _QUESTIONS_PER_ANSWER)
+            rankings.append(_distinct(matches)[: self._top_k])
 
+        # Aynı metin hem sayfa belgesi hem hazır yanıt olarak gelebilir (kadro listesi gibi);
+        # metne göre birleştirmek bağlamı tekrarla doldurmaz, iki aramanın oyunu da toplar.
         documents: dict[str, Document] = {}
         scores: dict[str, float] = {}
-        for ranking in (semantic, lexical):
+        for ranking in rankings:
             for rank, document in enumerate(ranking):
-                documents[document.id] = document
-                scores[document.id] = scores.get(document.id, 0.0) + 1 / (_RRF_K + rank + 1)
+                documents.setdefault(document.text, document)
+                scores[document.text] = scores.get(document.text, 0.0) + 1 / (_RRF_K + rank + 1)
 
         best = sorted(scores, key=scores.get, reverse=True)[: self._top_k]
-        return self._fit([documents[document_id] for document_id in best])
+        return self._fit([documents[text] for text in best])
 
     def _fit(self, ranked: list[Document]) -> list[Document]:
         """Bağlamı karakter bütçesinde tutar: sığmayan belge atlanır, sıradakiler denenir.
@@ -47,3 +66,11 @@ class HybridRetriever:
                 fitted.append(document)
                 used += len(document.text)
         return fitted
+
+
+def _distinct(documents: list[Document]) -> list[Document]:
+    """Aynı yanıta götüren kalıplardan yalnızca en üstteki kalır."""
+    distinct: dict[str, Document] = {}
+    for document in documents:
+        distinct.setdefault(document.text, document)
+    return list(distinct.values())

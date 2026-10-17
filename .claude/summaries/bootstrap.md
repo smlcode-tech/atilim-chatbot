@@ -1,7 +1,7 @@
 ---
 source: backend/atilim_assistant/bootstrap.py
-hash: e93d0ef7f5c7ac34bc37f7d93d9dbbb9f7d7ec6d
-updated: 2026-10-12
+hash: 3e2861428f8d698d3afaed1a513bcebb84a12aef
+updated: 2026-10-17
 ---
 
 ## Amaç
@@ -10,6 +10,7 @@ Ayarlardan somut bileşenleri kuran bağlama noktası. `app.py`'daki lifespan bu
 ## Public API
 - `build_provider(settings) -> tuple[ChatModel, Embedder]` — LLM_PROVIDER'a göre Groq veya Gemini seçer; Embedder her zaman Gemini
 - `build_store(settings) -> DocumentStore`
+- `build_question_store(settings) -> DocumentStore` — `<collection>_questions`; hazır yanıt soru kalıpları, HybridRetriever'a verilir
 - `build_prepared_answer_store(settings) -> PreparedAnswerStore`
 - `build_conversation_store(settings) -> tuple[MongoUserRepository|None, MongoConversationRepository|None]`
 - `build_chat_service(settings) -> ChatService` — indeks boşsa RuntimeError

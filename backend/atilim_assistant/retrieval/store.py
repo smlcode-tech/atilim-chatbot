@@ -31,6 +31,8 @@ class DocumentStore:
         self, source_id: str, documents: list[Document], embeddings: list[list[float]]
     ) -> None:
         self._collection.delete(where={"source_id": source_id})
+        if not documents:
+            return
         self._collection.add(
             ids=[document.id for document in documents],
             documents=[document.text for document in documents],

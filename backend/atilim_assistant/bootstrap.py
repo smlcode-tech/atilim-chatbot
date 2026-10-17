@@ -40,6 +40,13 @@ def build_store(settings: Settings) -> DocumentStore:
     return DocumentStore(settings.vector_store_dir, settings.collection, settings.embed_model)
 
 
+def build_question_store(settings: Settings) -> DocumentStore:
+    """Hazır yanıtların soru kalıplarıyla aranan kopyaları; bkz. `question_documents`."""
+    return DocumentStore(
+        settings.vector_store_dir, f"{settings.collection}_questions", settings.embed_model
+    )
+
+
 def build_prepared_answer_store(settings: Settings) -> PreparedAnswerStore:
     return PreparedAnswerStore(settings.prepared_answers_path)
 
@@ -67,7 +74,11 @@ def build_chat_service(settings: Settings) -> ChatService:
         )
     chat_model, embedder = build_provider(settings)
     retriever = HybridRetriever(
-        store, embedder, settings.retrieval_top_k, settings.retrieval_max_chars
+        store,
+        embedder,
+        settings.retrieval_top_k,
+        settings.retrieval_max_chars,
+        build_question_store(settings),
     )
     return ChatService(
         retriever,

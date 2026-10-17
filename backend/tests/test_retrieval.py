@@ -14,9 +14,16 @@ def prepared_store(tmp_path) -> PreparedAnswerStore:
 
 
 @pytest.fixture
-def store(tmp_path, staff_source, staff_content, embedder, prepared_store) -> DocumentStore:
+def questions(tmp_path) -> DocumentStore:
+    return DocumentStore(tmp_path / "chroma", "test_questions", "fake-model")
+
+
+@pytest.fixture
+def store(
+    tmp_path, staff_source, staff_content, embedder, prepared_store, questions
+) -> DocumentStore:
     store = DocumentStore(tmp_path / "chroma", "test", "fake-model")
-    index_content(staff_source, staff_content, embedder, store, prepared_store)
+    index_content(staff_source, staff_content, embedder, store, prepared_store, questions)
     return store
 
 
@@ -30,15 +37,54 @@ def test_store_refuses_index_built_with_another_embed_model(store, tmp_path):
 
 
 def test_reindexing_a_source_replaces_its_content(
-    store, prepared_store, staff_source, staff_content, embedder
+    store, prepared_store, questions, staff_source, staff_content, embedder
 ):
     assert prepared_store.all() == staff_content.prepared_answers
 
     smaller = SourceContent(staff_content.documents[:2], staff_content.prepared_answers[:3])
-    index_content(staff_source, smaller, embedder, store, prepared_store)
+    index_content(staff_source, smaller, embedder, store, prepared_store, questions)
 
     assert {document.id for document in store.all()} == {d.id for d in smaller.documents}
     assert prepared_store.all() == smaller.prepared_answers
+    assert {d.text for d in questions.all()} == {a.answer for a in smaller.prepared_answers}
+
+
+def test_every_question_pattern_is_indexed_with_its_answer(store, questions, staff_answers):
+    indexed = {(d.title, d.text) for d in questions.all()}
+    assert indexed == {(q, a.answer) for a in staff_answers for q in a.questions}
+
+
+class SpreadEmbedder:
+    """"Oyun" geçen metinleri bir yöne, diğerlerini öbür yöne koyar. Ortak `FakeEmbedder`'dan
+    farkı, aynı yöndeki metinleri hafifçe ayırmasıdır: yüzlerce özdeş vektörde Chroma'nın
+    yaklaşık en yakın komşu araması en yakın olanı kaçırabilir."""
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self.embed_query(text) for text in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        spread = (len(text) % 17) / 100
+        return [1.0, spread] if "Oyun" in text else [spread, 1.0]
+
+
+def test_question_patterns_bring_prepared_answers_into_the_context(
+    tmp_path, staff_source, staff_content, prepared_store
+):
+    # Sorunun sözcükleri hiçbir kalıpla örtüşmese de anlamca yakın kalıbın yanıtı bağlama girer.
+    embedder = SpreadEmbedder()
+    store = DocumentStore(tmp_path / "spread", "test", "spread")
+    questions = DocumentStore(tmp_path / "spread", "test_questions", "spread")
+    index_content(staff_source, staff_content, embedder, store, prepared_store, questions)
+
+    retriever = HybridRetriever(store, embedder, top_k=3, max_chars=100_000, questions=questions)
+    texts = [document.text for document in retriever.retrieve("Oyun geliştirmeyle uğraşan var mı?")]
+    assert any("araştırma konuları arasında" in text for text in texts)
+
+
+def test_the_same_text_enters_the_context_once(store, questions, embedder):
+    retriever = HybridRetriever(store, embedder, top_k=6, max_chars=100_000, questions=questions)
+    texts = [document.text for document in retriever.retrieve("akademik kadroda kimler var?")]
+    assert len(texts) == len(set(texts))
 
 
 def test_lexical_search_matches_names_despite_suffixes_and_casing(staff_documents):

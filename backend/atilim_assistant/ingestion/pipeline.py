@@ -2,7 +2,7 @@
 
 import httpx
 
-from atilim_assistant.domain import Source, SourceContent
+from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.ports import Embedder
 from atilim_assistant.retrieval.prepared import PreparedAnswerStore
 from atilim_assistant.retrieval.store import DocumentStore
@@ -36,8 +36,36 @@ def index_content(
     embedder: Embedder,
     store: DocumentStore,
     prepared_answers: PreparedAnswerStore,
+    questions: DocumentStore,
 ) -> None:
     """Kaynağın eski belgelerini ve hazır yanıtlarını yenileriyle değiştirir; diğer kaynaklara dokunmaz."""
     embeddings = embedder.embed_documents([document.text for document in content.documents])
     store.replace_source(source.id, content.documents, embeddings)
     prepared_answers.replace_source(source.id, content.prepared_answers)
+
+    entries = question_documents(source, content.prepared_answers)
+    question_embeddings = embedder.embed_documents([entry.title for entry in entries])
+    questions.replace_source(source.id, entries, question_embeddings)
+
+
+def question_documents(source: Source, answers: list[PreparedAnswer]) -> list[Document]:
+    """Her soru kalıbı için, kalıbın kendisiyle aranan ve yanıtı taşıyan bir belge.
+
+    Sayfa belgeleri sitenin dilindedir ("Telefon: +90…"), kullanıcı ise kendi dilinde sorar
+    ("hocalara nasıl ulaşırım?"). Soru kalıpları kullanıcı dilinde yazıldığı için, onlarla
+    yapılan anlamsal arama aynı şeyi başka sözcüklerle soranları da doğru yanıta götürür.
+    """
+    return [
+        Document(
+            id=f"{source.id}:hazir-{answer_index}-{question_index}",
+            source_id=source.id,
+            source_title=answer.source_title,
+            url=answer.url,
+            unit=source.unit,
+            category=source.category,
+            title=question,
+            text=answer.answer,
+        )
+        for answer_index, answer in enumerate(answers)
+        for question_index, question in enumerate(answer.questions)
+    ]

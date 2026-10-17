@@ -8,8 +8,8 @@ _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _WHITESPACE = re.compile(r"\s+")
 
 # Soru kalıbı, ek ve dolgu sözcükleri (normalleştirilmiş). Bir sorunun neyi sorduğunu bunlar
-# değil, geriye kalan içerik sözcükleri belirler; hem hazır yanıt eşleştirmesi hem de bir
-# sorunun kendi başına anlaşılıp anlaşılmadığı bu ayrıma dayanır.
+# değil, geriye kalan içerik sözcükleri belirler; hazır yanıt eşleştirmesi ve anahtar kelime
+# araması bu ayrıma dayanır.
 FILLER_WORDS = frozenset(
     """
     acaba bana baska bir bize bu da dan de den dir dur hakkinda hangi hangileri hangisi icin ile

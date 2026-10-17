@@ -6,7 +6,7 @@ Model yanıt üretemezse (kota, ağ, zaman aşımı) soru hazır yanıtlarla kar
 import logging
 import time
 
-from atilim_assistant.chat.contextualize import needs_context, rewrite
+from atilim_assistant.chat.contextualize import rewrite
 from atilim_assistant.chat.prompts import NO_ANSWER, SYSTEM_PROMPT, build_prompt
 from atilim_assistant.domain import Answer, Citation, Document, PreparedAnswer, Turn
 from atilim_assistant.ports import ChatModel
@@ -58,13 +58,13 @@ class ChatService:
             raise
 
     def _standalone(self, question: str, history: list[Turn]) -> str:
-        """Takip sorusunu bağımsız hâle getirir; gerekmiyorsa soruyu aynen döndürür.
+        """Geçmişi olan soruyu bağımsız hâle getirir; ilk soruyu aynen döndürür.
 
         Ham soru bir hazır yanıta eşleşiyor diye yeniden yazmayı atlamak yanlış olurdu:
         "Araştırma konuları neler?" bir yanıtı tutturur ama bu, geçmişte konuşulan kişinin
         yanıtı olmayabilir.
         """
-        if self._cooling() or not needs_context(question, history):
+        if not history or self._cooling():
             return question
         try:
             return rewrite(question, history, self._model)

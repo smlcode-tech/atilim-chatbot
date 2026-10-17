@@ -1,9 +1,10 @@
 """Bölümlerin "Akademik Personel" sayfalarını belgelere ve hazır yanıtlara çevirir.
 
 Sayfada her kişi bir `div.staff-academician` kartıdır. Her kart için bir belge,
-ayrıca "kadroda kimler var" türü sorular için tüm kadroyu listeleyen tek bir belge üretilir.
+ayrıca "kadroda kimler var" ve "hocaların iletişim bilgileri" türü sorular için tüm kadroyu
+listeleyen birer belge üretilir.
 Aynı veriden, bu sayfa hakkında en sık sorulan sorular için hazır yanıtlar da üretilir.
-E-posta adresleri sayfada resim olarak yayınlandığı için alınamaz.
+E-posta adresleri resim olarak yayınlanır; nasıl çözüldükleri için bkz. `staff_emails`.
 """
 
 import re
@@ -12,11 +13,16 @@ from dataclasses import dataclass
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.departments.software_engineering.staff_emails import (
+    card_email,
+    known_emails,
+)
 from atilim_assistant.text import collapse_whitespace, normalize, slugify
 
 _PHONE = re.compile(r"\+90[\d ()]{10,}")
 _RESEARCH_LABEL = "Araştırma Konuları"
 _UNSPECIFIED = "Sayfada belirtilmemiş"
+_SEE_SOURCE_FOR_EMAIL = "E-posta adresi için kaynak sayfaya bakabilirsin."
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,25 +31,28 @@ class _StaffMember:
     role: str
     employment: str
     phone: str
+    email: str
     education: str
     research: str
 
 
 def parse(html: str, source: Source) -> SourceContent:
     cards = BeautifulSoup(html, "html.parser").select("div.staff-academician")
-    members = [_parse_card(card) for card in cards]
+    emails = known_emails()
+    members = [_parse_card(card, emails) for card in cards]
     if not members:
         raise ValueError(f"{source.url} sayfasında akademik personel kartı bulunamadı.")
     return SourceContent(
         documents=[_roster_document(members, source)]
-        + [_member_document(member, source) for member in members],
+        + [_member_document(member, source) for member in members]
+        + [_contacts_document(members, source)],
         prepared_answers=_unit_answers(members, source)
         + _topic_answers(members, source)
         + [answer for member in members for answer in _member_answers(member, source)],
     )
 
 
-def _parse_card(card: Tag) -> _StaffMember:
+def _parse_card(card: Tag, emails: dict[str, str]) -> _StaffMember:
     heading = card.find("h4")
     role_tag = heading.find("small")
     role = collapse_whitespace(role_tag.extract().get_text()).lstrip("/ ") if role_tag else ""
@@ -60,11 +69,13 @@ def _parse_card(card: Tag) -> _StaffMember:
         else:
             education.append(f"{label}: {value}")
 
+    name = collapse_whitespace(heading.get_text())
     return _StaffMember(
-        name=collapse_whitespace(heading.get_text()),
+        name=name,
         role=role,
         employment=collapse_whitespace(section.get_text()) if section else "",
         phone=phone.group(0).strip() if phone else "",
+        email=card_email(card, name, emails),
         education="; ".join(education),
         research=research,
     )
@@ -92,6 +103,8 @@ def _member_fields(member: _StaffMember) -> list[str]:
         fields.append(f"Kadro: {member.employment}")
     if member.phone:
         fields.append(f"Telefon: {member.phone}")
+    if member.email:
+        fields.append(f"E-posta: {member.email}")
     if member.education:
         fields.append(f"Eğitim: {member.education}")
     fields.append(f"{_RESEARCH_LABEL}: {member.research or _UNSPECIFIED}")
@@ -107,6 +120,21 @@ def _roster_text(members: list[_StaffMember], source: Source) -> str:
     return _bullets(f"{source.unit} akademik kadrosu ({len(members)} kişi):", entries)
 
 
+def _contacts_text(members: list[_StaffMember], source: Source) -> str:
+    # Kişi kartları tek tek getirildiğinde bağlama ancak birkaçı sığar; toplu iletişim sorusu
+    # kadronun tamamını tek belgede görmelidir.
+    entries = [f"{member.name} – {_contact(member)}" for member in members]
+    text = _bullets(f"{source.unit} akademik kadrosu iletişim bilgileri:", entries)
+    if any(not member.email for member in members):
+        text += "\nE-postası yazılmayanlar için kaynak sayfaya bakabilirsin."
+    return text
+
+
+def _contact(member: _StaffMember) -> str:
+    contact = f"telefon: {member.phone or _UNSPECIFIED.lower()}"
+    return f"{contact}, e-posta: {member.email}" if member.email else contact
+
+
 def _member_document(member: _StaffMember, source: Source) -> Document:
     heading = f"{member.name} — {source.unit} akademik personeli"
     text = "\n".join([heading, *_member_fields(member)])
@@ -116,6 +144,11 @@ def _member_document(member: _StaffMember, source: Source) -> Document:
 def _roster_document(members: list[_StaffMember], source: Source) -> Document:
     title = f"{source.unit} akademik kadrosu"
     return _document(source, "kadro", title, _roster_text(members, source))
+
+
+def _contacts_document(members: list[_StaffMember], source: Source) -> Document:
+    title = f"{source.unit} akademik kadrosu iletişim bilgileri"
+    return _document(source, "kadro-iletisim", title, _contacts_text(members, source))
 
 
 def _document(source: Source, local_id: str, title: str, text: str) -> Document:
@@ -165,8 +198,8 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
                 f"{name} e-posta, mail adresi nedir?",
                 f"{name} nasıl ulaşırım, nasıl ulaşabilirim?",
             ],
-            f"**{name}** — telefon: {member.phone or _UNSPECIFIED.lower()}. "
-            "E-posta adresi için kaynak sayfaya bakabilirsin.",
+            f"**{name}** — {_contact(member)}"
+            + ("" if member.email else f". {_SEE_SOURCE_FOR_EMAIL}"),
         ),
         _answer(
             source,
@@ -188,13 +221,26 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
         "akademisyenler, hocalar ve öğretim üyeleri kimler?",
         "kaç hoca, kaç öğretim üyesi var?",
     ]
+    contact_questions = [
+        "akademik personelinin iletişim bilgileri neler?",
+        "hocaların, öğretim üyelerinin ve akademisyenlerin iletişim bilgileri neler?",
+        "hocaların iletişim bilgilerini verebilir misin?",
+        "hocaların telefon numaraları neler?",
+        "hocaların e-posta, mail adresleri neler?",
+        "hocalara nasıl ulaşırım?",
+    ]
     answers = [
         _answer(
             source,
             # Birim adı anılmadan sorulan genel sorular da ("Hocalar kimler?") kadroyu getirir.
             [f"{unit} {question}" for question in roster_questions] + roster_questions,
             _roster_text(members, source),
-        )
+        ),
+        _answer(
+            source,
+            [f"{unit} {question}" for question in contact_questions] + contact_questions,
+            _contacts_text(members, source),
+        ),
     ]
 
     officers = [member for member in members if member.role]

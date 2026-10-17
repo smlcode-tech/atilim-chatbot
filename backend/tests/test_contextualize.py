@@ -1,6 +1,6 @@
 import pytest
 
-from atilim_assistant.chat.contextualize import needs_context, rewrite
+from atilim_assistant.chat.contextualize import rewrite
 from atilim_assistant.domain import Turn
 
 
@@ -22,42 +22,6 @@ class FakeModel:
         return self.reply
 
 
-@pytest.mark.parametrize(
-    "question",
-    [
-        "Araştırma konuları neler?",
-        "peki ya telefonu?",
-        "Onun e-posta adresi ne?",
-        "bu bölümde kaç öğretim üyesi var?",
-        "detay ver",
-        "ofisi nerede?",
-        # Kısaltma özel ad değildir: hangi dersin AKTS'si sorulduğu geçmişte.
-        "Kaç AKTS?",
-        "Kaç AKTS'lik?",
-    ],
-)
-def test_questions_leaning_on_earlier_turns_are_rewritten(question, history):
-    assert needs_context(question, history) is True
-
-
-@pytest.mark.parametrize(
-    "question",
-    [
-        "Ali Yazıcı kim?",
-        "Yazılım Mühendisliği bölüm başkanı kim?",
-        "Blok zinciri ile ilgilenen öğretim üyeleri kimler?",
-        "Bilgisayar Mühendisliği bölümünde bu yıl kaç öğrenci mezun oldu?",
-        "Kaç AKTS SE322?",
-    ],
-)
-def test_self_contained_questions_do_not_spend_a_model_call(question, history):
-    assert needs_context(question, history) is False
-
-
-def test_the_first_question_of_a_conversation_is_never_rewritten():
-    assert needs_context("Araştırma konuları neler?", []) is False
-
-
 def test_rewrite_feeds_the_model_both_the_history_and_the_question(history):
     model = FakeModel()
 
@@ -73,3 +37,12 @@ def test_unusable_rewrites_fall_back_to_the_original_question(reply, history):
     question = "Araştırma konuları neler?"
 
     assert rewrite(question, history, FakeModel(reply)) == question
+
+
+def test_long_turns_are_clipped_before_rewriting(history):
+    model = FakeModel()
+    long_answer = Turn(role="assistant", content="Kadro: " + "Ad SOYAD, " * 200)
+
+    rewrite("Bunlara nasıl ulaşırım?", [*history, long_answer], model)
+
+    assert len(model.prompt) < 1000

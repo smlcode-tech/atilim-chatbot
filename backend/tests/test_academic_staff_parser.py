@@ -1,17 +1,27 @@
+import hashlib
+import json
+
 import pytest
 
+from tests.conftest import FIXTURES
 from atilim_assistant.ingestion.parsers.departments.software_engineering import (
     academic_staff,
+    staff_emails,
 )
 
 
-def test_produces_roster_and_one_document_per_member(staff_documents):
+def test_produces_roster_contacts_and_one_document_per_member(staff_documents):
     assert [document.id for document in staff_documents] == [
         "test-akademik-personel:kadro",
         "test-akademik-personel:prof-dr-ayse-ornek",
         "test-akademik-personel:ars-gor-isil-caliskan",
         "test-akademik-personel:ogr-gor-mehmet-deneme",
+        "test-akademik-personel:kadro-iletisim",
     ]
+
+
+def test_contacts_document_lists_every_member_with_phone(staff_documents):
+    assert staff_documents[-1].text == _CONTACTS
 
 
 def test_member_document_contains_all_fields(staff_documents):
@@ -107,6 +117,55 @@ def test_unit_answers_cover_roster_officers_and_employment_groups(staff_answers)
     assert _answer_to(
         staff_answers, "Test Bölümü Yarı Zamanlı Öğretim Elemanları kimler?"
     ).answer == ("Test Bölümü — Yarı Zamanlı Öğretim Elemanları:\n- Öğr. Gör. Mehmet DENEME")
+
+
+def test_unit_contact_answer_lists_every_member(staff_answers):
+    for question in [
+        "Test Bölümü akademik personelinin iletişim bilgileri neler?",
+        "hocaların iletişim bilgilerini verebilir misin?",
+    ]:
+        assert _answer_to(staff_answers, question).answer == _CONTACTS
+
+
+_CONTACTS = (
+    "Test Bölümü akademik kadrosu iletişim bilgileri:\n"
+    "- Prof. Dr. Ayşe ÖRNEK – telefon: +90 (312) 586 8376\n"
+    "- Arş. Gör. Işıl ÇALIŞKAN – telefon: +90 (312) 586 80 00\n"
+    "- Öğr. Gör. Mehmet DENEME – telefon: +90 (312) 586 80 00\n"
+    "E-postası yazılmayanlar için kaynak sayfaya bakabilirsin."
+)
+
+
+@pytest.fixture
+def known_email(tmp_path, monkeypatch, staff_source):
+    """Fixture'daki tek e-posta resmini (`AAAA`) tanınan bir adrese eşler."""
+    digest = hashlib.sha256(b"AAAA").hexdigest()
+    path = tmp_path / "eposta.json"
+    path.write_text(json.dumps({digest: {"name": "Ayşe", "email": "ayse.ornek@example.edu"}}))
+    monkeypatch.setattr(staff_emails, "EMAILS_PATH", path)
+    html = (FIXTURES / "academic_staff.html").read_text(encoding="utf-8")
+    return academic_staff.parse(html, staff_source)
+
+
+def test_email_images_are_resolved_through_the_digest_map(known_email):
+    documents = {document.id: document.text for document in known_email.documents}
+    assert "E-posta: ayse.ornek@example.edu" in documents["test-akademik-personel:prof-dr-ayse-ornek"]
+    assert (
+        "- Prof. Dr. Ayşe ÖRNEK – telefon: +90 (312) 586 8376, e-posta: ayse.ornek@example.edu"
+        in documents["test-akademik-personel:kadro-iletisim"]
+    )
+    contact = _answer_to(known_email.prepared_answers, "Prof. Dr. Ayşe ÖRNEK e-posta, mail adresi nedir?")
+    assert contact.answer == (
+        "**Prof. Dr. Ayşe ÖRNEK** — telefon: +90 (312) 586 8376, e-posta: ayse.ornek@example.edu"
+    )
+
+
+def test_unknown_email_image_is_reported_and_left_out(staff_source, caplog):
+    # Fixture'daki resim gerçek eşleme dosyasında yok: adres uydurulmaz, ingest uyarır.
+    html = (FIXTURES / "academic_staff.html").read_text(encoding="utf-8")
+    documents = academic_staff.parse(html, staff_source).documents
+    assert "E-posta" not in documents[1].text
+    assert "Prof. Dr. Ayşe ÖRNEK için e-posta resmi tanınmıyor" in caplog.text
 
 
 def test_each_research_topic_lists_the_members_working_on_it(staff_answers):
