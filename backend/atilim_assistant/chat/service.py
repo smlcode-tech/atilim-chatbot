@@ -8,7 +8,7 @@ aşımı) soru hazır yanıtlarla karşılanır.
 import logging
 import time
 
-from atilim_assistant.chat.prompts import NO_ANSWER, system_prompt
+from atilim_assistant.chat.prompts import NO_ANSWER, SUGGESTIONS_INTRO, system_prompt
 from atilim_assistant.chat.tools import DEFINITIONS, Tools
 from atilim_assistant.domain import Answer, Citation, Completion, PreparedAnswer, Turn
 from atilim_assistant.ports import ChatModel
@@ -31,6 +31,9 @@ _MAX_TOOL_ROUNDS = 4
 # Geçmişteki uzun yanıtların (18 kişilik kadro listesi vb.) tamamı gerekmez; konu yeter.
 _MAX_TURN_CHARS = 1500
 
+# Yanıtlanamayan soruda sunulan yakın soru sayısı.
+_SUGGESTION_COUNT = 5
+
 
 class ChatService:
     def __init__(
@@ -52,6 +55,11 @@ class ChatService:
         # Yanlış yazılmış ders kodu en başta düzeltilir; model de hazır yanıtlar da doğru
         # kodu görür.
         question = self._tools.correct(question)
+        # Önerilen bir soru seçildiğinde soru bir hazır yanıt kalıbının kendisidir; yanıtı
+        # kesindir ve modele sormak hem kota harcar hem de modelin onu bulamaması olasıdır.
+        exact = self._prepared_answers.exact(question)
+        if exact:
+            return _prepared_answer(exact)
         if time.monotonic() < self._model_retry_at:
             # Kesinti sürerken hazır yanıtı olan soru modeli beklemez. Geçmiş modelsiz
             # yorumlanamadığı için ham soru eşleştirilir.
@@ -63,7 +71,7 @@ class ChatService:
             if time.monotonic() < self._quota_reset_at:
                 raise RuntimeError("Model kotası doldu; bekleme süresi bitmedi.")
         try:
-            return self._converse(question, history or [])
+            answer = self._converse(question, history or [])
         except Exception as error:
             self._note_failure(error)
             prepared = self._prepared_answers.match(question)
@@ -71,6 +79,21 @@ class ChatService:
                 logger.warning("Model yanıt veremedi, hazır yanıt verildi: %s", error)
                 return _prepared_answer(prepared)
             raise
+        if answer.text.startswith(NO_ANSWER):
+            return self._with_suggestions(question, answer)
+        return answer
+
+    def _with_suggestions(self, question: str, answer: Answer) -> Answer:
+        """"Bilmiyorum" yerine soruya en yakın, yanıtı olan soruları seçenek olarak sunar;
+        kullanıcı belki de bunlardan birini soruyordu. Yakın soru bulunamazsa model yanıtı kalır."""
+        try:
+            suggestions = self._tools.suggest(question, _SUGGESTION_COUNT)
+        except Exception as error:
+            logger.warning("Yakın sorular getirilemedi: %s", error)
+            return answer
+        if not suggestions:
+            return answer
+        return Answer(text=SUGGESTIONS_INTRO, citations=[], suggestions=suggestions)
 
     def _converse(self, question: str, history: list[Turn]) -> Answer:
         messages: list[dict] = [{"role": "system", "content": system_prompt(self._tools.term)}]

@@ -183,12 +183,16 @@ def auth_token(user: User, settings: Settings) -> str:
 
 
 class FakeRetriever:
-    def __init__(self, documents):
+    def __init__(self, documents, similar=()):
         self._documents = documents
+        self._similar = list(similar)
         self.course_codes = frozenset()
 
     def retrieve(self, query):
         return self._documents
+
+    def similar_questions(self, query, limit):
+        return self._similar[:limit]
 
 
 class FakeModel:

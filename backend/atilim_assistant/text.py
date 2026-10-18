@@ -13,7 +13,7 @@ _WHITESPACE = re.compile(r"\s+")
 FILLER_WORDS = frozenset(
     """
     acaba bana baska bir bize bu da dan de den dir dur hakkinda hangi hangileri hangisi icin ile
-    in kac kim kimdir kimler kimlerdir la le lutfen merhaba mi misin misiniz mu musun musunuz
+    in kac kadar kim kimdir kimler kimlerdir la le lutfen merhaba mi misin misiniz mu musun musunuz
     na nasil ne nedir neler nelerdir nerede ni nin nun olan olarak selam soyle soyler su ta te
     tir tur un var ve ver verir ya ye yi
     """.split()

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from atilim_assistant.api.app import UNAVAILABLE_DETAIL, create_app
 from atilim_assistant.chat import service as chat_service
+from atilim_assistant.chat.prompts import SUGGESTIONS_INTRO
 from atilim_assistant.chat.service import ChatService
 from atilim_assistant.chat.tools import Tools
 from atilim_assistant.domain import Completion, Turn
@@ -77,6 +78,61 @@ def test_misspelled_course_codes_are_corrected_before_the_model_sees_them(model,
     service.answer("MATF276 nedir?")
 
     assert model.messages[-1] == {"role": "user", "content": "MATH276 nedir?"}
+
+
+SIMILAR = [f"Yakın soru {i}?" for i in range(1, 8)]
+
+
+def _service_with_similar(model, staff_answers, similar) -> ChatService:
+    tools = Tools(Catalog.empty(), FakeRetriever([], similar))
+    return ChatService(tools, model, PreparedAnswerMatcher(staff_answers))
+
+
+def test_unanswered_questions_offer_the_five_closest_answerable_questions(model, staff_answers):
+    model.reply = "Bu bilgi elimdeki verilerde yok. atilim.edu.tr adresine bakın."
+    service = _service_with_similar(model, staff_answers, SIMILAR)
+
+    answer = service.answer("Yemekhane menüsü nedir?")
+
+    assert answer.suggestions == SIMILAR[:5]
+    assert answer.text == SUGGESTIONS_INTRO
+    assert answer.citations == []
+
+
+def test_without_close_questions_the_models_reply_is_kept(model, staff_answers):
+    model.reply = "Bu bilgi elimdeki verilerde yok. atilim.edu.tr adresine bakın."
+    service = _service_with_similar(model, staff_answers, [])
+
+    answer = service.answer("Yemekhane menüsü nedir?")
+
+    assert answer.text == model.reply
+    assert answer.suggestions == []
+
+
+def test_answered_questions_carry_no_suggestions(model, staff_answers):
+    service = _service_with_similar(model, staff_answers, SIMILAR)
+
+    assert service.answer("Öğrenci kulüpleri neler?").suggestions == []
+
+
+def test_a_picked_suggestion_is_answered_without_the_model(service, model):
+    # Öneriler hazır yanıt kalıplarıdır; seçilen kalıbın yanıtı kesindir.
+    answer = service.answer("test bölümü bölüm başkanı kim")
+
+    assert answer.text.startswith("Test Bölümü görevlileri")
+    assert model.calls == 0
+
+
+def test_chat_returns_and_stores_suggestions(model, staff_answers, users, settings, conversations, auth_token):
+    model.reply = "Bu bilgi elimdeki verilerde yok."
+    service = _service_with_similar(model, staff_answers, SIMILAR)
+    app = create_app(service, users, settings, conversations)
+    with TestClient(app, headers={"Authorization": f"Bearer {auth_token}"}) as client:
+        body = client.post("/api/chat", json={"question": "Yemekhane menüsü nedir?"}).json()
+        turns = client.get(f"/api/conversations/{body['conversation_id']}").json()["turns"]
+
+    assert body["suggestions"] == SIMILAR[:5]
+    assert turns[1]["suggestions"] == SIMILAR[:5]
 
 
 def test_during_a_cooldown_follow_ups_get_prepared_answers_without_the_model(

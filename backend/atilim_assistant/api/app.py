@@ -154,7 +154,12 @@ def create_app(
                 user.id,
                 [
                     Turn(role="user", content=body.question),
-                    Turn(role="assistant", content=answer.text, sources=answer.citations),
+                    Turn(
+                        role="assistant",
+                        content=answer.text,
+                        sources=answer.citations,
+                        suggestions=answer.suggestions,
+                    ),
                 ],
             )
 
@@ -162,6 +167,7 @@ def create_app(
             answer=answer.text,
             sources=[SourceLink(title=c.title, url=c.url) for c in answer.citations],
             prepared=answer.prepared,
+            suggestions=answer.suggestions,
             conversation_id=conversation_id,
             title=title,
         )
@@ -193,6 +199,7 @@ def create_app(
                     content=t.content,
                     created_at=t.created_at,
                     sources=[SourceLink(title=s.title, url=s.url) for s in t.sources],
+                    suggestions=t.suggestions,
                 )
                 for t in turns
             ],

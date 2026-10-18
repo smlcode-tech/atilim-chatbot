@@ -81,6 +81,66 @@ def test_question_patterns_bring_prepared_answers_into_the_context(
     assert any("araştırma konuları arasında" in text for text in texts)
 
 
+class TopicEmbedder:
+    """Metni geçtiği konunun ekseninde birim vektöre çevirir; konusuz metin kendi ekseninde."""
+
+    TOPICS = ("staj", "akts", "başkan")
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self.embed_query(text) for text in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        axis = next((i for i, t in enumerate(self.TOPICS) if t in text.lower()), len(self.TOPICS))
+        return [1.0 if i == axis else 0.0 for i in range(len(self.TOPICS) + 1)]
+
+
+@pytest.fixture
+def pattern_retriever(tmp_path) -> HybridRetriever:
+    patterns = [
+        ("Yaz stajı kaç gün?", "20 iş günü"),
+        ("Staj zorunlu mu?", "Evet"),
+        ("Staj sigortası nasıl yapılır?", "SGK"),
+        ("Staj sigortası için hangi belgeler gerekli?", "SGK"),  # aynı yanıt
+        ("MECE322 kaç AKTS?", "6 AKTS"),
+        ("ENG201 kaç AKTS?", "4 AKTS"),  # aynı biçim
+        ("Bölüm başkanı kim?", "Ali Yazıcı"),
+    ]
+    embedder = TopicEmbedder()
+    questions = DocumentStore(tmp_path / "patterns", "test_questions", "topic")
+    documents = [
+        Document(id=str(i), title=title, text=answer, **_META)
+        for i, (title, answer) in enumerate(patterns)
+    ]
+    questions.replace_source("s", documents, embedder.embed_documents([d.title for d in documents]))
+    store = DocumentStore(tmp_path / "patterns", "test", "topic")
+    return HybridRetriever(store, embedder, top_k=3, max_chars=100_000, questions=questions)
+
+
+def test_similar_questions_offer_one_pattern_per_answer(pattern_retriever):
+    similar = pattern_retriever.similar_questions("staj kaç gün sürüyor", limit=5)
+
+    assert similar[0] == "Yaz stajı kaç gün?"
+    assert set(similar) >= {"Staj zorunlu mu?"}
+    assert sum("sigorta" in question for question in similar) == 1
+    assert "Bölüm başkanı kim?" not in similar
+
+
+def test_similar_questions_offer_one_pattern_per_shape(pattern_retriever):
+    similar = pattern_retriever.similar_questions("akts bilgisi", limit=5)
+
+    assert sum("AKTS" in question for question in similar) == 1
+
+
+def test_unrelated_questions_get_no_suggestions(pattern_retriever):
+    # Ortak içerik sözcüğü yok ve hiçbir kalıba anlamca yakın değil.
+    assert pattern_retriever.similar_questions("Yemekhane menüsü ne?", limit=5) == []
+
+
+def test_similar_questions_need_the_question_index(store, embedder):
+    retriever = HybridRetriever(store, embedder, top_k=3, max_chars=100_000)
+    assert retriever.similar_questions("herhangi", limit=5) == []
+
+
 def test_the_same_text_enters_the_context_once(store, questions, embedder):
     retriever = HybridRetriever(store, embedder, top_k=6, max_chars=100_000, questions=questions)
     texts = [document.text for document in retriever.retrieve("akademik kadroda kimler var?")]

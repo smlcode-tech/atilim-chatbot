@@ -13,6 +13,8 @@ export type Message = {
   sources?: SourceLink[]
   /** Yanıt model tarafından üretilmedi, hazır yanıtlardan verildi. */
   isPrepared?: boolean
+  /** Soru yanıtlanamadığında seçenek olarak sunulan, yanıtı olan yakın sorular. */
+  suggestions?: string[]
 }
 
 export type ApiStatus = 'checking' | 'online' | 'offline'

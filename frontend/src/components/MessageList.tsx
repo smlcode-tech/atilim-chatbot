@@ -1,18 +1,25 @@
 import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ArrowUpRight, Sparkles, UserRound } from 'lucide-react'
+import { ArrowUpRight, CornerDownRight, PencilLine, Sparkles, UserRound } from 'lucide-react'
 import { assistant } from '../config/assistant'
 import type { Message } from '../types'
 
 type MessageListProps = {
   messages: Message[]
   isLoading: boolean
+  onPickSuggestion: (question: string) => void
+  onChooseOther: () => void
 }
 
 const timeFormat = new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' })
 
-export function MessageList({ messages, isLoading }: MessageListProps) {
+export function MessageList({
+  messages,
+  isLoading,
+  onPickSuggestion,
+  onChooseOther,
+}: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -21,8 +28,17 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
 
   return (
     <div className="message-list">
-      {messages.map((message) => (
-        <MessageRow key={message.id} message={message} />
+      {messages.map((message, index) => (
+        <MessageRow
+          key={message.id}
+          message={message}
+          // Seçenekler yalnızca son yanıtta seçilebilir; konuşma ilerlediyse geçmiştedir.
+          choices={
+            index === messages.length - 1 && !isLoading
+              ? { onPick: onPickSuggestion, onOther: onChooseOther }
+              : undefined
+          }
+        />
       ))}
       {isLoading && (
         <article className="message-row message-assistant">
@@ -40,7 +56,12 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
   )
 }
 
-function MessageRow({ message }: { message: Message }) {
+type Choices = {
+  onPick: (question: string) => void
+  onOther: () => void
+}
+
+function MessageRow({ message, choices }: { message: Message; choices?: Choices }) {
   const isAssistant = message.role === 'assistant'
 
   return (
@@ -62,6 +83,25 @@ function MessageRow({ message }: { message: Message }) {
             message.content
           )}
         </div>
+
+        {choices && message.suggestions && message.suggestions.length > 0 && (
+          <ul className="message-choices" aria-label="Bunu mu sormak istedin?">
+            {message.suggestions.map((question) => (
+              <li key={question}>
+                <button type="button" onClick={() => choices.onPick(question)}>
+                  <CornerDownRight size={13} />
+                  {question}
+                </button>
+              </li>
+            ))}
+            <li>
+              <button type="button" className="choice-other" onClick={choices.onOther}>
+                <PencilLine size={13} />
+                Diğer
+              </button>
+            </li>
+          </ul>
+        )}
 
         {message.sources && message.sources.length > 0 && (
           <ul className="message-sources" aria-label="Kaynaklar">

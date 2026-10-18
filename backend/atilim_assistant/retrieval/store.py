@@ -41,8 +41,13 @@ class DocumentStore:
         )
 
     def search(self, embedding: list[float], limit: int) -> list[Document]:
+        return [document for document, _ in self.search_scored(embedding, limit)]
+
+    def search_scored(self, embedding: list[float], limit: int) -> list[tuple[Document, float]]:
+        """En yakın belgeler ve kosinüs benzerlikleri (1 en yakın)."""
         result = self._collection.query(query_embeddings=[embedding], n_results=limit)
-        return _to_documents(result["ids"][0], result["documents"][0], result["metadatas"][0])
+        documents = _to_documents(result["ids"][0], result["documents"][0], result["metadatas"][0])
+        return [(document, 1 - distance) for document, distance in zip(documents, result["distances"][0])]
 
     def count(self) -> int:
         return self._collection.count()

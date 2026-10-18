@@ -63,7 +63,8 @@ frontend/src/
 - **Uygulama fabrikası**: `create_app()` — testler sahte bileşen enjekte eder
 - **Graceful degradation**: MongoDB, model veya kota hatası asistanı durdurmaz
 - **Araç çağrılı model (tool calling)**: söyleyişi (kısaltma, eş anlamlı, takip sorusu) model yorumlar, veriyi araçlarla kesin alır; her söyleyiş için kural/kalıp yazılmaz. Liste/süzme soruları katalogun tamamı üzerinde hesaplanır. Model geçmişi mesaj olarak görür; ayrı bağlamlandırma (yeniden yazma) çağrısı kaldırıldı. Yeni yapılandırılmış veri → parser `records` döndürür, `chat/tools.py`'ye araç eklenir
-- **Hazır yanıtlar yalnızca yedek**: model çalışırken her soru modele gider; model hata verince ya da soğumadayken hazır yanıt eşleştirilir
+- **Hazır yanıtlar yalnızca yedek**: model çalışırken her soru modele gider; model hata verince ya da soğumadayken hazır yanıt eşleştirilir. İstisna: soru bir kalıbın birebir aynısıysa (seçilen öneri) hazır yanıt hemen verilir
+- **"Bilmiyorum" yerine seçenekler**: model `NO_ANSWER` döndürürse `HybridRetriever.similar_questions` en yakın 5 soru kalıbını önerir (her yanıttan ve her kalıp biçiminden biri; soruyla ortak içerik sözcüğü ya da ≥0.45 kosinüs benzerliği şart — ilgisiz soruya öneri çıkmaz). Arayüz bunları + "Diğer" seçeneğini son yanıtın altında gösterir; öneriler Mongo'da turla saklanır
 - **Cooldown mekanizması**: Model hata verince `_model_retry_at` saati ilerletilir; hazır yanıtlar kullanılır
 - **Ders kodu düzeltme**: `ChatService.answer` önce `tools.correct()` çağırır; indekste olmayan kod, sayısı aynı ve harfi tek düzenleme uzaktaki tek bilinen koda çevrilir ("MATF276" → "MATH276"). `stem()` rakamlı terimleri kısaltmaz
 - **Eş anlamlı sözlük**: `text.SYNONYMS` / `canonicalize()` — hazır yanıt eşleştirme (yedek yol) ve BM25 (`belge_ara`) için; model yolunda yorumu model yapar. Veride olmayan bilgiyi soran soru kalıbı eklenmez

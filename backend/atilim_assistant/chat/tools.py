@@ -125,6 +125,10 @@ class Tools:
         known = frozenset(code.lower() for code in self._courses) | self._retriever.course_codes
         return correct_course_codes(text, known)
 
+    def suggest(self, question: str, limit: int) -> list[str]:
+        """Soruya en yakın, yanıtı olan sorular; bkz. `HybridRetriever.similar_questions`."""
+        return self._retriever.similar_questions(question, limit)
+
     def run(self, name: str, arguments: str) -> ToolResult:
         """Modelin istediği aracı çalıştırır; hatalı çağrı modele açıklama olarak döner ki
         düzeltip yeniden deneyebilsin."""

@@ -4,6 +4,7 @@ export type ChatAnswer = {
   answer: string
   sources: SourceLink[]
   prepared: boolean
+  suggestions: string[]
   conversationId: string | null
   title: string | null
 }
@@ -119,6 +120,7 @@ export async function askQuestion(
     answer?: string
     sources?: SourceLink[]
     prepared?: boolean
+    suggestions?: string[]
     conversation_id?: string | null
     title?: string | null
   }>('/api/chat', {
@@ -133,6 +135,7 @@ export async function askQuestion(
     answer: payload.answer,
     sources: payload.sources ?? [],
     prepared: payload.prepared ?? false,
+    suggestions: payload.suggestions ?? [],
     conversationId: payload.conversation_id ?? null,
     title: payload.title ?? null,
   }
@@ -152,6 +155,7 @@ export async function fetchConversation(id: string): Promise<Message[]> {
       content: string
       created_at: string
       sources?: SourceLink[]
+      suggestions?: string[]
     }[]
   }>(`/api/conversations/${encodeURIComponent(id)}`)
 
@@ -161,6 +165,7 @@ export async function fetchConversation(id: string): Promise<Message[]> {
     content: turn.content,
     createdAt: turn.created_at,
     sources: turn.sources?.length ? turn.sources : undefined,
+    suggestions: turn.suggestions?.length ? turn.suggestions : undefined,
   }))
 }
 

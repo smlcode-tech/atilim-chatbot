@@ -21,7 +21,7 @@ function App() {
   const { theme, toggle: toggleTheme } = useTheme()
   const { user, isGuest, isChecking, error, mountGoogleButton, signOut } = useAuth()
   const { conversations, refresh, remove } = useConversations(user !== null && !isGuest)
-  const { messages, conversationId, isLoading, apiStatus, sendMessage, startNew, open } = useChat({
+  const { messages, conversationId, isLoading, apiStatus, sendMessage, askAgain, startNew, open } = useChat({
     onConversationChanged: refresh,
   })
 
@@ -32,6 +32,7 @@ function App() {
   }, [user, startNew])
 
   const [chatKey, setChatKey] = useState(0)
+  const [composerFocus, setComposerFocus] = useState(0)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [showSplash, setShowSplash] = useState(true)
   const minElapsed = useRef(false)
@@ -87,6 +88,10 @@ function App() {
   }, [startNewChat])
 
   const send = (text: string) => void sendMessage(text)
+  const chooseOther = () => {
+    askAgain()
+    setComposerFocus((count) => count + 1)
+  }
   const isEmpty = messages.length === 0
 
   return (
@@ -139,11 +144,21 @@ function App() {
                 {isEmpty ? (
                   <Welcome onPickSuggestion={send} />
                 ) : (
-                  <MessageList messages={messages} isLoading={isLoading} />
+                  <MessageList
+                    messages={messages}
+                    isLoading={isLoading}
+                    onPickSuggestion={send}
+                    onChooseOther={chooseOther}
+                  />
                 )}
               </div>
 
-              <Composer key={chatKey} disabled={isLoading} onSend={send} />
+              <Composer
+                key={chatKey}
+                disabled={isLoading}
+                onSend={send}
+                focusRequest={composerFocus}
+              />
             </section>
           </main>
         )}

@@ -84,11 +84,13 @@ class Completion:
 
 @dataclass(frozen=True, slots=True)
 class Answer:
-    """`prepared`: yanıt model tarafından üretilmedi, hazır yanıtlardan verildi."""
+    """`prepared`: yanıt model tarafından üretilmedi, hazır yanıtlardan verildi.
+    `suggestions`: soru yanıtlanamadığında kullanıcıya seçenek olarak sunulan yakın sorular."""
 
     text: str
     citations: list[Citation]
     prepared: bool = False
+    suggestions: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +111,8 @@ class Turn:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     # Asistan yanıtının kaynak sayfaları; konuşma yeniden açıldığında da gösterilir.
     sources: list["Citation"] = field(default_factory=list)
+    # Asistan soruyu yanıtlayamadığında sunduğu, yanıtı olan yakın sorular.
+    suggestions: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

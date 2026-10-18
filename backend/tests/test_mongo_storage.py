@@ -55,13 +55,14 @@ def test_turns_round_trip_with_their_timestamps(db):
     written = [
         Turn(role="user", content="Soru"),
         Turn(role="assistant", content="Yanıt", sources=sources),
+        Turn(role="assistant", content="Bulamadım", suggestions=["Bölüm başkanı kim?"]),
     ]
 
     conversations.add_turns(conversation_id, "user-1", written)
 
     read = conversations.turns(conversation_id, "user-1")
-    assert [(t.role, t.content, t.sources) for t in read] == [
-        (t.role, t.content, t.sources) for t in written
+    assert [(t.role, t.content, t.sources, t.suggestions) for t in read] == [
+        (t.role, t.content, t.sources, t.suggestions) for t in written
     ]
     # tz_aware bağlantı sayesinde zaman damgaları saat dilimiyle birlikte döner.
     assert read[0].created_at.tzinfo is not None

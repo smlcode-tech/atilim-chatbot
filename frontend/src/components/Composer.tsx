@@ -7,15 +7,17 @@ const MAX_TEXTAREA_HEIGHT = 160
 type ComposerProps = {
   disabled: boolean
   onSend: (text: string) => void
+  /** Her artışta yazma alanı odaklanır (ör. "Diğer" seçildiğinde). */
+  focusRequest?: number
 }
 
-export function Composer({ disabled, onSend }: ComposerProps) {
+export function Composer({ disabled, onSend, focusRequest = 0 }: ComposerProps) {
   const [question, setQuestion] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!disabled) textareaRef.current?.focus()
-  }, [disabled])
+  }, [disabled, focusRequest])
 
   function submit() {
     if (!question.trim() || disabled) return

@@ -27,6 +27,8 @@ class ChatResponse(BaseModel):
     sources: list[SourceLink]
     # Yanıt model tarafından üretilmedi, hazır yanıtlardan verildi.
     prepared: bool
+    # Soru yanıtlanamadıysa kullanıcıya seçenek olarak sunulan yakın sorular.
+    suggestions: list[str] = []
     # Geçmiş deposu kapalıysa boş kalır.
     conversation_id: str | None = None
     title: str | None = None
@@ -67,6 +69,7 @@ class TurnResponse(BaseModel):
     content: str
     created_at: datetime
     sources: list[SourceLink] = []
+    suggestions: list[str] = []
 
 
 class ConversationResponse(BaseModel):

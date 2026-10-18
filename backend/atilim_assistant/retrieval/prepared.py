@@ -64,6 +64,15 @@ class PreparedAnswerMatcher:
             term: _rarity(frequency, total) for term, frequency in answer_frequency.items()
         }
         self._unknown_weight = _rarity(0, total)
+        # Kalıbın kendisi sorulduğunda (ör. önerilen soru seçildiğinde) yanıtı kesindir.
+        self._exact: dict[str, PreparedAnswer] = {}
+        for answer in answers:
+            for question in answer.questions:
+                self._exact.setdefault(normalize(question), answer)
+
+    def exact(self, question: str) -> PreparedAnswer | None:
+        """Soru bir kalıpla büyük/küçük harf ve noktalama dışında birebir aynıysa yanıtı."""
+        return self._exact.get(normalize(question))
 
     def match(self, question: str) -> PreparedAnswer | None:
         """Soruyu yeterince karşılayan hazır yanıtı döndürür; yoksa None."""

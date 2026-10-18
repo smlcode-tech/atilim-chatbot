@@ -3,6 +3,12 @@
 # Modelin veri yetmediğinde verdiği yanıtın başı; yanıt buna göre kaynaksız gösterilir.
 NO_ANSWER = "Bu bilgi elimdeki verilerde yok."
 
+# Yanıtlanamayan soruda yakın sorular bulunduysa modelin yanıtı yerine bu gösterilir.
+SUGGESTIONS_INTRO = (
+    "Bu soruyu verilerimde tam olarak bulamadım. Şunlardan birini mi sormak istedin? "
+    "Hiçbiri değilse **Diğer**'i seçip sorunu farklı sözcüklerle yazabilirsin."
+)
+
 
 def system_prompt(term: str) -> str:
     """`term`: katalogdaki ders programının dönemi; programın kapsamını modele bildirir."""

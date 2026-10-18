@@ -59,6 +59,7 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
           content: answer.answer,
           sources: answer.sources,
           isPrepared: answer.prepared,
+          suggestions: answer.suggestions.length ? answer.suggestions : undefined,
         })
         if (answer.conversationId !== null) {
           setConversationId(answer.conversationId)
@@ -78,6 +79,15 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
     },
     [append, conversationId, isLoading, onConversationChanged],
   )
+
+  /** Önerilen sorulardan hiçbiri değilse: soru sunucuya gitmez, kullanıcı yeniden sorar. */
+  const askAgain = useCallback(() => {
+    append({ role: 'user', content: 'Diğer' })
+    append({
+      role: 'assistant',
+      content: 'Anladım. Sorunu farklı sözcüklerle ya da biraz daha ayrıntıyla yazar mısın?',
+    })
+  }, [append])
 
   const startNew = useCallback(() => {
     view.current += 1
@@ -112,5 +122,5 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
     }
   }, [])
 
-  return { messages, conversationId, isLoading, apiStatus, sendMessage, startNew, open }
+  return { messages, conversationId, isLoading, apiStatus, sendMessage, askAgain, startNew, open }
 }

@@ -153,6 +153,7 @@ def _as_document(turn: Turn) -> dict:
         "content": turn.content,
         "created_at": turn.created_at,
         "sources": [{"title": s.title, "url": s.url} for s in turn.sources],
+        "suggestions": turn.suggestions,
     }
 
 
@@ -163,4 +164,5 @@ def _as_turn(document: dict) -> Turn:
         created_at=document["created_at"],
         # Bu alan eklenmeden önce kaydedilen turlarda yoktur.
         sources=[Citation(**source) for source in document.get("sources", [])],
+        suggestions=document.get("suggestions", []),
     )
