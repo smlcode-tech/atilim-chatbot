@@ -8,11 +8,12 @@ E-posta adresleri resim olarak yayınlanır; nasıl çözüldükleri için bkz. 
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.departments.software_engineering import ders_programi
 from atilim_assistant.ingestion.parsers.departments.software_engineering.staff_emails import (
     card_email,
     known_emails,
@@ -34,6 +35,8 @@ class _StaffMember:
     email: str
     education: str
     research: str
+    # Güncel dönemde verdiği dersler; ders programından gelir, sayfada yoktur.
+    courses: str = ""
 
 
 def parse(html: str, source: Source) -> SourceContent:
@@ -42,11 +45,15 @@ def parse(html: str, source: Source) -> SourceContent:
     members = [_parse_card(card, emails) for card in cards]
     if not members:
         raise ValueError(f"{source.url} sayfasında akademik personel kartı bulunamadı.")
+    timetable = ders_programi.current()
+    if timetable:
+        members = [replace(m, courses=_courses_text(timetable, m.name)) for m in members]
     return SourceContent(
         documents=[_roster_document(members, source)]
         + [_member_document(member, source) for member in members]
         + [_contacts_document(members, source)],
         prepared_answers=_unit_answers(members, source)
+        + _teaching_answers(members, source, timetable)
         + _topic_answers(members, source)
         + [answer for member in members for answer in _member_answers(member, source)],
     )
@@ -108,7 +115,53 @@ def _member_fields(member: _StaffMember) -> list[str]:
     if member.education:
         fields.append(f"Eğitim: {member.education}")
     fields.append(f"{_RESEARCH_LABEL}: {member.research or _UNSPECIFIED}")
+    if member.courses:
+        fields.append(f"Bu dönem verdiği dersler: {member.courses}")
     return fields
+
+
+def _courses_text(timetable: ders_programi.Timetable, name: str) -> str:
+    """"CMPE113 Introduction to Programming (Şube 01, 02); FE302 Ethics (Şube 06)"."""
+    by_course: dict[tuple[str, str], list[str]] = {}
+    for section in timetable.sections_of_teacher(name):
+        by_course.setdefault((section.code, section.name), []).append(section.number)
+    return "; ".join(
+        f"{code} {course} (Şube {', '.join(numbers)})" for (code, course), numbers in by_course.items()
+    )
+
+
+def _teaching_answers(
+    members: list[_StaffMember], source: Source, timetable: ders_programi.Timetable | None
+) -> list[PreparedAnswer]:
+    teaching = [member for member in members if member.courses]
+    if not timetable or not teaching:
+        return []
+    return [
+        _answer(
+            source,
+            [
+                "Hangi hocalar hangi dersleri veriyor?",
+                "Bu dönem hangi hoca hangi derse giriyor?",
+                f"{source.unit} hocalarının verdiği dersler",
+            ],
+            _bullets(
+                f"{source.unit} — {timetable.term} ders programına göre verilen dersler:",
+                [f"{member.name}: {member.courses}" for member in teaching],
+            ),
+        )
+    ] + [
+        _answer(
+            source,
+            [
+                f"{member.name} hangi dersleri veriyor?",
+                f"{member.name} bu dönem hangi derslere giriyor?",
+                f"{member.name} hocanın dersleri neler?",
+            ],
+            f"**{member.name}** — {timetable.term} ders programına göre verdiği dersler: "
+            f"{member.courses}",
+        )
+        for member in teaching
+    ]
 
 
 def _roster_text(members: list[_StaffMember], source: Source) -> str:
@@ -232,7 +285,6 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
         "akademisyenler, hocalar ve öğretim üyeleri kimler?",
         "kaç hoca, kaç öğretim üyesi var?",
         "bölümün hocaları kimler?",
-        "bölümde hangi hocalar ders veriyor?",
         "bölümün öğretim kadrosu kimlerden oluşuyor?",
     ]
     contact_questions = [

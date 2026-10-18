@@ -51,6 +51,8 @@ def test_matches_questions_despite_phrasing_suffixes_and_casing(matcher, questio
     [
         "Yemekhane menüsü nedir?",
         "Ayşe Örnek hangi dersleri veriyor?",
+        # Sayfada hoca-ders eşleşmesi yok; kadro listesi bu soruya yanıt değildir.
+        "Hangi hocalar hangi dersleri veriyor?",
         "Ayşe Örnek'in odası nerede?",
         "Burs olanakları neler?",
         "Merhaba",

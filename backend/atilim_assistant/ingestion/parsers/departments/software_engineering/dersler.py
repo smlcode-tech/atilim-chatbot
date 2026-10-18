@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from bs4 import BeautifulSoup
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.departments.software_engineering import ders_programi
 from atilim_assistant.text import collapse_whitespace
 
 _TABS = {
@@ -41,6 +42,8 @@ class _Tab:
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    # Ders kartlarında hoca alanı boştur; hoca, güncel dönemin ders programından eklenir.
+    timetable = ders_programi.current()
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
     if not container:
@@ -135,6 +138,15 @@ def parse(html: str, source: Source) -> SourceContent:
                 f"{c.code} — {c.name} ({source.unit}, {tab.label})",
                 f"Teorik: {c.theory} | Uygulama: {c.practice} | Lab: {c.lab} | Kredi: {c.credit} | AKTS: {c.akts}",
             ]
+            sections = timetable.sections_of_course(c.code) if timetable else []
+            if sections:
+                instructors = ders_programi.instructors_line(sections)
+                lines.append(f"Öğretim elemanı ({timetable.term}): {instructors}")
+            elif timetable:
+                # "Kim veriyor?" sorusu bu yanıta düşebilir; hocanın neden yazmadığı söylenir.
+                lines.append(
+                    f"Öğretim elemanı: {timetable.term} ders programında bu ders açılmamış."
+                )
             if c.precondition:
                 lines.append(f"Ön koşul: {c.precondition}")
             if c.content:
@@ -158,6 +170,11 @@ def parse(html: str, source: Source) -> SourceContent:
                 questions += [
                     f"{c.code} dersinin konuları neler, neler anlatılıyor?",
                     f"{c.name} dersinde ne öğreniliyor?",
+                ]
+            if sections:
+                questions += [
+                    f"{c.code} dersini kim veriyor, hocası kim?",
+                    f"{c.name} dersine hangi hoca giriyor?",
                 ]
             if c.precondition:
                 questions += [

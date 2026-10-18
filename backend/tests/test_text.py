@@ -22,6 +22,8 @@ def test_stem_ignores_inflectional_suffixes():
     assert stem("yazicinin") == stem("yazici")
     assert stem("calisiyor") == stem("calisan")
     assert stem("ali") == "ali"
+    # Ders kodları kısaltılırsa "CMPE113" sorusu "CMPE109"un yanıtını alır.
+    assert stem("cmpe113") != stem("cmpe109")
 
 
 def test_slugify():

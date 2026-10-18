@@ -51,6 +51,7 @@ SYNONYMS = (
     ("yuksek lisans", "master"),
     ("doktora", "phd"),
     ("ders", "kurs"),
+    ("dayali", "yonelik", "yonelim"),
 )
 _CANONICAL = {variant: group[0] for group in SYNONYMS for variant in group}
 _SYNONYM = re.compile(
@@ -80,7 +81,12 @@ def tokenize(text: str) -> list[str]:
 
 
 def stem(token: str) -> str:
-    """Çekim eklerini kabaca yok sayar: Türkçede sözcüğün ilk 5 harfi köke yakın sonuç verir."""
+    """Çekim eklerini kabaca yok sayar: Türkçede sözcüğün ilk 5 harfi köke yakın sonuç verir.
+
+    Rakam taşıyan terimler (ders kodu, "pc3") kısaltılmaz: "cmpe113" ile "cmpe109" ayrı derslerdir.
+    """
+    if any(character.isdigit() for character in token):
+        return token
     return token[:5]
 
 

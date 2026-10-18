@@ -20,10 +20,17 @@ from atilim_assistant.domain import (
 )
 from atilim_assistant.ingestion.parsers.departments.software_engineering import (
     academic_staff,
+    ders_programi,
 )
 from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def no_timetable(monkeypatch):
+    """Ayrıştırıcılar ders programını ağdan çeker; testler programı açıkça verir."""
+    monkeypatch.setattr(ders_programi, "current", lambda: None)
 
 
 @pytest.fixture
