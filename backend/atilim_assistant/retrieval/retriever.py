@@ -32,6 +32,11 @@ class HybridRetriever:
         # Soru kalıbı indeksi henüz kurulmamışsa (eski indeks) arama onsuz sürer.
         self._questions = questions if questions is not None and questions.count() else None
 
+    @property
+    def course_codes(self) -> frozenset[str]:
+        """Belgelerde geçen ders kodları; yanlış yazılmış kodları düzeltmek için."""
+        return self._lexical.course_codes
+
     def retrieve(self, query: str) -> list[Document]:
         embedding = self._embedder.embed_query(query)
         rankings = [

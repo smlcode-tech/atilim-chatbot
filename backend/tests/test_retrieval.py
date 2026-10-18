@@ -141,3 +141,11 @@ def test_lexical_search_matches_synonyms():
         Document(id="2", title="SE212", text="AKTS: 6", **_META),
     ]
     assert LexicalIndex(documents).search("ön şartı ne", 1)[0].id == "1"
+
+
+def test_lexical_index_knows_the_course_codes_in_its_documents():
+    documents = [
+        Document(id="1", title="MATH276", text="MATH276 — Diferansiyel Denklemler", **_META),
+        Document(id="2", title="SE 212", text="Ön koşul: SE 112", **_META),
+    ]
+    assert LexicalIndex(documents).course_codes == {"math276", "se212", "se112"}

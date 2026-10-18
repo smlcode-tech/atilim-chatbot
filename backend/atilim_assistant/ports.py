@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from atilim_assistant.domain import ConversationSummary, Turn
+from atilim_assistant.domain import Completion, ConversationSummary, Turn
 
 
 class UserRepository(Protocol):
@@ -41,4 +41,6 @@ class Embedder(Protocol):
 
 
 class ChatModel(Protocol):
-    def generate(self, system: str, prompt: str) -> str: ...
+    def complete(self, messages: list[dict], tools: list[dict]) -> Completion:
+        """OpenAI sohbet biçimindeki mesajlarla bir tur üretir; `tools` boşsa araç çağrılamaz."""
+        ...

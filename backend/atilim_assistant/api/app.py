@@ -147,8 +147,8 @@ def create_app(
             if conversation_id is None:
                 title = _title_from(body.question)
                 conversation_id = conversations.start(user.id, title)
-            # Kullanıcının yazdığı ham metin saklanır; bağlamlandırılmış hâli yalnızca aramada
-            # kullanılır, geçmişte görünmemelidir.
+            # Kullanıcının yazdığı ham metin saklanır; ders kodu düzeltilmiş hâli yalnızca
+            # yanıtlamada kullanılır, geçmişte görünmemelidir.
             conversations.add_turns(
                 conversation_id,
                 user.id,

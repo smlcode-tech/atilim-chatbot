@@ -1,6 +1,6 @@
 # Atılım Akademik Asistan — Proje Haritası
 
-Atılım Üniversitesi web sitesi için Türkçe RAG chatbot. Kullanıcılar Google ile giriş yapar, soru sorar; sistem ChromaDB'den belge getirir (Voyage embedding), Groq ile yanıt üretir.
+Atılım Üniversitesi web sitesi için Türkçe chatbot. Kullanıcılar Google ile giriş yapar, soru sorar; Groq modeli araçlarla (tool calling) yapılandırılmış kataloğu ve ChromaDB belge aramasını (Voyage embedding) sorgulayıp yanıt üretir.
 
 ## Dağıtım
 - **Backend**: Render.com (ücretsiz) → `render.yaml`
@@ -14,9 +14,9 @@ backend/atilim_assistant/
 │   ├── app.py          FastAPI uygulama fabrikası; tüm HTTP rotaları burada
 │   └── schemas.py      Pydantic istek/yanıt modelleri
 ├── chat/
-│   ├── service.py      Ana soru-cevap akışı; model hata yönetimi ve cooldown
-│   ├── prompts.py      SYSTEM_PROMPT ve build_prompt(); CONTEXTUALIZE_PROMPT
-│   └── contextualize.py  rewrite() — takip sorusu bağlamlandırma
+│   ├── service.py      Ana soru-cevap akışı: araç çağrılı model döngüsü, cooldown, hazır yanıt yedeği
+│   ├── tools.py        Modelin araçları: ders_ara, ders_detayi, hocanin_dersleri, bolum_kadrosu, personel_bilgisi, belge_ara
+│   └── prompts.py      system_prompt(term), NO_ANSWER
 ├── providers/
 │   ├── voyage.py       Voyage AI embedder adaptörü
 │   └── groq.py         Groq adaptörü (yalnızca LLM, OpenAI uyumlu)
@@ -24,6 +24,7 @@ backend/atilim_assistant/
 │   ├── retriever.py    HybridRetriever — vektör + BM25 + soru kalıbı birleşik arama
 │   ├── store.py        ChromaDB sarmalayıcı
 │   ├── lexical.py      BM25 anahtar kelime araması
+│   ├── catalog.py      CatalogStore — ders, kadro, ders programı kayıtları (data/catalog.json)
 │   └── prepared.py     PreparedAnswerMatcher — model olmadan hazır yanıt
 ├── storage/
 │   └── mongo.py        MongoUserRepository + MongoConversationRepository
@@ -52,7 +53,8 @@ frontend/src/
 | Servis | Amaç | Not |
 |--------|------|-----|
 | Voyage AI | Embedding (`voyage-multilingual-2`, 1024 boyut) | Model değişirse indeks silinip yeniden kurulmalı; `DocumentStore` uyuşmazlıkta açılmaz |
-| Groq | LLM (`openai/gpt-oss-120b`) | Ücretsiz katman dakikada 8000 token; bağlam `RETRIEVAL_MAX_CHARS` ile sınırlı |
+| Groq | LLM (`openai/gpt-oss-120b`, tool calling, `reasoning_effort="low"`) | Ücretsiz katman dakikada 8000 token; soru başına 2–5 model çağrısı, ~2–8 bin token. Sınır aşılınca OpenAI istemcisi bekleyip yeniden dener (yanıt 30–60 sn sürebilir) |
+| EduPage | Ders programı (`atilim.edupage.org/timetable`) | Ingest'te çekilir, katalogda tutulur; yalnızca güncel dönem |
 | ChromaDB | Vektör depo (disk: `backend/data/chroma/`) | İndeks boşsa başlamaz |
 | MongoDB | Konuşma geçmişi + kullanıcı | Opsiyonel; yoksa (ya da GOOGLE_CLIENT_ID yoksa) sorular misafir olarak, geçmişsiz yanıtlanır |
 
@@ -60,10 +62,12 @@ frontend/src/
 - **Ports/Adapters**: `ports.py`'daki Protocol'ler → somut implementasyonlar `providers/`, `storage/`
 - **Uygulama fabrikası**: `create_app()` — testler sahte bileşen enjekte eder
 - **Graceful degradation**: MongoDB, model veya kota hatası asistanı durdurmaz
+- **Araç çağrılı model (tool calling)**: söyleyişi (kısaltma, eş anlamlı, takip sorusu) model yorumlar, veriyi araçlarla kesin alır; her söyleyiş için kural/kalıp yazılmaz. Liste/süzme soruları katalogun tamamı üzerinde hesaplanır. Model geçmişi mesaj olarak görür; ayrı bağlamlandırma (yeniden yazma) çağrısı kaldırıldı. Yeni yapılandırılmış veri → parser `records` döndürür, `chat/tools.py`'ye araç eklenir
+- **Hazır yanıtlar yalnızca yedek**: model çalışırken her soru modele gider; model hata verince ya da soğumadayken hazır yanıt eşleştirilir
 - **Cooldown mekanizması**: Model hata verince `_model_retry_at` saati ilerletilir; hazır yanıtlar kullanılır
-- **Bağlamlandırma**: geçmişi olan her soru modelle yeniden yazılır; ilk soruda ve soğuma süresinde atlanır. Sözcük kurallarıyla takip sorusu sezmek eş anlamlı ifadeleri kaçırdığı için bırakıldı
-- **Eş anlamlı sözlük**: `text.SYNONYMS` / `canonicalize()` — "mail"/"e-posta", "hoca"/"öğretim üyesi" gibi söylenişleri kanonik biçime indirir; hazır yanıt eşleştirme ve BM25 hem soruya hem kalıba/belgeye uygular. Parser'larda soru kalıbı yazarken farklı söylenişler eklenir, ama veride olmayan bilgiyi soran kalıp eklenmez
-- **Ders–hoca eşlemesi**: sitede hoca alanı boş (`academician_id` hep 0); `software_engineering/ders_programi.py` güncel dönemi EduPage API'sinden (`atilim.edupage.org/timetable`, `regularttGetData`) çeker, ders koduyla derse, ad eşleştirmesiyle (`same_person`) personele bağlar. `dersler` ve `academic_staff` ingest sırasında kullanır; program alınamazsa hoca bilgisi olmadan devam edilir. Testlerde `conftest` ağı kapatır
+- **Ders kodu düzeltme**: `ChatService.answer` önce `tools.correct()` çağırır; indekste olmayan kod, sayısı aynı ve harfi tek düzenleme uzaktaki tek bilinen koda çevrilir ("MATF276" → "MATH276"). `stem()` rakamlı terimleri kısaltmaz
+- **Eş anlamlı sözlük**: `text.SYNONYMS` / `canonicalize()` — hazır yanıt eşleştirme (yedek yol) ve BM25 (`belge_ara`) için; model yolunda yorumu model yapar. Veride olmayan bilgiyi soran soru kalıbı eklenmez
+- **Ders–hoca eşlemesi**: sitede hoca alanı boş (`academician_id` hep 0); `software_engineering/ders_programi.py` güncel dönemi EduPage API'sinden (`atilim.edupage.org/timetable`, `regularttGetData`) çeker, ders koduyla derse, ad eşleştirmesiyle (`same_person`) personele bağlar. `dersler` ve `academic_staff` ingest sırasında kullanır, `cli ingest` tüm programı kataloğa yazar; program alınamazsa hoca bilgisi olmadan devam edilir. Testlerde `conftest` ağı kapatır
 - **Soru kalıbı indeksi**: hazır yanıtların soru kalıpları `<collection>_questions` koleksiyonunda embedding'lenir; retrieval'a üçüncü sıralama olarak katılır ve yanıtı bağlam olarak modele verir (eşik yok, alaka kararını model verir)
 
 ## Geliştirme Komutları
@@ -95,7 +99,6 @@ Hash kontrolü: `git hash-object <dosya>` — özetteki hash ile eşleşiyorsa t
 | `.claude/summaries/api_schemas.md` | `backend/atilim_assistant/api/schemas.py` |
 | `.claude/summaries/chat_service.md` | `backend/atilim_assistant/chat/service.py` |
 | `.claude/summaries/chat_prompts.md` | `backend/atilim_assistant/chat/prompts.py` |
-| `.claude/summaries/chat_contextualize.md` | `backend/atilim_assistant/chat/contextualize.py` |
 | `.claude/summaries/storage_mongo.md` | `backend/atilim_assistant/storage/mongo.py` |
 | `.claude/summaries/domain.md` | `backend/atilim_assistant/domain.py` |
 | `.claude/summaries/bootstrap.md` | `backend/atilim_assistant/bootstrap.py` |

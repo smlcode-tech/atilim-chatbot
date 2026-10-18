@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from atilim_assistant.api.app import create_app
 from atilim_assistant.auth import issue_token
 from atilim_assistant.domain import User
+from tests.conftest import tool_call
 
 
 @pytest.fixture
@@ -37,9 +38,12 @@ def test_a_long_first_question_is_shortened_into_a_title(client):
     assert question.startswith(title[:-1])
 
 
-def test_following_up_appends_to_the_same_conversation(client):
+def test_following_up_appends_to_the_same_conversation(client, model):
+    # Her soruda model bir araç çağırır; yanıtların kaynağı aracın getirdiği sayfadır.
+    model.script = [tool_call("belge_ara", sorgu="bölüm başkanı")]
     started = client.post("/api/chat", json={"question": "Bölüm başkanı kim?"}).json()
 
+    model.script = [tool_call("belge_ara", sorgu="hocalar")]
     second = client.post(
         "/api/chat",
         json={"question": "Hocalar kimler?", "conversation_id": started["conversation_id"]},
@@ -58,9 +62,8 @@ def test_following_up_appends_to_the_same_conversation(client):
     assert all(turn["sources"] for turn in turns if turn["role"] == "assistant")
 
 
-def test_the_stored_question_is_what_the_user_typed_not_the_rewrite(client, model):
+def test_the_stored_question_is_what_the_user_typed(client):
     started = client.post("/api/chat", json={"question": "Ayşe Örnek kim?"}).json()
-    model.reply = "Prof. Dr. Ayşe ÖRNEK'in araştırma konuları neler?"
 
     client.post(
         "/api/chat",

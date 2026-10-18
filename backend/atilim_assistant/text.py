@@ -90,6 +90,39 @@ def stem(token: str) -> str:
     return token[:5]
 
 
+_COURSE_CODE = re.compile(r"\b([^\W\d_]{2,5}) ?(\d{3}[^\W\d_]?)\b")
+
+
+def correct_course_codes(text: str, known: frozenset[str]) -> str:
+    """Bilinmeyen ders kodunu, harf kısmı tek harf farklı olan bilinen koda çevirir:
+    "MATF276" → "MATH276". Sayı kısmı aynı olmalı ve aday tek olmalıdır; birden çok koda
+    benzeyen ya da hiçbirine benzemeyen koda dokunulmaz. `known` normalleştirilmiş kodlardır.
+    """
+
+    def replace(match: re.Match) -> str:
+        letters, number = normalize(match.group(1)), normalize(match.group(2))
+        if letters + number in known:
+            return match.group(0)
+        candidates = [
+            code
+            for code in known
+            if code.endswith(number) and _one_edit_apart(letters, code[: -len(number)])
+        ]
+        return candidates[0].upper() if len(candidates) == 1 else match.group(0)
+
+    return _COURSE_CODE.sub(replace, text)
+
+
+def _one_edit_apart(a: str, b: str) -> bool:
+    """Tek harf değişmiş, eklenmiş ya da eksilmiş mi."""
+    if abs(len(a) - len(b)) > 1 or a == b:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    shorter, longer = sorted((a, b), key=len)
+    return any(longer[:i] + longer[i + 1 :] == shorter for i in range(len(longer)))
+
+
 def slugify(text: str) -> str:
     return normalize(text).replace(" ", "-")
 

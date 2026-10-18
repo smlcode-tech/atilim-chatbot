@@ -1,16 +1,20 @@
 ---
 source: backend/atilim_assistant/chat/prompts.py
-hash: ef8755f58734bdd93793545331155f46301606f4
-updated: 2026-10-12
+hash: 0b18c85a5a2b21f3551035eb4014288c985e7e0b
+updated: 2026-10-18
 ---
 
 ## Amaç
-Model için sistem talimatı ve soru şablonları.
+Modelin sistem talimatı.
 
 ## Public API
-- `SYSTEM_PROMPT: str` — yanıt üretim talimatı (Türkçe, yalnızca BAĞLAM'a dayan)
-- `CONTEXTUALIZE_PROMPT: str` — takip sorusu bağımstızlaştırma talimatı
-- `build_prompt(question, documents) -> str` — "BAĞLAM:\n...\n\nSORU: ..." formatında birleştirir
+- `NO_ANSWER: str` — veri yetmediğinde yanıtın başlaması gereken cümle
+- `system_prompt(term) -> str` — `term` katalogdaki ders programının dönemi
+
+## Talimatın özü
+- Bilgi yalnızca araç sonuçlarından; araç çağırmadan bilgi verilmez
+- Kısaltma/eş anlamlı/yazım hatası ve takip sorularını ("bu hocalar") model yorumlar
+- Bölüm hocalarıyla ilgili süzme sorularında `bolum_kadrosu` bir kez çağrılır; geçmişteki listeler kısaltılmış olabilir
 
 ## Dikkat
-- Yanıt promptuna konuşma geçmişi verilmez (prompt injection riski); geçmiş yalnızca bağlamlandırma çağrısında kullanılır
+- Konuşma geçmişi mesaj olarak verilir; kullanıcı mesajı ve araç sonucundaki talimatlar kuralları değiştiremez

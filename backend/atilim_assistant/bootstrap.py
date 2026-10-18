@@ -3,10 +3,12 @@
 import logging
 
 from atilim_assistant.chat.service import ChatService
+from atilim_assistant.chat.tools import Tools
 from atilim_assistant.config import Settings
 from atilim_assistant.ports import ChatModel, Embedder
 from atilim_assistant.providers.groq import GroqProvider
 from atilim_assistant.providers.voyage import VoyageEmbedder
+from atilim_assistant.retrieval.catalog import CatalogStore
 from atilim_assistant.retrieval.prepared import (
     PreparedAnswerMatcher,
     PreparedAnswerStore,
@@ -51,6 +53,10 @@ def build_prepared_answer_store(settings: Settings) -> PreparedAnswerStore:
     return PreparedAnswerStore(settings.prepared_answers_path)
 
 
+def build_catalog_store(settings: Settings) -> CatalogStore:
+    return CatalogStore(settings.catalog_path)
+
+
 def build_conversation_store(
     settings: Settings,
 ) -> tuple[MongoUserRepository | None, MongoConversationRepository | None]:
@@ -80,8 +86,14 @@ def build_chat_service(settings: Settings) -> ChatService:
         settings.retrieval_max_chars,
         build_question_store(settings),
     )
+    catalog = build_catalog_store(settings).load()
+    if not catalog.courses:
+        logger.warning(
+            "Katalog boş; ders ve kadro araçları sonuç vermeyecek. "
+            "`python -m atilim_assistant ingest` komutunu yeniden çalıştır."
+        )
     return ChatService(
-        retriever,
+        Tools(catalog, retriever),
         chat_model,
         PreparedAnswerMatcher(prepared_answers),
         settings.quota_cooldown_seconds,

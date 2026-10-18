@@ -8,7 +8,7 @@ E-posta adresleri resim olarak yayınlanır; nasıl çözüldükleri için bkz. 
 """
 
 import re
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 
 from bs4 import BeautifulSoup, Tag
 
@@ -56,7 +56,13 @@ def parse(html: str, source: Source) -> SourceContent:
         + _teaching_answers(members, source, timetable)
         + _topic_answers(members, source)
         + [answer for member in members for answer in _member_answers(member, source)],
+        # Verilen dersler katalogda ders programından hesaplanır; burada tekrarlanmaz.
+        records={"staff": [_record(member) for member in members]},
     )
+
+
+def _record(member: _StaffMember) -> dict:
+    return {key: value for key, value in asdict(member).items() if key != "courses"}
 
 
 def _parse_card(card: Tag, emails: dict[str, str]) -> _StaffMember:

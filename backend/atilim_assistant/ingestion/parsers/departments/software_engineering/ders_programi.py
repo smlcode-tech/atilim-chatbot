@@ -22,6 +22,7 @@ import httpx
 from atilim_assistant.text import normalize
 
 _SERVER = "https://atilim.edupage.org/timetable/server"
+PUBLIC_URL = "https://atilim.edupage.org/timetable/"
 # Sayfa herkese açık; istek, tarayıcının gönderdiği boş oturum özetiyle yapılır.
 _GSH = "00000000"
 # Yeni öğretim yılı EduPage'de 1 Ağustos'ta başlar (`schoolyear_turnover`).
@@ -106,7 +107,7 @@ def parse(term: str, data: dict) -> Timetable:
 def same_person(teacher: str, staff_name: str) -> bool:
     """Programdaki ad ("Sacit Uluırmak") personel sayfasındaki adla ("Öğr. Gör. Nimet Sacit
     ULUIRMAK") aynı kişi mi: soyadı aynı ve programdaki her ad personel adında geçiyor."""
-    short, full = _name_tokens(teacher), _name_tokens(staff_name)
+    short, full = name_tokens(teacher), name_tokens(staff_name)
     # Yalnızca soyadı yazılmışsa aynı soyadlı herkesle eşleşirdi; en az bir ad gerekir.
     if len(short) < 2 or len(full) < 2 or short[-1] != full[-1]:
         return False
@@ -127,7 +128,8 @@ def instructors_line(sections: list[Section]) -> str:
     )
 
 
-def _name_tokens(name: str) -> list[str]:
+def name_tokens(name: str) -> list[str]:
+    """Unvanları atılmış, normalleştirilmiş ad sözcükleri: "Prof. Dr. Ali YAZICI" → [ali, yazici]."""
     return [token for token in normalize(name).split() if token not in _TITLE_WORDS]
 
 

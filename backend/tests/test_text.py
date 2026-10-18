@@ -2,6 +2,7 @@ import pytest
 
 from atilim_assistant.text import (
     canonicalize,
+    correct_course_codes,
     collapse_whitespace,
     normalize,
     slugify,
@@ -53,3 +54,30 @@ def test_canonicalize_leaves_unrelated_words_alone():
     # Sözcük ortasında ya da başka bir sözcüğün başında geçen öğe eşleşmez.
     assert canonicalize("Gmail telefon başvurusu") == "gmail telefon basvuru"
     assert canonicalize("Ali Yazıcı") == "ali yazici"
+
+
+_CODES = frozenset({"math276", "math275", "se212", "se221", "cmpe113"})
+
+
+@pytest.mark.parametrize(
+    ("question", "corrected"),
+    [
+        ("MATF276", "MATH276"),
+        ("matf 276 dersini kim veriyor", "MATH276 dersini kim veriyor"),
+        ("MAT276 hakkında bilgi", "MATH276 hakkında bilgi"),
+        ("CMPEE113", "CMPE113"),
+        # Bilinen kodlar, sayısı tutmayan ya da hiçbir koda benzemeyen kodlar değişmez.
+        ("MATH276", "MATH276"),
+        ("SE 212", "SE 212"),
+        ("MATF999", "MATF999"),
+        ("PHYS276", "PHYS276"),
+        ("Bölümün 2024 kontenjanı", "Bölümün 2024 kontenjanı"),
+    ],
+)
+def test_correct_course_codes_fixes_one_letter_typos(question, corrected):
+    assert correct_course_codes(question, _CODES) == corrected
+
+
+def test_correct_course_codes_leaves_ambiguous_codes_alone():
+    # "SF221" hem "SE221"e hem "SA221"e tek harf uzak.
+    assert correct_course_codes("SF221", _CODES | {"sa221"}) == "SF221"

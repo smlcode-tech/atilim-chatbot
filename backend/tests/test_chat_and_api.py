@@ -1,9 +1,23 @@
+from dataclasses import replace
+
 import pytest
 from fastapi.testclient import TestClient
 
 from atilim_assistant.api.app import UNAVAILABLE_DETAIL, create_app
 from atilim_assistant.chat import service as chat_service
-from atilim_assistant.domain import Turn
+from atilim_assistant.chat.service import ChatService
+from atilim_assistant.chat.tools import Tools
+from atilim_assistant.domain import Completion, Turn
+from atilim_assistant.retrieval.catalog import Catalog
+from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher
+from tests.conftest import FakeRetriever, tool_call
+
+
+def _course(code: str, name: str) -> dict:
+    return {
+        "code": code, "name": name, "category": "Zorunlu Dersler", "theory": 4, "practice": 0,
+        "lab": 0, "credit": 4.0, "akts": 6.0, "precondition": "", "content": "",
+    }
 
 
 @pytest.fixture
@@ -14,12 +28,14 @@ def history() -> list[Turn]:
     ]
 
 
-def test_answer_grounds_the_model_and_cites_each_page_once(service, model, staff_source):
-    # Hazır yanıtı olmayan soru LLM yoluna gider; belge bağlamı prompt'ta yer alır.
+def test_model_answers_from_tool_results_and_cites_each_page_once(service, model, staff_source):
+    model.script = [tool_call("belge_ara", sorgu="öğrenci kulüpleri")]
+
     answer = service.answer("Öğrenci kulüpleri neler?")
 
-    assert "Görev: Bölüm Başkanı" in model.prompt
-    assert model.prompt.endswith("SORU: Öğrenci kulüpleri neler?")
+    tool_message = next(m for m in model.messages if m["role"] == "tool")
+    assert "Görev: Bölüm Başkanı" in tool_message["content"]
+    assert answer.text == model.reply
     assert [(c.title, c.url) for c in answer.citations] == [(staff_source.title, staff_source.url)]
 
 
@@ -27,42 +43,50 @@ def test_model_answers_are_not_marked_as_prepared(service):
     assert service.answer("Öğrenci kulüpleri neler?").prepared is False
 
 
-def test_follow_up_questions_are_rewritten_before_retrieval(service, model, history):
-    # Model yeniden yazma çağrısı yapılır (1 çağrı); yeniden yazılan soru hazır yanıtla
-    # eşleştiği için LLM'e ikinci bir çağrı gitmez.
-    model.reply = "Prof. Dr. Ayşe ÖRNEK'in araştırma konuları neler?"
+def test_the_model_answers_before_prepared_answers_are_tried(service, model):
+    # "Hocalar kimler?" bir hazır yanıta uyar; model çalışırken yine de model yanıtlar.
+    answer = service.answer("Hocalar kimler?")
 
-    answer = service.answer("Araştırma konuları neler?", history)
-
+    assert answer.prepared is False
     assert model.calls == 1
-    assert answer.prepared is True
 
 
-def test_follow_ups_are_rewritten_however_they_are_phrased(service, model, history):
-    # Önceki tura yaslanmanın sözcük kuralıyla sezilemeyecek bir biçimi: zamir yok, kısa değil.
-    model.reply = "Prof. Dr. Ayşe ÖRNEK telefon numarası nedir?"
+def test_the_model_sees_the_conversation_history(service, model, history):
+    service.answer("Araştırma konuları neler?", history)
 
-    answer = service.answer("Kendisini aramak istiyorum, numarasını paylaşabilir misin?", history)
-
-    assert "SON SORU: Kendisini aramak istiyorum" in model.prompt
-    assert answer.text.startswith("**Prof. Dr. Ayşe ÖRNEK** — telefon:")
-
-
-def test_the_first_question_spares_the_contextualization_call(service, model):
-    service.answer("Blok zinciri ile ilgilenen öğretim üyeleri kimler?")
-
-    assert model.calls == 1
-    assert model.prompt.endswith("SORU: Blok zinciri ile ilgilenen öğretim üyeleri kimler?")
+    assert [(m["role"], m["content"]) for m in model.messages[1:]] == [
+        ("user", "Ayşe Örnek kim?"),
+        ("assistant", "Prof. Dr. Ayşe ÖRNEK, Test Bölümü başkanıdır."),
+        ("user", "Araştırma konuları neler?"),
+    ]
 
 
-def test_a_dead_model_is_not_asked_to_rewrite(service, model, history):
-    # Hazır yanıtı olmayan soru modeli çağırır ve çöktürür; soğuma süresi başlar.
+def test_tool_rounds_are_capped_and_the_last_round_must_answer(service, model):
+    model.script = [tool_call("belge_ara", sorgu="x") for _ in range(10)]
+    model.script.insert(4, Completion(content="Son turda yanıt."))
+
+    assert service.answer("Döngüye giren soru").text == "Son turda yanıt."
+    assert model.calls == 5
+    assert model.tools == []
+
+
+def test_misspelled_course_codes_are_corrected_before_the_model_sees_them(model, staff_answers):
+    catalog = replace(Catalog.empty(), courses=[_course("MATH276", "Diferansiyel Denklemler")])
+    service = ChatService(Tools(catalog, FakeRetriever([])), model, PreparedAnswerMatcher(staff_answers))
+
+    service.answer("MATF276 nedir?")
+
+    assert model.messages[-1] == {"role": "user", "content": "MATH276 nedir?"}
+
+
+def test_during_a_cooldown_follow_ups_get_prepared_answers_without_the_model(
+    service, model, history
+):
     model.reply = RuntimeError("429 RESOURCE_EXHAUSTED")
     with pytest.raises(RuntimeError):
         service.answer("Öğrenci kulüpleri neler?")
     calls_after_failure = model.calls
 
-    # Soğuma sırasında takip sorusu yeniden yazılmaz; hazır yanıt döner.
     assert service.answer("Araştırma konuları neler?", history).prepared is True
     assert model.calls == calls_after_failure
 
@@ -151,8 +175,9 @@ def test_without_sign_in_configured_questions_are_answered_as_guest(service, set
     assert response.json()["conversation_id"] is None
 
 
-def test_chat_returns_answer_with_sources(client, staff_source):
-    # Hazır yanıtı olmayan soru LLM'e gider; kaynaklarla birlikte döner.
+def test_chat_returns_answer_with_sources(client, model, staff_source):
+    # Model belge aracını çağırır; aracın getirdiği sayfa yanıtın kaynağı olur.
+    model.script = [tool_call("belge_ara", sorgu="öğrenci kulüpleri")]
     response = client.post("/api/chat", json={"question": "  Öğrenci kulüpleri neler?  "})
 
     assert response.status_code == 200

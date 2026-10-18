@@ -41,6 +41,9 @@ class SourceContent:
 
     documents: list[Document]
     prepared_answers: list[PreparedAnswer]
+    # Yapılandırılmış kayıtlar (ders, personel); katalog araçları bunları sorgular.
+    # Anahtar kayıt türüdür ("courses", "staff"), değer satırlardır.
+    records: dict[str, list[dict]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +63,23 @@ class Source:
 class Citation:
     title: str
     url: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCall:
+    """Modelin çağırmak istediği araç; `arguments` JSON metnidir."""
+
+    id: str
+    name: str
+    arguments: str
+
+
+@dataclass(frozen=True, slots=True)
+class Completion:
+    """Modelin bir turu: ya yanıt metni ya da çağrılacak araçlar."""
+
+    content: str
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

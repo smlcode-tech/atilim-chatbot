@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Kota bittiğinde modelin yeniden denenmeden önce bekleyeceği süre.
     quota_cooldown_seconds: int = 3600
-    # Takip sorusunu bağlamlandırırken modele verilen geçmiş tur sayısı.
+    # Modele konuşma geçmişi olarak verilen son tur sayısı (takip soruları için).
     history_turns: int = 6
 
     api_host: str = "127.0.0.1"
@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     @property
     def prepared_answers_path(self) -> Path:
         return self.data_dir / "prepared_answers.json"
+
+    @property
+    def catalog_path(self) -> Path:
+        return self.data_dir / "catalog.json"
 
 
 @lru_cache

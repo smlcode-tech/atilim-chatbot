@@ -2,8 +2,9 @@
 
 import httpx
 
-from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.domain import Citation, Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.ports import Embedder
+from atilim_assistant.retrieval.catalog import CatalogStore
 from atilim_assistant.retrieval.prepared import PreparedAnswerStore
 from atilim_assistant.retrieval.store import DocumentStore
 
@@ -37,6 +38,7 @@ def index_content(
     store: DocumentStore,
     prepared_answers: PreparedAnswerStore,
     questions: DocumentStore,
+    catalog: CatalogStore | None = None,
 ) -> None:
     """Kaynağın eski belgelerini ve hazır yanıtlarını yenileriyle değiştirir; diğer kaynaklara dokunmaz."""
     embeddings = embedder.embed_documents([document.text for document in content.documents])
@@ -46,6 +48,10 @@ def index_content(
     entries = question_documents(source, content.prepared_answers)
     question_embeddings = embedder.embed_documents([entry.title for entry in entries])
     questions.replace_source(source.id, entries, question_embeddings)
+
+    if catalog is not None:
+        for key, rows in content.records.items():
+            catalog.replace(key, rows, Citation(title=source.title, url=source.url))
 
 
 def question_documents(source: Source, answers: list[PreparedAnswer]) -> list[Document]:

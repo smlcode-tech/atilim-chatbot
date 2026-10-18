@@ -6,7 +6,7 @@ Sayfa yapısı (div.detail-container > div#lessons-wrapper):
 """
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 from bs4 import BeautifulSoup
 
@@ -183,7 +183,12 @@ def parse(html: str, source: Source) -> SourceContent:
                 ]
             answers.append(_answer(source, questions, doc_text))
 
-    return SourceContent(documents=documents, prepared_answers=answers)
+    courses = [
+        {**asdict(course), "category": tab.label} for tab in tabs for course in tab.courses
+    ]
+    return SourceContent(
+        documents=documents, prepared_answers=answers, records={"courses": courses}
+    )
 
 
 def _extract_tabs(container) -> list[_Tab]:

@@ -7,6 +7,7 @@ from pathlib import Path
 import uvicorn
 
 from atilim_assistant.bootstrap import (
+    build_catalog_store,
     build_chat_service,
     build_prepared_answer_store,
     build_provider,
@@ -14,6 +15,8 @@ from atilim_assistant.bootstrap import (
     build_store,
 )
 from atilim_assistant.config import get_settings
+from atilim_assistant.domain import Citation
+from atilim_assistant.ingestion.parsers.departments.software_engineering import ders_programi
 from atilim_assistant.ingestion.pipeline import index_content, load_content
 from atilim_assistant.ingestion.sources import SOURCES, get_source
 
@@ -54,6 +57,7 @@ def _ingest(args: argparse.Namespace) -> None:
         store = build_store(settings)
         prepared_answers = build_prepared_answer_store(settings)
         questions = build_question_store(settings)
+        catalog = build_catalog_store(settings)
 
     for source in sources:
         content = load_content(source, html)
@@ -63,11 +67,19 @@ def _ingest(args: argparse.Namespace) -> None:
             for prepared in content.prepared_answers:
                 print(f"\n=== Hazır yanıt: {' | '.join(prepared.questions)} ===\n{prepared.answer}")
         else:
-            index_content(source, content, provider, store, prepared_answers, questions)
+            index_content(source, content, provider, store, prepared_answers, questions, catalog)
         print(
             f"{source.id}: {len(content.documents)} belge, "
             f"{len(content.prepared_answers)} hazır yanıt"
         )
+
+    # Ders programı tüm üniversiteyi kapsar ve hiçbir kaynağa ait değildir; her ingest'te
+    # yenilenir. Alınamazsa katalogdaki önceki program korunur.
+    timetable = ders_programi.current()
+    if not args.dry_run and timetable is not None:
+        citation = Citation(title=f"Ders Programı — {timetable.term}", url=ders_programi.PUBLIC_URL)
+        catalog.replace_timetable(timetable, citation)
+        print(f"ders programı: {len(timetable.sections)} şube ({timetable.term})")
 
 
 def _serve(_: argparse.Namespace) -> None:

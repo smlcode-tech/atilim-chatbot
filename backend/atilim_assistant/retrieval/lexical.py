@@ -15,6 +15,7 @@ _B = 0.75
 
 _SUBJECT = re.compile(r"[a-z]{2,4}")
 _COURSE_NUMBER = re.compile(r"\d{3}")
+_COURSE_CODE = re.compile(r"[a-z]{2,5}\d{3}[a-z]?")
 
 
 class LexicalIndex:
@@ -25,6 +26,10 @@ class LexicalIndex:
         self._average_length = sum(self._lengths) / max(len(documents), 1)
 
         document_frequency = Counter(term for counts in self._term_counts for term in counts)
+        # Belgelerde geçen ders kodları; yanlış yazılmış kodları düzeltmek için kullanılır.
+        self.course_codes = frozenset(
+            term for term in document_frequency if _COURSE_CODE.fullmatch(term)
+        )
         total = len(documents)
         self._idf = {
             term: math.log(1 + (total - frequency + 0.5) / (frequency + 0.5))

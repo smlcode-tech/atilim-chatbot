@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -8,13 +9,16 @@ from pydantic import SecretStr
 from atilim_assistant.api.app import create_app
 from atilim_assistant.auth import issue_token
 from atilim_assistant.chat.service import ChatService
+from atilim_assistant.chat.tools import Tools
 from atilim_assistant.config import Settings
 from atilim_assistant.domain import (
+    Completion,
     ConversationSummary,
     Document,
     PreparedAnswer,
     Source,
     SourceContent,
+    ToolCall,
     Turn,
     User,
 )
@@ -22,6 +26,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     academic_staff,
     ders_programi,
 )
+from atilim_assistant.retrieval.catalog import Catalog
 from atilim_assistant.retrieval.prepared import PreparedAnswerMatcher
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -180,25 +185,37 @@ def auth_token(user: User, settings: Settings) -> str:
 class FakeRetriever:
     def __init__(self, documents):
         self._documents = documents
+        self.course_codes = frozenset()
 
     def retrieve(self, query):
         return self._documents
 
 
 class FakeModel:
-    """`reply` bir istisna ise çağrıda fırlatılır; böylece kesinti davranışı sınanabilir."""
+    """`script` sırayla döndürülecek turlardır (ör. araç çağrıları); tükenince `reply` metni
+    döner. `reply` bir istisna ise çağrıda fırlatılır; böylece kesinti davranışı sınanabilir."""
 
     def __init__(self, reply="Bölüm başkanı Prof. Dr. Ayşe ÖRNEK'tir."):
         self.reply = reply
-        self.prompt = None
+        self.script: list[Completion] = []
+        self.messages: list[dict] = []
+        self.tools: list[dict] = []
         self.calls = 0
 
-    def generate(self, system, prompt):
+    def complete(self, messages, tools):
         self.calls += 1
-        self.prompt = prompt
+        self.messages = [dict(message) for message in messages]
+        self.tools = tools
         if isinstance(self.reply, Exception):
             raise self.reply
-        return self.reply
+        if self.script:
+            return self.script.pop(0)
+        return Completion(content=self.reply)
+
+
+def tool_call(name: str, **arguments: str) -> Completion:
+    """Modelin tek bir araç çağırdığı tur."""
+    return Completion(content="", tool_calls=[ToolCall("c1", name, json.dumps(arguments))])
 
 
 @pytest.fixture
@@ -208,7 +225,8 @@ def model() -> FakeModel:
 
 @pytest.fixture
 def service(staff_documents, staff_answers, model) -> ChatService:
-    return ChatService(FakeRetriever(staff_documents), model, PreparedAnswerMatcher(staff_answers))
+    tools = Tools(Catalog.empty(), FakeRetriever(staff_documents))
+    return ChatService(tools, model, PreparedAnswerMatcher(staff_answers))
 
 
 @pytest.fixture
