@@ -4,16 +4,33 @@ import {
   askQuestion,
   checkHealth,
   fetchConversation,
+  type HistoryTurn,
 } from '../api/client'
 import type { ApiStatus, Message } from '../types'
 
 type UseChatOptions = {
   /** Yeni bir konuşma açıldığında ya da bir konuşmaya yazıldığında yan bar tazelenir. */
   onConversationChanged: () => void
+  /** Misafirin geçmişi sunucuda tutulmaz; takip soruları için her soruyla gönderilir. */
+  sendsHistory: boolean
 }
 
-export function useChat({ onConversationChanged }: UseChatOptions) {
+/** Sunucunun geçmiş sınırları (`MAX_HISTORY_TURNS`, `MAX_HISTORY_TURN_LENGTH`) içinde kalır. */
+const HISTORY_TURNS = 12
+const HISTORY_TURN_LENGTH = 4000
+
+function historyOf(messages: Message[]): HistoryTurn[] {
+  return messages
+    .filter((message) => !message.isError && !message.isLocal)
+    .slice(-HISTORY_TURNS)
+    .map(({ role, content }) => ({ role, content: content.slice(0, HISTORY_TURN_LENGTH) }))
+}
+
+export function useChat({ onConversationChanged, sendsHistory }: UseChatOptions) {
   const [messages, setMessages] = useState<Message[]>([])
+  // Gönderim anındaki mesajlar; sendMessage her mesajda yeniden kurulmasın diye ref'te tutulur.
+  const messagesRef = useRef<Message[]>([])
+  messagesRef.current = messages
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
@@ -43,11 +60,12 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
       const question = text.trim()
       if (!question || isLoading) return
 
+      const history = sendsHistory ? historyOf(messagesRef.current) : []
       append({ role: 'user', content: question })
       setIsLoading(true)
       const ticket = view.current
       try {
-        const answer = await askQuestion(question, conversationId)
+        const answer = await askQuestion(question, conversationId, history)
         setApiStatus('online')
         if (ticket !== view.current) {
           // Soru sunucuda kendi konuşmasına kaydedildi; yalnızca yan bar tazelenir.
@@ -77,15 +95,16 @@ export function useChat({ onConversationChanged }: UseChatOptions) {
         if (ticket === view.current) setIsLoading(false)
       }
     },
-    [append, conversationId, isLoading, onConversationChanged],
+    [append, conversationId, isLoading, onConversationChanged, sendsHistory],
   )
 
   /** Önerilen sorulardan hiçbiri değilse: soru sunucuya gitmez, kullanıcı yeniden sorar. */
   const askAgain = useCallback(() => {
-    append({ role: 'user', content: 'Diğer' })
+    append({ role: 'user', content: 'Diğer', isLocal: true })
     append({
       role: 'assistant',
       content: 'Anladım. Sorunu farklı sözcüklerle ya da biraz daha ayrıntıyla yazar mısın?',
+      isLocal: true,
     })
   }, [append])
 

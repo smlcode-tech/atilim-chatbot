@@ -15,6 +15,8 @@ export type Message = {
   isPrepared?: boolean
   /** Soru yanıtlanamadığında seçenek olarak sunulan, yanıtı olan yakın sorular. */
   suggestions?: string[]
+  /** Yalnızca arayüzde gösterilen mesaj ("Diğer" seçimi); sunucuya geçmiş olarak gitmez. */
+  isLocal?: boolean
 }
 
 export type ApiStatus = 'checking' | 'online' | 'offline'

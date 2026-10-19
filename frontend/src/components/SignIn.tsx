@@ -1,13 +1,15 @@
 import { useEffect, useRef } from 'react'
-import { ShieldCheck } from 'lucide-react'
+import { ShieldCheck, UserRound } from 'lucide-react'
 import { assistant } from '../config/assistant'
 
 type SignInProps = {
   error: string | null
+  guestLimit: number | null
   onMountGoogleButton: (parent: HTMLElement) => void
+  onContinueAsGuest: () => void
 }
 
-export function SignIn({ error, onMountGoogleButton }: SignInProps) {
+export function SignIn({ error, guestLimit, onMountGoogleButton, onContinueAsGuest }: SignInProps) {
   const buttonRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -41,6 +43,17 @@ export function SignIn({ error, onMountGoogleButton }: SignInProps) {
           </div>
 
           <div className="signin-button" ref={buttonRef} />
+
+          <div className="signin-divider"><span>ya da</span></div>
+
+          <button type="button" className="signin-guest" onClick={onContinueAsGuest}>
+            <UserRound size={16} />
+            Misafir olarak devam et
+          </button>
+          <p className="signin-guest-note">
+            Geçmiş kaydedilmez
+            {guestLimit !== null && <>; günde {guestLimit} soru sorabilirsin</>}.
+          </p>
 
           {error && <p className="signin-error">{error}</p>}
 

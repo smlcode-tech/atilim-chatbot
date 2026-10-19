@@ -19,10 +19,21 @@ const SPLASH_MIN_MS = 2200
 
 function App() {
   const { theme, toggle: toggleTheme } = useTheme()
-  const { user, isGuest, isChecking, error, mountGoogleButton, signOut } = useAuth()
+  const {
+    user,
+    isGuest,
+    canSignIn,
+    guestQuestionLimit,
+    isChecking,
+    error,
+    mountGoogleButton,
+    continueAsGuest,
+    signOut,
+  } = useAuth()
   const { conversations, refresh, remove } = useConversations(user !== null && !isGuest)
   const { messages, conversationId, isLoading, apiStatus, sendMessage, askAgain, startNew, open } = useChat({
     onConversationChanged: refresh,
+    sendsHistory: isGuest,
   })
 
   // Çıkışta ya da oturum düştüğünde sohbet ekranda kalmamalı: aynı tarayıcıda giriş yapan
@@ -108,7 +119,12 @@ function App() {
           transition={{ duration: 0.4, ease: 'easeOut' }}
         >
         {user === null ? (
-          <SignIn error={error} onMountGoogleButton={mountGoogleButton} />
+          <SignIn
+            error={error}
+            guestLimit={guestQuestionLimit}
+            onMountGoogleButton={mountGoogleButton}
+            onContinueAsGuest={continueAsGuest}
+          />
         ) : (
           <main className={`app-shell ${isDrawerOpen ? 'drawer-open' : ''}`}>
             <Sidebar
@@ -118,7 +134,9 @@ function App() {
               onNewChat={startNewChat}
               onOpenConversation={openConversation}
               onDeleteConversation={deleteConversation}
-              onSignOut={isGuest ? undefined : signOut}
+              // Giriş yapılandırılmamışsa misafirin gidebileceği bir giriş ekranı yoktur.
+              onSignOut={isGuest && !canSignIn ? undefined : signOut}
+              isGuest={isGuest}
             />
 
             <button

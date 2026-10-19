@@ -17,6 +17,10 @@ class UserRepository(Protocol):
         """
         ...
 
+    def count_guest_question(self, guest_key: str, day: str) -> int:
+        """Misafir için `count_question`; `guest_key` IP adresinin özetidir."""
+        ...
+
 
 class ConversationRepository(Protocol):
     def start(self, user_id: str, title: str) -> str:

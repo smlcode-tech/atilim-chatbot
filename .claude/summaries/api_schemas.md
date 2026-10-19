@@ -1,7 +1,7 @@
 ---
 source: backend/atilim_assistant/api/schemas.py
-hash: 884d901131420221639e5825c76ba3e6079c94b0
-updated: 2026-10-12
+hash: 2ecf899ff46fb02ef13e6a2c7b1f8bd2a2b24b8b
+updated: 2026-10-19
 ---
 
 ## Amaç
@@ -21,3 +21,6 @@ HTTP API için tüm Pydantic istek/yanıt modelleri.
 
 ## Sabitler
 - `MAX_QUESTION_LENGTH = 1000`
+
+## Misafir ve öneriler (2026-10-19)
+- `ChatRequest.history: list[HistoryTurn]` (en çok 20 tur, tur başı 8000 karakter) — yalnızca misafirde kullanılır; `HealthResponse.guest_question_limit`; `ChatResponse`/`TurnResponse.suggestions`

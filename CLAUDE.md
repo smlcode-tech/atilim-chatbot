@@ -56,11 +56,12 @@ frontend/src/
 | Groq | LLM (`openai/gpt-oss-120b`, tool calling, `reasoning_effort="low"`) | Ücretsiz katman dakikada 8000 token; soru başına 2–5 model çağrısı, ~2–8 bin token. Sınır aşılınca OpenAI istemcisi bekleyip yeniden dener (yanıt 30–60 sn sürebilir) |
 | EduPage | Ders programı (`atilim.edupage.org/timetable`) | Ingest'te çekilir, katalogda tutulur; yalnızca güncel dönem |
 | ChromaDB | Vektör depo (disk: `backend/data/chroma/`) | İndeks boşsa başlamaz |
-| MongoDB | Konuşma geçmişi + kullanıcı | Opsiyonel; yoksa (ya da GOOGLE_CLIENT_ID yoksa) sorular misafir olarak, geçmişsiz yanıtlanır |
+| MongoDB | Konuşma geçmişi + kullanıcı + soru sayaçları | Opsiyonel; yoksa (ya da GOOGLE_CLIENT_ID yoksa) herkes misafirdir ve günlük sınır uygulanamaz |
 
 ## Önemli Desenler
 - **Ports/Adapters**: `ports.py`'daki Protocol'ler → somut implementasyonlar `providers/`, `storage/`
 - **Uygulama fabrikası**: `create_app()` — testler sahte bileşen enjekte eder
+- **Misafir girişi**: giriş açıkken de jetonsuz istek misafirdir (`auth.chat_user`); geçersiz jeton ise 401 (süresi dolan oturum sessizce misafire düşmez). Misafirin geçmişi sunucuda tutulmaz, takip soruları için tarayıcı `ChatRequest.history` gönderir (girişli kullanıcıda yok sayılır). Misafir sınırı IP başına günlük `guest_daily_question_limit` (10); sayaç `guest_quotas` koleksiyonunda, IP'nin SHA-256 özetiyle; IP `X-Forwarded-For`'un **son** öğesi (baştakileri istemci uydurabilir)
 - **Graceful degradation**: MongoDB, model veya kota hatası asistanı durdurmaz
 - **Araç çağrılı model (tool calling)**: söyleyişi (kısaltma, eş anlamlı, takip sorusu) model yorumlar, veriyi araçlarla kesin alır; her söyleyiş için kural/kalıp yazılmaz. Liste/süzme soruları katalogun tamamı üzerinde hesaplanır. Model geçmişi mesaj olarak görür; ayrı bağlamlandırma (yeniden yazma) çağrısı kaldırıldı. Yeni yapılandırılmış veri → parser `records` döndürür, `chat/tools.py`'ye araç eklenir
 - **Hazır yanıtlar yalnızca yedek**: model çalışırken her soru modele gider; model hata verince ya da soğumadayken hazır yanıt eşleştirilir. İstisna: soru bir kalıbın birebir aynısıysa (seçilen öneri) hazır yanıt hemen verilir

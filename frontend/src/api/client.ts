@@ -86,16 +86,24 @@ export type Health = {
   online: boolean
   /** false ise sunucuda giriş yapılandırılmamıştır; sorular misafir olarak sorulur. */
   authRequired: boolean
+  /** Misafirin günlük soru sınırı; sunucuya ulaşılamadıysa bilinmez. */
+  guestQuestionLimit: number | null
 }
 
 export async function checkHealth(): Promise<Health> {
   try {
     const response = await fetch('/api/health')
-    if (!response.ok) return { online: false, authRequired: true }
-    const body: { auth_required?: boolean } = await response.json().catch(() => ({}))
-    return { online: true, authRequired: body.auth_required !== false }
+    if (!response.ok) return { online: false, authRequired: true, guestQuestionLimit: null }
+    const body: { auth_required?: boolean; guest_question_limit?: number } = await response
+      .json()
+      .catch(() => ({}))
+    return {
+      online: true,
+      authRequired: body.auth_required !== false,
+      guestQuestionLimit: body.guest_question_limit ?? null,
+    }
   } catch {
-    return { online: false, authRequired: true }
+    return { online: false, authRequired: true, guestQuestionLimit: null }
   }
 }
 
@@ -112,9 +120,13 @@ export function fetchMe(): Promise<User> {
   return request<User>('/api/auth/me')
 }
 
+/** Misafirin sunucuda saklanmayan geçmişi; takip soruları için her soruyla gönderilir. */
+export type HistoryTurn = { role: 'user' | 'assistant'; content: string }
+
 export async function askQuestion(
   question: string,
   conversationId: string | null,
+  history: HistoryTurn[] = [],
 ): Promise<ChatAnswer> {
   const payload = await request<{
     answer?: string
@@ -125,7 +137,7 @@ export async function askQuestion(
     title?: string | null
   }>('/api/chat', {
     method: 'POST',
-    body: { question, conversation_id: conversationId },
+    body: { question, conversation_id: conversationId, history },
   })
 
   if (!payload.answer) {

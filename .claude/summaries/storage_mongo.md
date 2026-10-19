@@ -1,7 +1,7 @@
 ---
 source: backend/atilim_assistant/storage/mongo.py
-hash: 3ccbde68375d771139f28457b49d92478e54aaa7
-updated: 2026-10-12
+hash: 816db5c97d8648d1bcd6ba715e02cb59e02cbe4d
+updated: 2026-10-19
 ---
 
 ## Amaç
@@ -19,3 +19,6 @@ MongoDB üzerinde kullanıcı ve konuşma kalıcılığı.
 - `_RETENTION_DAYS = 90` — TTL indeksi ile otomatik silme
 - `count_question` tek atomik pipeline kullanır (okuma+yazma race condition önlemi)
 - Render ücretsiz katman uykudan kalkarken timeout sorunları için `serverSelectionTimeoutMS=5000`
+
+## Misafir ve öneriler (2026-10-19)
+- `count_guest_question(guest_key, day)` — `guest_quotas` koleksiyonunda upsert ile sayar (misafirin kullanıcı kaydı yok); turlar `suggestions` da saklar

@@ -1,7 +1,7 @@
 ---
 source: frontend/src/App.tsx
-hash: 211132394b0d0774b5cb563e3ac445ad5e8f9bb6
-updated: 2026-10-12
+hash: c768557616a815826df34430c66b40fbbe9b12c9
+updated: 2026-10-19
 ---
 
 ## Amaç
@@ -20,3 +20,6 @@ React kök bileşeni. Splash screen, auth durumu, drawer sidebar, Cmd+K kısayol
 - `useAuth` — Google giriş
 - `useConversations` — yan bar listesi
 - `useChat` — mesaj durumu + API
+
+## Misafir ve öneriler (2026-10-19)
+- Giriş ekranında "Misafir olarak devam et" (`continueAsGuest`); misafirde yan bar düğmesi giriş ekranına döner (giriş yapılandırılmamışsa gizli); `useChat({ sendsHistory: isGuest })`; öneri seçimi ve "Diğer" (`askAgain` + Composer `focusRequest`)

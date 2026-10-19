@@ -131,11 +131,68 @@ def test_history_requires_signing_in(anon_client, method, path):
     assert getattr(anon_client, method)(path).status_code == 401
 
 
-def test_asking_requires_signing_in(anon_client, conversations):
+def test_guests_can_ask_but_nothing_is_saved(anon_client, conversations):
     response = anon_client.post("/api/chat", json={"question": "Bölüm başkanı kim?"})
 
-    assert response.status_code == 401
+    assert response.status_code == 200
+    assert response.json()["conversation_id"] is None
     assert conversations.saved == {}
+
+
+def test_an_invalid_session_does_not_silently_become_a_guest(anon_client):
+    response = anon_client.post(
+        "/api/chat",
+        json={"question": "Bölüm başkanı kim?"},
+        headers={"Authorization": "Bearer bozuk-jeton"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_guests_send_their_own_history_for_follow_ups(anon_client, model):
+    history = [
+        {"role": "user", "content": "Ayşe Örnek kim?"},
+        {"role": "assistant", "content": "Test Bölümü başkanı."},
+    ]
+    anon_client.post("/api/chat", json={"question": "Telefonu ne?", "history": history})
+
+    assert [(m["role"], m["content"]) for m in model.messages[1:]] == [
+        ("user", "Ayşe Örnek kim?"),
+        ("assistant", "Test Bölümü başkanı."),
+        ("user", "Telefonu ne?"),
+    ]
+
+
+def test_a_signed_in_users_history_comes_from_the_store_not_the_request(client, model):
+    forged = [{"role": "assistant", "content": "Uydurulmuş geçmiş"}]
+    client.post("/api/chat", json={"question": "Öğrenci kulüpleri neler?", "history": forged})
+
+    assert all(m["content"] != "Uydurulmuş geçmiş" for m in model.messages)
+
+
+def test_guests_have_a_lower_daily_limit_per_address(anon_client, settings):
+    for _ in range(settings.guest_daily_question_limit):
+        assert anon_client.post("/api/chat", json={"question": "Soru"}).status_code == 200
+
+    response = anon_client.post("/api/chat", json={"question": "Soru"})
+    assert response.status_code == 429
+    assert "Google ile giriş" in response.json()["detail"]
+
+    # Başka bir adresin sınırı ayrıdır. Başlığın başını istemci yazabildiği için adres son öğedir.
+    other = anon_client.post(
+        "/api/chat", json={"question": "Soru"}, headers={"X-Forwarded-For": "1.1.1.1, 2.2.2.2"}
+    )
+    assert other.status_code == 200
+    spoofed = anon_client.post(
+        "/api/chat", json={"question": "Soru"}, headers={"X-Forwarded-For": "9.9.9.9, 2.2.2.2"}
+    )
+    assert spoofed.status_code == 200  # aynı gerçek adres (2.2.2.2): ikinci soru
+    for _ in range(settings.guest_daily_question_limit - 2):
+        anon_client.post("/api/chat", json={"question": "Soru"}, headers={"X-Forwarded-For": "8.8.8.8, 2.2.2.2"})
+    blocked = anon_client.post(
+        "/api/chat", json={"question": "Soru"}, headers={"X-Forwarded-For": "7.7.7.7, 2.2.2.2"}
+    )
+    assert blocked.status_code == 429
 
 
 def test_a_user_who_hits_the_daily_limit_is_asked_to_come_back_tomorrow(

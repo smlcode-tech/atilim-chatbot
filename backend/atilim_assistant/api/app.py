@@ -1,6 +1,8 @@
 """FastAPI uygulaması: /api/health ve /api/chat uç noktaları."""
 
+import hashlib
 import logging
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
@@ -90,7 +92,11 @@ def create_app(
 
     @app.get("/api/health")
     def health(request: Request) -> HealthResponse:
-        return HealthResponse(status="ok", auth_required=request.app.state.auth_enabled)
+        return HealthResponse(
+            status="ok",
+            auth_required=request.app.state.auth_enabled,
+            guest_question_limit=request.app.state.settings.guest_daily_question_limit,
+        )
 
     @app.post("/api/auth/google")
     def sign_in(body: GoogleSignInRequest, request: Request) -> SignInResponse:
@@ -126,8 +132,24 @@ def create_app(
             request.app.state.conversations if user is not None else None
         )
 
+        users: UserRepository | None = request.app.state.users
         if user is not None:
-            _check_daily_limit(request.app.state.users, user.id, settings.daily_question_limit)
+            _check_daily_limit(
+                lambda day: users.count_question(user.id, day),
+                users,
+                f"Günlük {settings.daily_question_limit} soru sınırına ulaştın. Asistan ücretsiz "
+                "bir kota ile çalışıyor; yarın tekrar bekleriz.",
+                settings.daily_question_limit,
+            )
+        else:
+            guest = _guest_key(request)
+            _check_daily_limit(
+                lambda day: users.count_guest_question(guest, day),
+                users,
+                f"Misafir olarak günlük {settings.guest_daily_question_limit} soru sınırına "
+                "ulaştın. Google ile giriş yaparak sormaya devam edebilirsin.",
+                settings.guest_daily_question_limit,
+            )
 
         history: list[Turn] = []
         conversation_id = None
@@ -135,6 +157,10 @@ def create_app(
             conversation_id, history = _resume(
                 conversations, user.id, body.conversation_id, settings
             )
+        elif user is None:
+            history = [
+                Turn(role=turn.role, content=turn.content) for turn in body.history
+            ][-settings.history_turns :]
 
         try:
             answer = service.answer(body.question, history)
@@ -215,23 +241,32 @@ def create_app(
     return app
 
 
-def _check_daily_limit(users: UserRepository | None, user_id: str, limit: int) -> None:
-    """Sayaç tutulamıyorsa soru geçer: depo kesintisi asistanı durdurmamalı."""
+def _check_daily_limit(
+    count: Callable[[str], int], users: UserRepository | None, detail: str, limit: int
+) -> None:
+    """`count` o günün sayacını artırıp döndürür. Sayaç tutulamıyorsa soru geçer: depo
+    kesintisi asistanı durdurmamalı."""
     if users is None:
         return
     try:
-        asked = users.count_question(user_id, datetime.now(UTC).date().isoformat())
+        asked = count(datetime.now(UTC).date().isoformat())
     except Exception:
         logger.exception("Günlük soru sayacı güncellenemedi")
         return
     if asked > limit:
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                f"Günlük {limit} soru sınırına ulaştın. Asistan ücretsiz bir kota ile "
-                "çalışıyor; yarın tekrar bekleriz."
-            ),
-        )
+        raise HTTPException(status_code=429, detail=detail)
+
+
+def _guest_key(request: Request) -> str:
+    """Misafirin sayaç anahtarı: IP adresinin özeti; adresin kendisi saklanmaz.
+
+    Render isteği vekil sunucu üzerinden iletir ve istemcinin adresini `X-Forwarded-For`
+    başlığının sonuna ekler. Baştaki öğeleri istemci kendisi yazabilir; onlara güvenmek her
+    istekte farklı adres uydurarak sınırı aşmaya izin verirdi.
+    """
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    address = forwarded.split(",")[-1].strip() or (request.client.host if request.client else "")
+    return hashlib.sha256(address.encode()).hexdigest()
 
 
 def _require_history(request: Request) -> ConversationRepository:

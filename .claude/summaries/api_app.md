@@ -1,7 +1,7 @@
 ---
 source: backend/atilim_assistant/api/app.py
-hash: 1181a643366da79f5d82d4a1aad7cddd7d67c1fa
-updated: 2026-10-12
+hash: 3962a97091597dba28a6b7e3fce9622d730e1290
+updated: 2026-10-19
 ---
 
 ## Amaç
@@ -22,3 +22,6 @@ FastAPI uygulama fabrikası. Tüm HTTP rotaları burada tanımlı; bileşenler `
 - Günlük soru limiti 429 döner; sayaç güncellenemezse soru yine geçer
 - `history_turns` ayarı kadar tur `_resume()` ile çekilir
 - Konuşma başlığı sorunun ilk 60 karakterinden alınır
+
+## Misafir ve öneriler (2026-10-19)
+- Misafir: `chat_user` None döner; misafir `body.history` ile geçmiş gönderir, `_guest_key` (X-Forwarded-For son öğesinin SHA-256 özeti) ile `count_guest_question` üzerinden günlük `guest_daily_question_limit` uygulanır; `/api/health` `guest_question_limit` döndürür

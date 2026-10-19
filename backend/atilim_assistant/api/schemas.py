@@ -1,11 +1,19 @@
 """HTTP API'nin istek ve yanıt gövdeleri."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints
 
 MAX_QUESTION_LENGTH = 1000
+# Misafirin gönderdiği geçmiş turların sınırları; uzun yanıtlar sunucuda yine kısaltılır.
+MAX_HISTORY_TURNS = 20
+MAX_HISTORY_TURN_LENGTH = 8000
+
+
+class HistoryTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: Annotated[str, StringConstraints(max_length=MAX_HISTORY_TURN_LENGTH)]
 
 
 class ChatRequest(BaseModel):
@@ -15,6 +23,9 @@ class ChatRequest(BaseModel):
     ]
     # Boşsa yeni bir konuşma açılır ve kimliği yanıtta döner.
     conversation_id: str | None = None
+    # Misafirin geçmişi sunucuda tutulmaz; takip soruları için sohbetin önceki turlarını
+    # tarayıcı gönderir. Giriş yapan kullanıcıda yok sayılır, geçmiş depodan okunur.
+    history: Annotated[list[HistoryTurn], Field(max_length=MAX_HISTORY_TURNS)] = []
 
 
 class SourceLink(BaseModel):
@@ -37,8 +48,10 @@ class ChatResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     # False ise giriş yapılandırılmamıştır; arayüz giriş ekranını atlar, sorular misafir olarak
-    # yanıtlanır.
+    # yanıtlanır. True ise Google girişi sunulur; misafir olarak devam etmek de mümkündür.
     auth_required: bool
+    # Misafirin IP başına günlük soru sınırı; giriş ekranında gösterilir.
+    guest_question_limit: int
 
 
 class GoogleSignInRequest(BaseModel):

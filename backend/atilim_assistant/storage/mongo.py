@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from pymongo import ASCENDING, DESCENDING, MongoClient
+from pymongo.collection import Collection
 from pymongo.database import Database
 from pymongo.errors import PyMongoError
 
@@ -56,6 +57,8 @@ def connect(uri: str, database: str) -> Database:
 class MongoUserRepository:
     def __init__(self, db: Database) -> None:
         self._users = db.users
+        # Misafir sayaçları kullanıcılardan ayrı tutulur; kullanıcı listesi kirlenmez.
+        self._guest_quotas = db.guest_quotas
 
     def upsert(self, google_sub: str, email: str, name: str) -> str:
         existing = self._users.find_one_and_update(
@@ -70,27 +73,36 @@ class MongoUserRepository:
         return existing["_id"]
 
     def count_question(self, user_id: str, day: str) -> int:
-        # Tek bir atomik işlemde ya artır ya sıfırla: okuyup sonra yazmak eşzamanlı
-        # isteklerde sayacı eksik bırakırdı.
-        document = self._users.find_one_and_update(
-            {"_id": user_id},
-            [
-                {
-                    "$set": {
-                        "quota_day": day,
-                        "quota_count": {
-                            "$cond": [
-                                {"$eq": ["$quota_day", day]},
-                                {"$add": [{"$ifNull": ["$quota_count", 0]}, 1]},
-                                1,
-                            ]
-                        },
-                    }
+        return _count(self._users, user_id, day, upsert=False)
+
+    def count_guest_question(self, guest_key: str, day: str) -> int:
+        # Misafirin önceden kaydı yoktur; sayaç belgesi ilk soruda oluşur.
+        return _count(self._guest_quotas, guest_key, day, upsert=True)
+
+
+def _count(collection: Collection, key: str, day: str, upsert: bool) -> int:
+    # Tek bir atomik işlemde ya artır ya sıfırla: okuyup sonra yazmak eşzamanlı
+    # isteklerde sayacı eksik bırakırdı.
+    document = collection.find_one_and_update(
+        {"_id": key},
+        [
+            {
+                "$set": {
+                    "quota_day": day,
+                    "quota_count": {
+                        "$cond": [
+                            {"$eq": ["$quota_day", day]},
+                            {"$add": [{"$ifNull": ["$quota_count", 0]}, 1]},
+                            1,
+                        ]
+                    },
                 }
-            ],
-            return_document=True,
-        )
-        return 1 if document is None else document["quota_count"]
+            }
+        ],
+        upsert=upsert,
+        return_document=True,
+    )
+    return 1 if document is None else document["quota_count"]
 
 
 class MongoConversationRepository:

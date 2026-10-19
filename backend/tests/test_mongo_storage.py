@@ -48,6 +48,17 @@ def test_the_daily_counter_restarts_when_the_day_changes(db):
     assert users.count_question(user_id, "2026-10-13") == 1
 
 
+def test_a_guest_counter_is_created_on_the_first_question(db):
+    users = MongoUserRepository(db)
+
+    assert users.count_guest_question("adres-ozeti", "2026-10-12") == 1
+    assert users.count_guest_question("adres-ozeti", "2026-10-12") == 2
+    assert users.count_guest_question("adres-ozeti", "2026-10-13") == 1
+    assert users.count_guest_question("baska-adres", "2026-10-13") == 1
+    # Misafir sayaçları kullanıcılar koleksiyonuna yazılmaz.
+    assert db.users.count_documents({}) == 0
+
+
 def test_turns_round_trip_with_their_timestamps(db):
     conversations = MongoConversationRepository(db)
     conversation_id = conversations.start("user-1", "Bölüm başkanı kim?")

@@ -218,7 +218,11 @@ def test_model_is_still_tried_during_cooldown_when_no_prepared_answer_exists(ser
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"status": "ok", "auth_required": True}
+    assert client.get("/api/health").json() == {
+        "status": "ok",
+        "auth_required": True,
+        "guest_question_limit": 10,
+    }
 
 
 def test_without_sign_in_configured_questions_are_answered_as_guest(service, settings):

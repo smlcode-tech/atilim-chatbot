@@ -3,8 +3,27 @@ import { checkHealth, fetchMe, readToken, signInWithGoogle, writeToken } from '.
 import type { User } from '../types'
 
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
-/** Sunucuda giriş yapılandırılmamışken kullanılan kimlik; geçmiş tutulmaz. */
+/** Misafir kimliği: giriş yapılmadan ya da sunucuda giriş yapılandırılmamışken; geçmiş tutulmaz. */
 const GUEST: User = { id: 'guest', email: 'Geçmiş kaydedilmiyor', name: 'Misafir' }
+/** Misafir olarak devam etme seçimi sekme açık kaldıkça hatırlanır; sayfa yenilenince sorulmaz. */
+const GUEST_KEY = 'atilim-assistant-guest'
+
+function rememberGuest(isGuest: boolean) {
+  try {
+    if (isGuest) sessionStorage.setItem(GUEST_KEY, '1')
+    else sessionStorage.removeItem(GUEST_KEY)
+  } catch {
+    // Depolama kapalıysa seçim yalnızca bu sayfa açıkken geçerlidir.
+  }
+}
+
+function choseGuest(): boolean {
+  try {
+    return sessionStorage.getItem(GUEST_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
 
 type GoogleCredentialResponse = { credential: string }
@@ -44,6 +63,9 @@ export function useAuth() {
   const [isChecking, setIsChecking] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isGuest, setIsGuest] = useState(false)
+  /** Sunucuda Google girişi var mı; yoksa herkes misafirdir ve giriş seçeneği gösterilmez. */
+  const [canSignIn, setCanSignIn] = useState(true)
+  const [guestQuestionLimit, setGuestQuestionLimit] = useState<number | null>(null)
   // StrictMode etkileri iki kez çalıştırır; Google'ın düğmesi iki kez kurulmamalı.
   const isInitialized = useRef(false)
 
@@ -51,14 +73,22 @@ export function useAuth() {
     let isMounted = true
     const resolveUser = async () => {
       const health = await checkHealth()
+      if (isMounted) setGuestQuestionLimit(health.guestQuestionLimit)
       if (health.online && !health.authRequired) {
         if (isMounted) {
+          setCanSignIn(false)
           setIsGuest(true)
           setUser(GUEST)
         }
         return
       }
-      if (readToken() === null) return
+      if (readToken() === null) {
+        if (choseGuest() && isMounted) {
+          setIsGuest(true)
+          setUser(GUEST)
+        }
+        return
+      }
       try {
         const me = await fetchMe()
         if (isMounted) setUser(me)
@@ -104,7 +134,11 @@ export function useAuth() {
       callback: ({ credential }) => {
         setError(null)
         void signInWithGoogle(credential)
-          .then(({ user: signedIn }) => setUser(signedIn))
+          .then(({ user: signedIn }) => {
+            rememberGuest(false)
+            setIsGuest(false)
+            setUser(signedIn)
+          })
           .catch((cause: unknown) => {
             isInitialized.current = false
             setError(cause instanceof Error ? cause.message : 'Giriş yapılamadı.')
@@ -121,11 +155,31 @@ export function useAuth() {
     })
   }, [])
 
+  const continueAsGuest = useCallback(() => {
+    rememberGuest(true)
+    setError(null)
+    setIsGuest(true)
+    setUser(GUEST)
+  }, [])
+
+  /** Girişli kullanıcı için çıkış; misafir için giriş ekranına dönüş. */
   const signOut = useCallback(() => {
     writeToken(null)
+    rememberGuest(false)
     isInitialized.current = false
+    setIsGuest(false)
     setUser(null)
   }, [])
 
-  return { user, isGuest, isChecking, error, mountGoogleButton, signOut }
+  return {
+    user,
+    isGuest,
+    canSignIn,
+    guestQuestionLimit,
+    isChecking,
+    error,
+    mountGoogleButton,
+    continueAsGuest,
+    signOut,
+  }
 }

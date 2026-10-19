@@ -1,7 +1,7 @@
 ---
 source: frontend/src/hooks/useChat.ts
-hash: 896bbc689a9823ff5e6791e502db464e116ba552
-updated: 2026-10-12
+hash: 105f913c3d5693a9d61c2a4a57747201776aeb2e
+updated: 2026-10-19
 ---
 
 ## Amaç
@@ -19,3 +19,6 @@ Mesaj durumu ve API çağrılarını yöneten ana hook.
 - Hata durumunda mesaj listesine `isError: true` ile ekler (throw değil)
 - `sendMessage` içinde `isLoading` true iken tekrar çağrı engellenir
 - `onConversationChanged` yalnızca `conversationId` ilk kez set edildiğinde çağrılır
+
+## Misafir ve öneriler (2026-10-19)
+- `sendsHistory` seçeneği: misafirde son 12 mesaj (hata ve `isLocal` hariç, 4000 karakter) soruyla gönderilir; `askAgain()` "Diğer" seçiminde yerel mesaj ekler

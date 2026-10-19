@@ -1,7 +1,7 @@
 ---
 source: frontend/src/api/client.ts
-hash: 4607f0ae662f24781f0c5463bb82663407237dcc
-updated: 2026-10-12
+hash: 4628a0741585b1b8b4c5ece00fa06e99bf274716
+updated: 2026-10-19
 ---
 
 ## Amaç
@@ -26,3 +26,6 @@ Tüm API çağrılarının merkezi sarmalayıcısı. Token yönetimi, JSON ayrı
 - 401 → `writeToken(null)` + custom event dispatch
 - Vite proxy'si API kapalıyken JSON olmayan 5xx → `ApiUnreachableError`
 - `snake_case` → `camelCase` dönüşümü manuel yapılır (`conversation_id` → `conversationId`)
+
+## Misafir ve öneriler (2026-10-19)
+- `askQuestion(question, conversationId, history=[])` — misafir geçmişini gönderir; `checkHealth` `guestQuestionLimit` döndürür; yanıt ve turlarda `suggestions`

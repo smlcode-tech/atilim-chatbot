@@ -70,11 +70,12 @@ def current_user(request: Request) -> User:
 
 
 def chat_user(request: Request) -> User | None:
-    """Giriş yapılandırılmamışsa (Google istemci kimliği ya da kullanıcı deposu yok) soru misafir
-    olarak sorulur ve None döner; yapılandırılmışsa giriş zorunludur."""
+    """Oturum jetonu yoksa soru misafir olarak sorulur ve None döner; giriş yapılandırılmamışsa
+    (Google istemci kimliği ya da kullanıcı deposu yok) herkes misafirdir. Jeton gönderilmişse
+    geçerli olmalıdır: süresi dolan oturum sessizce misafire düşmez."""
     if not request.app.state.auth_enabled:
         return None
-    return current_user(request)
+    return _optional_user(request)
 
 
 def _optional_user(request: Request) -> User | None:

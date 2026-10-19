@@ -1,4 +1,4 @@
-import { ArrowUpRight, CircleHelp, GraduationCap, LogOut, Plus, Sparkles } from 'lucide-react'
+import { ArrowUpRight, CircleHelp, GraduationCap, LogIn, LogOut, Plus, Sparkles } from 'lucide-react'
 import { assistant } from '../config/assistant'
 import type { ConversationSummary, User } from '../types'
 import { ConversationList } from './ConversationList'
@@ -12,6 +12,8 @@ type SidebarProps = {
   onDeleteConversation: (id: string) => void
   /** Misafir kipinde verilmez; çıkış düğmesi gösterilmez. */
   onSignOut?: () => void
+  /** Misafirde düğme çıkış yerine giriş ekranına götürür. */
+  isGuest?: boolean
 }
 
 export function Sidebar({
@@ -22,6 +24,7 @@ export function Sidebar({
   onOpenConversation,
   onDeleteConversation,
   onSignOut,
+  isGuest = false,
 }: SidebarProps) {
   return (
     <aside className="sidebar">
@@ -86,8 +89,13 @@ export function Sidebar({
             <span>{user.email}</span>
           </span>
           {onSignOut && (
-            <button className="sign-out" onClick={onSignOut} aria-label="Çıkış yap">
-              <LogOut size={15} />
+            <button
+              className="sign-out"
+              onClick={onSignOut}
+              aria-label={isGuest ? 'Google ile giriş yap' : 'Çıkış yap'}
+              title={isGuest ? 'Google ile giriş yap' : 'Çıkış yap'}
+            >
+              {isGuest ? <LogIn size={15} /> : <LogOut size={15} />}
             </button>
           )}
         </div>

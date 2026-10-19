@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # Model kotası API anahtarı başınadır, kullanıcı başına değil: tek kişi günlük kotayı
     # bitirip asistanı herkese kapatabilir. Bu sınır onu engeller.
     daily_question_limit: int = 30
+    # Misafirin sınırı IP başınadır ve daha düşüktür: giriş gerektirmediği için kotayı
+    # tüketmenin en kolay yolu misafirliktir.
+    guest_daily_question_limit: int = 10
 
     @property
     def vector_store_dir(self) -> Path:
