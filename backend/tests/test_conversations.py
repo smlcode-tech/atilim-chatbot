@@ -271,3 +271,15 @@ def test_no_history_is_sent_when_history_turns_is_zero(service, users, settings,
         client.post("/api/chat", json={"question": "Telefonu ne?", "history": history})
 
     assert [m["role"] for m in model.messages] == ["system", "user"]
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [("get", "/api/conversations"), ("get", "/api/conversations/abc"),
+     ("delete", "/api/conversations/abc")],
+)
+def test_history_reports_an_unreachable_store_as_unavailable(client_with_store_down, method, path):
+    response = getattr(client_with_store_down, method)(path)
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Konuşma geçmişi şu anda kullanılamıyor."}

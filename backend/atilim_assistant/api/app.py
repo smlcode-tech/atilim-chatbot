@@ -3,6 +3,7 @@
 import hashlib
 import logging
 from collections.abc import Callable
+from typing import TypeVar
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
@@ -38,8 +39,12 @@ from atilim_assistant.ports import ConversationRepository, UserRepository
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 # HS256 için önerilen en kısa anahtar (RFC 7518, 3.2).
 MIN_JWT_SECRET_BYTES = 32
+
+HISTORY_UNAVAILABLE_DETAIL = "Konuşma geçmişi şu anda kullanılamıyor."
 
 UNAVAILABLE_DETAIL = (
     "Asistan şu anda yanıt üretemiyor ve bu soru için hazır bir yanıt yok. "
@@ -244,19 +249,19 @@ def create_app(
     def list_conversations(
         request: Request, user: User = Depends(current_user)
     ) -> list[ConversationSummaryResponse]:
-        conversations = _require_history(request)
+        summaries = _from_history(request, lambda store: store.list_for(user.id))
         return [
             ConversationSummaryResponse(
                 id=summary.id, title=summary.title, updated_at=summary.updated_at
             )
-            for summary in conversations.list_for(user.id)
+            for summary in summaries
         ]
 
     @app.get("/api/conversations/{conversation_id}")
     def read_conversation(
         conversation_id: str, request: Request, user: User = Depends(current_user)
     ) -> ConversationResponse:
-        turns = _require_history(request).turns(conversation_id, user.id)
+        turns = _from_history(request, lambda store: store.turns(conversation_id, user.id))
         if turns is None:
             raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
         return ConversationResponse(
@@ -277,7 +282,7 @@ def create_app(
     def delete_conversation(
         conversation_id: str, request: Request, user: User = Depends(current_user)
     ) -> None:
-        if not _require_history(request).delete(conversation_id, user.id):
+        if not _from_history(request, lambda store: store.delete(conversation_id, user.id)):
             raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
 
     return app
@@ -318,11 +323,17 @@ def _guest_key(request: Request) -> str:
     return hashlib.sha256(address.encode()).hexdigest()
 
 
-def _require_history(request: Request) -> ConversationRepository:
+def _from_history(request: Request, use: Callable[[ConversationRepository], T]) -> T:
+    """Geçmiş deposuna bir işlem; depo kapalıysa ya da o an ulaşılamıyorsa 503 (500 değil):
+    arayüz bunu "geçmiş kullanılamıyor" diye gösterir, sohbet sürer."""
     conversations: ConversationRepository | None = request.app.state.conversations
     if conversations is None:
-        raise HTTPException(status_code=503, detail="Konuşma geçmişi şu anda kullanılamıyor.")
-    return conversations
+        raise HTTPException(status_code=503, detail=HISTORY_UNAVAILABLE_DETAIL)
+    try:
+        return use(conversations)
+    except Exception as error:
+        logger.exception("Konuşma geçmişine ulaşılamadı")
+        raise HTTPException(status_code=503, detail=HISTORY_UNAVAILABLE_DETAIL) from error
 
 
 def _resume(
