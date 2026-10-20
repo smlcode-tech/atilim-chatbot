@@ -212,3 +212,39 @@ def test_each_user_has_their_own_daily_allowance(client, other_client, settings)
         client.post("/api/chat", json={"question": "Bölüm başkanı kim?"})
 
     assert other_client.post("/api/chat", json={"question": "Hocalar kimler?"}).status_code == 200
+
+
+class _UnreachableStore:
+    """Uygulama çalışırken ulaşılamaz hâle gelmiş depo: her işlem hata verir."""
+
+    def __getattr__(self, name):
+        def fail(*args, **kwargs):
+            raise ConnectionError("mongo down")
+
+        return fail
+
+
+@pytest.fixture
+def client_with_store_down(service, settings, auth_token):
+    app = create_app(service, _UnreachableStore(), settings, _UnreachableStore())
+    with TestClient(app, headers={"Authorization": f"Bearer {auth_token}"}) as client:
+        yield client
+
+
+@pytest.mark.parametrize("body", [{}, {"conversation_id": "abc"}])
+def test_questions_are_answered_when_the_store_goes_down(client_with_store_down, model, body):
+    question = {"question": "Bölüm başkanı kim?", **body}
+    response = client_with_store_down.post("/api/chat", json=question)
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == model.reply
+    assert response.json()["title"] is None
+
+
+def test_sign_in_reports_an_unreachable_store(client_with_store_down, monkeypatch):
+    monkeypatch.setattr(
+        "atilim_assistant.api.app.verify_google_token", lambda *_: ("sub", "a@b.c", "A")
+    )
+    response = client_with_store_down.post("/api/auth/google", json={"id_token": "t"})
+
+    assert response.status_code == 503

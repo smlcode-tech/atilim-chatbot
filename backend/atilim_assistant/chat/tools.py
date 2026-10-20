@@ -8,6 +8,7 @@ Liste ve süzme gerektiren sorular ("bu hocalardan hangileri MATH dersi veriyor?
 
 import inspect
 import json
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -26,6 +27,8 @@ from atilim_assistant.text import FILLER_WORDS, correct_course_codes, normalize,
 _MAX_COURSES = 30
 _MAX_DOCUMENT_CHARS = 6000
 _MAX_RESEARCH_CHARS = 100
+
+logger = logging.getLogger(__name__)
 
 _COURSE_CODE = re.compile(r"\b([a-z]{2,5}) ?(\d{3}[a-z]?)\b")
 _MIN_WORD = 3
@@ -142,6 +145,13 @@ class Tools:
             return handler(**(args if accepted else {}))
         except (json.JSONDecodeError, TypeError) as error:
             return ToolResult(f"Geçersiz argüman: {error}")
+        except Exception:
+            # Aracın kendi hatası (ör. embedding servisine ulaşılamaması) modelin hatası değildir;
+            # yükselirse model kesintisi sayılır, kota sanılırsa model bir saat kapatılırdı.
+            logger.exception("Araç %s çalışmadı", name)
+            return ToolResult(
+                f"{name} şu anda çalışmıyor; başka bir araçla dene ya da bildiklerinle yanıtla."
+            )
 
     def ders_ara(self, sorgu: str) -> ToolResult:
         query = normalize(self.correct(sorgu))

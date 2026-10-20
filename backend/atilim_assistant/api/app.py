@@ -111,7 +111,12 @@ def create_app(
         except AuthError as error:
             raise HTTPException(status_code=401, detail=str(error)) from error
 
-        user = User(id=users.upsert(google_sub, email, name), email=email, name=name)
+        try:
+            user_id = users.upsert(google_sub, email, name)
+        except Exception as error:
+            logger.exception("Kullanıcı kaydedilemedi")
+            raise HTTPException(status_code=503, detail="Giriş şu anda kullanılamıyor.") from error
+        user = User(id=user_id, email=email, name=name)
         token = issue_token(
             user, settings.jwt_secret.get_secret_value(), settings.jwt_ttl_hours
         )
@@ -154,9 +159,17 @@ def create_app(
         history: list[Turn] = []
         conversation_id = None
         if conversations is not None and user is not None:
-            conversation_id, history = _resume(
-                conversations, user.id, body.conversation_id, settings
-            )
+            try:
+                conversation_id, history = _resume(
+                    conversations, user.id, body.conversation_id, settings
+                )
+            except HTTPException:
+                raise
+            except Exception:
+                # Geçmiş okunamıyorsa soru geçmişsiz yanıtlanır; kaydetmek de denenmez, çünkü
+                # depo büyük olasılıkla yazmayı da reddeder ve yanıt yine de verilmelidir.
+                logger.exception("Konuşma geçmişi okunamadı; soru geçmişsiz yanıtlanıyor")
+                conversations = None
         elif user is None:
             history = [
                 Turn(role=turn.role, content=turn.content) for turn in body.history
@@ -170,24 +183,30 @@ def create_app(
 
         title = None
         if conversations is not None and user is not None:
-            if conversation_id is None:
-                title = _title_from(body.question)
-                conversation_id = conversations.start(user.id, title)
-            # Kullanıcının yazdığı ham metin saklanır; ders kodu düzeltilmiş hâli yalnızca
-            # yanıtlamada kullanılır, geçmişte görünmemelidir.
-            conversations.add_turns(
-                conversation_id,
-                user.id,
-                [
-                    Turn(role="user", content=body.question),
-                    Turn(
-                        role="assistant",
-                        content=answer.text,
-                        sources=answer.citations,
-                        suggestions=answer.suggestions,
-                    ),
-                ],
-            )
+            # Yanıt üretildi ve kotadan düşüldü; kaydedilemedi diye kullanıcıya verilmemesi
+            # boşa harcanmış bir soru olurdu.
+            try:
+                if conversation_id is None:
+                    new_title = _title_from(body.question)
+                    conversation_id = conversations.start(user.id, new_title)
+                    title = new_title
+                # Kullanıcının yazdığı ham metin saklanır; ders kodu düzeltilmiş hâli yalnızca
+                # yanıtlamada kullanılır, geçmişte görünmemelidir.
+                conversations.add_turns(
+                    conversation_id,
+                    user.id,
+                    [
+                        Turn(role="user", content=body.question),
+                        Turn(
+                            role="assistant",
+                            content=answer.text,
+                            sources=answer.citations,
+                            suggestions=answer.suggestions,
+                        ),
+                    ],
+                )
+            except Exception:
+                logger.exception("Konuşma kaydedilemedi; yanıt kaydedilmeden veriliyor")
 
         return ChatResponse(
             answer=answer.text,
