@@ -14,7 +14,6 @@ class Settings(BaseSettings):
 
     groq_api_key: SecretStr
     voyage_api_key: SecretStr
-    llm_provider: str = "groq"
     llm_model: str = "openai/gpt-oss-120b"
     embed_model: str = "voyage-multilingual-2"
 

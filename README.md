@@ -20,9 +20,10 @@ büyütülür (bkz. [Kapsamı genişletmek](#kapsamı-genişletmek)).
                                                                                     retrieval/prepared
 
 Soru-cevap (çevrimiçi, HTTP)
-  React arayüzü ──> /api/chat ──> ChatService ──> HybridRetriever ──> belge deposu
-                    api/          chat/           (vektör + BM25)
-                                     ├──> ChatModel (Gemini) ──> yanıt + kaynak bağlantıları
+  React arayüzü ──> /api/chat ──> ChatService ──> ChatModel (Groq, araç çağrılı) ──> yanıt + kaynak bağlantıları
+                    api/          chat/              │ araçlar (chat/tools.py)
+                                     │               ├──> katalog: ders, kadro, ders programı
+                                     │               └──> belge_ara: HybridRetriever (vektör + BM25 + soru kalıbı)
                                      └──> model yanıt üretemezse: PreparedAnswerMatcher ──> hazır yanıt
 ```
 
@@ -33,7 +34,7 @@ backend/
     domain.py          Çekirdek tipler: Document, Source, Answer, Citation
     text.py            Türkçe metin normalleştirme
     ports.py           Model sağlayıcı arayüzleri: Embedder, ChatModel
-    providers/         Arayüzlerin somut uygulamaları (Gemini)
+    providers/         Arayüzlerin somut uygulamaları (Groq: sohbet, Voyage AI: embedding)
     ingestion/         Kaynak kataloğu, sayfa ayrıştırıcıları, indeksleme adımları
     retrieval/         Belge deposu (Chroma), BM25 indeksi, hibrit getirici, hazır yanıtlar
     chat/              Sistem talimatı ve soru-cevap servisi
@@ -78,7 +79,7 @@ Gereksinimler: [uv](https://docs.astral.sh/uv/), Python 3.12 veya 3.13, Node.js 
 ```bash
 cd backend
 uv sync                       # .venv oluşturur ve bağımlılıkları kurar
-cp .env.example .env          # ardından GEMINI_API_KEY değerini yaz
+cp .env.example .env          # ardından GROQ_API_KEY ve VOYAGE_API_KEY değerlerini yaz
 
 cd ../frontend
 npm install
@@ -119,13 +120,17 @@ Vite'ın gösterdiği adresi tarayıcıda aç. Geliştirme sunucusu `/api` istek
 | `GET /api/conversations/{id}` | — | `{"id": "...", "turns": [{"role": "...", "content": "...", "created_at": "..."}]}` |
 | `DELETE /api/conversations/{id}` | — | 204 |
 
-`/api/health` dışındaki uç noktalar `Authorization: Bearer <token>` ister. Jeton
+`/api/auth/me` ve `/api/conversations*` uç noktaları `Authorization: Bearer <token>` ister. Jeton
 `/api/auth/google` ile alınır ve kullanıcının kimliğini kendi içinde taşır; doğrulaması
-veritabanına gitmez.
+veritabanına gitmez. `/api/chat` jetonsuz da çağrılabilir: istek misafir sayılır, geçmişi sunucuda
+tutulmaz ve IP başına günlük `GUEST_DAILY_QUESTION_LIMIT` sınırı uygulanır. Geçersiz jeton ise
+misafire düşmez, 401 döner.
 
 `prepared: true`, yanıtın model tarafından üretilmediğini, hazır yanıtlardan verildiğini belirtir.
 `conversation_id` verilmezse yeni bir konuşma açılır ve kimliği `title` ile birlikte döner;
-verilirse o konuşmanın son turları, soruyu bağlamlandırmak için kullanılır.
+verilirse o konuşmanın son turları modele geçmiş olarak verilir. Misafir, takip soruları için
+önceki turları `history` alanında gönderir. Model soruyu yanıtlayamazsa `suggestions`, yanıtı olan
+en yakın soruları içerir.
 
 Hatalar `{"detail": "..."}` gövdesiyle döner: geçersiz soru için 422; giriş yapılmamışsa 401;
 günlük soru sınırı aşıldığında 429; başkasının konuşmasına erişilmeye çalışıldığında 404;
@@ -133,11 +138,9 @@ model yanıt üretemediğinde ve soruyu karşılayan hazır yanıt da olmadığ�
 
 ### Takip soruları
 
-`POST /api/chat` bir konuşma kimliğiyle çağrıldığında soru, kendi başına anlaşılıp
-anlaşılmadığına göre değerlendirilir. "Araştırma konuları neler?" gibi öznesi geçmişte kalan
-sorular, arama yapılmadan önce modele yeniden yazdırılır ("Ali Yazıcı'nın araştırma konuları
-neler?"). Kendi konusunu kuran sorular bu adımı atlar; böylece ücretsiz kota her soruda iki kez
-harcanmaz. Geçmişte saklanan metin her zaman kullanıcının yazdığıdır, yeniden yazılmış hâli değil.
+Model son `HISTORY_TURNS` turu mesaj olarak görür ve "Araştırma konuları neler?" gibi öznesi
+geçmişte kalan soruları kendisi yorumlar; ayrı bir yeniden yazma çağrısı yapılmaz. Veriyi ise
+araçlarla kesin olarak alır.
 
 ## Kapsamı genişletmek
 
@@ -183,7 +186,7 @@ derleme sırasında `ingest` ile üretilir ve yayın paketine girer.
 2. **Google Cloud Console → Credentials → OAuth 2.0 Client ID** (tür: Web application) oluştur.
    Authorized JavaScript origins: `http://localhost:5173` ve `https://atilim-chatbot.vercel.app`.
 3. Render'da **New → Blueprint** ile bu depoyu seç; `render.yaml` okunur ve servis oluşturulur.
-   Sorulduğunda `GEMINI_API_KEY`, `GROQ_API_KEY`, `MONGODB_URI` ve `GOOGLE_CLIENT_ID` değerlerini gir
+   Sorulduğunda `VOYAGE_API_KEY`, `GROQ_API_KEY`, `MONGODB_URI` ve `GOOGLE_CLIENT_ID` değerlerini gir
    (`JWT_SECRET` kendiliğinden üretilir).
 4. Servisin adresi `frontend/vercel.json` içindekinden farklıysa dosyayı güncelle.
 5. Vercel'de depoyu içe aktar; **Root Directory** olarak `frontend` seç ve
@@ -207,19 +210,19 @@ yaklaşık bir dakika sürer.
 
 | Değişken | Varsayılan | Açıklama |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | — (zorunlu) | Google Gemini API anahtarı (embedding için her zaman gerekli) |
 | `GROQ_API_KEY` | — (zorunlu) | Groq API anahtarı (yanıt üretimi için) |
-| `LLM_PROVIDER` | `groq` | `groq` veya `gemini` |
-| `LLM_MODEL` | `openai/gpt-oss-120b` | Yanıt üreten model (Groq: `openai/gpt-oss-120b`, Gemini: `gemini-2.5-flash`) |
-| `EMBED_MODEL` | `gemini-embedding-001` | Embedding modeli |
+| `VOYAGE_API_KEY` | — (zorunlu) | Voyage AI API anahtarı (embedding için) |
+| `LLM_MODEL` | `openai/gpt-oss-120b` | Yanıt üreten Groq modeli |
+| `EMBED_MODEL` | `voyage-multilingual-2` | Embedding modeli |
 | `RETRIEVAL_TOP_K` | `6` | Modele bağlam olarak verilen belge sayısı |
 | `MONGODB_URI` | — | Giriş ve konuşma geçmişi deposu; boşsa ikisi de kapalıdır |
 | `MONGODB_DB` | `atilim_assistant` | Veritabanı adı |
 | `GOOGLE_CLIENT_ID` | — | Google OAuth istemci kimliği |
 | `JWT_SECRET` | — | Oturum jetonlarının imza anahtarı (en az 32 bayt) |
 | `JWT_TTL_HOURS` | `720` | Oturumun geçerlilik süresi |
-| `HISTORY_TURNS` | `6` | Soruyu bağlamlandırırken bakılan geçmiş tur sayısı |
+| `HISTORY_TURNS` | `6` | Modele geçmiş olarak verilen son tur sayısı |
 | `DAILY_QUESTION_LIMIT` | `30` | Kullanıcı başına günlük soru sınırı |
+| `GUEST_DAILY_QUESTION_LIMIT` | `10` | Misafir için IP başına günlük soru sınırı |
 | `QUOTA_COOLDOWN_SECONDS` | `3600` | Kota bittiğinde modelin yeniden denenmeden önce beklediği süre |
 | `DATA_DIR` | `backend/data` | İndeksin yazıldığı klasör |
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | API'nin dinlediği adres |
@@ -242,8 +245,9 @@ sırasında giriş yapmış kullanıcılar sohbet etmeyi sürdürür.
   hazır yanıt gösterildi. Neden, API günlüğündeki "Model yanıt üretemedi" satırında yazar.
   Kesintiden sonraki ilk soru, modelin yeniden denemeleri bitene kadar (birkaç saniye) bekler;
   ardından model 60 saniye boyunca denenmez ve hazır yanıtlar anında verilir.
-- **429 / RESOURCE_EXHAUSTED:** Gemini kotası doldu (ücretsiz katmanda model başına günlük istek
-  sınırı vardır). Bekle ya da `LLM_MODEL` ile başka bir model seç.
+- **429:** Groq kotası doldu (ücretsiz katman dakikada 8000 token kabul eder). Model
+  `QUOTA_COOLDOWN_SECONDS` boyunca denenmez, bu sürede hazır yanıtlar verilir. Bekle ya da
+  `LLM_MODEL` ile başka bir model seç.
 - **"Hazır yanıt bulunamadı" uyarısı (API açılışında):** indeks, hazır yanıtlar eklenmeden önce
   oluşturulmuş. `ingest` komutunu yeniden çalıştır.
 - **Arayüzde "Sunucuya ulaşılamıyor":** API'nin `serve` komutuyla çalıştığını kontrol et. Yayında
