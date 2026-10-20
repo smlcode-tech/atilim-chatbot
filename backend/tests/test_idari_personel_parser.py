@@ -41,6 +41,10 @@ def test_contact_answer_carries_phone_and_resolved_email(source, tmp_path, monke
     assert "E-posta: deniz@example.edu" in content.documents[1].text
     contact = next(a for a in content.prepared_answers if "Deniz ÖRNEK iletişim bilgileri" in a.questions)
     assert contact.answer == "**Deniz ÖRNEK** — telefon: +90 (312) 586 8398, e-posta: deniz@example.edu"
+    assert content.records == {"admin_staff": [{
+        "name": "Deniz ÖRNEK", "title": "Bölüm Sekreteri",
+        "phone": "+90 (312) 586 8398", "email": "deniz@example.edu",
+    }]}
 
 
 def test_unknown_email_image_leaves_only_the_phone(source):
