@@ -54,9 +54,16 @@ def test_canonicalize_leaves_unrelated_words_alone():
     # Sözcük ortasında ya da başka bir sözcüğün başında geçen öğe eşleşmez.
     assert canonicalize("Gmail telefon başvurusu") == "gmail telefon basvuru"
     assert canonicalize("Ali Yazıcı") == "ali yazici"
+    # "ulaşım" (taşıma) "ulaşmak"la (iletişim) aynı kökten gelir ama başka bir şey sorar.
+    assert canonicalize("Kampüse ulaşım") == "kampuse ulasim"
 
 
-_CODES = frozenset({"math276", "math275", "se212", "se221", "cmpe113"})
+@pytest.mark.parametrize("phrase", ["nasıl ulaşırım", "ulaşabilir miyim", "ulaşmak", "ulaşılır"])
+def test_reaching_someone_means_contact(phrase):
+    assert "iletisim" in canonicalize(phrase)
+
+
+_CODES = frozenset({"math276", "math275", "se212", "se221", "cmpe113", "kam101", "ode276"})
 
 
 @pytest.mark.parametrize(
@@ -72,6 +79,10 @@ _CODES = frozenset({"math276", "math275", "se212", "se221", "cmpe113"})
         ("MATF999", "MATF999"),
         ("PHYS276", "PHYS276"),
         ("Bölümün 2024 kontenjanı", "Bölümün 2024 kontenjanı"),
+        # Sayıdan önce gelen sıradan kısa sözcük kod değildir.
+        ("kat 101 nerede", "kat 101 nerede"),
+        ("oda 276", "oda 276"),
+        ("MAT 276", "MATH276"),
     ],
 )
 def test_correct_course_codes_fixes_one_letter_typos(question, corrected):

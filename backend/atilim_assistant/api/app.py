@@ -38,6 +38,9 @@ from atilim_assistant.ports import ConversationRepository, UserRepository
 
 logger = logging.getLogger(__name__)
 
+# HS256 için önerilen en kısa anahtar (RFC 7518, 3.2).
+MIN_JWT_SECRET_BYTES = 32
+
 UNAVAILABLE_DETAIL = (
     "Asistan şu anda yanıt üretemiyor ve bu soru için hazır bir yanıt yok. "
     "Lütfen daha sonra tekrar deneyin."
@@ -76,6 +79,15 @@ def create_app(
         app.state.auth_enabled = bool(app.state.settings.google_client_id) and (
             app.state.users is not None
         )
+        # İmza anahtarı yoksa jeton üretilemez ve her giriş 500 verir; kısaysa jetonlar tahmin
+        # edilebilir. Giriş açık görünüp çalışmamaktansa kapatılır.
+        secret = app.state.settings.jwt_secret.get_secret_value()
+        if app.state.auth_enabled and len(secret.encode()) < MIN_JWT_SECRET_BYTES:
+            logger.error(
+                "JWT_SECRET boş ya da %d bayttan kısa; Google girişi kapatıldı.",
+                MIN_JWT_SECRET_BYTES,
+            )
+            app.state.auth_enabled = False
         if not app.state.auth_enabled:
             logger.warning("Google girişi yapılandırılmamış; sorular misafir olarak yanıtlanıyor.")
         yield
@@ -102,7 +114,7 @@ def create_app(
     def sign_in(body: GoogleSignInRequest, request: Request) -> SignInResponse:
         settings: Settings = request.app.state.settings
         users: UserRepository | None = request.app.state.users
-        if not settings.google_client_id or users is None:
+        if not request.app.state.auth_enabled or users is None:
             raise HTTPException(status_code=503, detail="Giriş şu anda kullanılamıyor.")
         try:
             google_sub, email, name = verify_google_token(

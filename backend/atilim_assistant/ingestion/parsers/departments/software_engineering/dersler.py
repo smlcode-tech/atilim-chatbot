@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.ingestion.parsers.departments.software_engineering import ders_programi
-from atilim_assistant.text import collapse_whitespace
+from atilim_assistant.text import collapse_whitespace, normalize
 
 _TABS = {
     "required_les": "Zorunlu Dersler",
@@ -130,6 +130,14 @@ def parse(html: str, source: Source) -> SourceContent:
             )
         )
 
+    # Farklı kodlu iki ders aynı adı taşıyabilir (FE301 ve IE443 "İş Sağlığı ve Güvenliği").
+    # Adla sorulan kalıplar o zaman iki yanıta birden götürür ve hep ilki verilir; adın yanına
+    # kod yazılır ki kalıp tek bir derse ait olsun.
+    codes_by_name: dict[str, set[str]] = {}
+    for tab in tabs:
+        for course in tab.courses:
+            codes_by_name.setdefault(normalize(course.name), set()).add(course.code)
+
     # Her ders için ayrı belge + hazır yanıt
     for tab in tabs:
         seen: set[str] = set()
@@ -157,29 +165,31 @@ def parse(html: str, source: Source) -> SourceContent:
             seen.add(local_id)
             documents.append(_doc(source, local_id, c.name, doc_text))
 
+            shared_name = len(codes_by_name[normalize(c.name)]) > 1
+            name = f"{c.name} ({c.code})" if shared_name else c.name
             questions = [
                 f"{c.code} dersi nedir?",
-                f"{c.name} dersi hakkında bilgi",
+                f"{name} dersi hakkında bilgi",
                 f"{c.code} içeriği nedir?",
                 f"{c.code} kaç AKTS, kaç kredi?",
-                f"{c.name} dersi kaç AKTS, kaç kredi?",
+                f"{name} dersi kaç AKTS, kaç kredi?",
                 f"{c.code} haftada kaç saat teorik, uygulama ve lab?",
                 f"{c.code} zorunlu mu, seçmeli mi?",
             ]
             if c.content:
                 questions += [
                     f"{c.code} dersinin konuları neler, neler anlatılıyor?",
-                    f"{c.name} dersinde ne öğreniliyor?",
+                    f"{name} dersinde ne öğreniliyor?",
                 ]
             if sections:
                 questions += [
                     f"{c.code} dersini kim veriyor, hocası kim?",
-                    f"{c.name} dersine hangi hoca giriyor?",
+                    f"{name} dersine hangi hoca giriyor?",
                 ]
             if c.precondition:
                 questions += [
                     f"{c.code} dersinin ön koşulu nedir?",
-                    f"{c.name} dersini almak için önce hangi dersi almalıyım?",
+                    f"{name} dersini almak için önce hangi dersi almalıyım?",
                 ]
             answers.append(_answer(source, questions, doc_text))
 

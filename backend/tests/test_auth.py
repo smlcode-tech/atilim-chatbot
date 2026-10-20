@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from atilim_assistant.api import app as api_app
 from atilim_assistant.api.app import create_app
@@ -82,3 +83,12 @@ def test_who_am_i_reports_the_signed_in_user(client, user, auth_token):
 )
 def test_who_am_i_refuses_requests_without_a_valid_session(client, headers):
     assert client.get("/api/auth/me", headers=headers).status_code == 401
+
+
+@pytest.mark.parametrize("secret", ["", "kisa-bir-anahtar"])
+def test_sign_in_is_turned_off_without_a_strong_signing_key(service, users, settings, secret):
+    """Anahtarsız giriş açık görünür ama her denemede 500 verirdi."""
+    weak = settings.model_copy(update={"jwt_secret": SecretStr(secret)})
+    with TestClient(create_app(service, users, weak)) as client:
+        assert client.get("/api/health").json()["auth_required"] is False
+        assert client.post("/api/auth/google", json={"id_token": "t"}).status_code == 503

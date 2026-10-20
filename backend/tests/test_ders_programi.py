@@ -116,3 +116,25 @@ def test_course_documents_name_the_instructor(monkeypatch):
     course = next(a for a in content.prepared_answers if a.answer.startswith("SE221 —"))
     assert "Öğretim elemanı (2026-2027 Güz Dönemi): Ayşe Örnek" in course.answer
     assert "SE221 dersini kim veriyor, hocası kim?" in course.questions
+
+
+def test_courses_sharing_a_name_get_patterns_of_their_own(monkeypatch):
+    """Adla sorulan kalıp tek bir derse götürmeli; yoksa hep ilk dersin yanıtı verilir."""
+    monkeypatch.setattr(ders_programi, "current", lambda: None)
+    cards = "".join(
+        f'<div class="lesson_card" data-lesson-data=\'{{"code": "{code}", '
+        f'"name": "İş Sağlığı ve Güvenliği", "akts": 2}}\'></div>'
+        for code in ("FE301", "IE443")
+    )
+    html = (
+        f'<div class="detail-container"><div id="required_les">{cards}</div>'
+        '<div id="technical_lessons"></div><div id="general_lessons"></div></div>'
+    )
+    source = Source("se-dersler", "Dersler", "https://example.edu", "Test", "ders", dersler.parse)
+    content = dersler.parse(html, source)
+
+    by_code = {a.answer[:5]: a.questions for a in content.prepared_answers if " — " in a.answer}
+    assert "İş Sağlığı ve Güvenliği (FE301) dersi hakkında bilgi" in by_code["FE301"]
+    assert "İş Sağlığı ve Güvenliği (IE443) dersi hakkında bilgi" in by_code["IE443"]
+    patterns = [question for questions in by_code.values() for question in questions]
+    assert not any(q.startswith("İş Sağlığı ve Güvenliği dersi") for q in patterns)

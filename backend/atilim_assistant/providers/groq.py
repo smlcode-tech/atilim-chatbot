@@ -4,10 +4,21 @@ from openai import OpenAI
 
 from atilim_assistant.domain import Completion, ToolCall
 
+# İstemcinin varsayılan zaman aşımı 10 dakikadır; asılı kalan bir istek kullanıcıyı ve sunucunun
+# tek işçisini o kadar bekletirdi. Bir model turu normalde birkaç saniye sürer.
+_TIMEOUT_SECONDS = 60
+# Dakikalık sınıra takılan istek `retry-after` kadar bekleyip yeniden denenir.
+_MAX_RETRIES = 2
+
 
 class GroqProvider:
     def __init__(self, api_key: str, llm_model: str) -> None:
-        self._client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+        self._client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.groq.com/openai/v1",
+            timeout=_TIMEOUT_SECONDS,
+            max_retries=_MAX_RETRIES,
+        )
         self._llm_model = llm_model
 
     def complete(self, messages: list[dict], tools: list[dict]) -> Completion:
