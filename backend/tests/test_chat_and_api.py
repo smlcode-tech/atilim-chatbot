@@ -99,6 +99,15 @@ def test_unanswered_questions_offer_the_five_closest_answerable_questions(model,
     assert answer.citations == []
 
 
+@pytest.mark.parametrize("prefix", ["**", "  ", "> "])
+def test_a_formatted_no_answer_still_offers_suggestions(model, staff_answers, prefix):
+    """Model cümleyi kalın yazınca da yanıtlanamadığı anlaşılmalı."""
+    model.reply = f"{prefix}Bu bilgi elimdeki verilerde yok.** atilim.edu.tr adresine bakın."
+    service = _service_with_similar(model, staff_answers, SIMILAR)
+
+    assert service.answer("Yemekhane menüsü nedir?").suggestions == SIMILAR[:5]
+
+
 def test_without_close_questions_the_models_reply_is_kept(model, staff_answers):
     model.reply = "Bu bilgi elimdeki verilerde yok. atilim.edu.tr adresine bakın."
     service = _service_with_similar(model, staff_answers, [])
@@ -182,10 +191,20 @@ def test_failed_model_is_skipped_until_the_cooldown_ends(service, model, monkeyp
     assert model.calls == 2
 
 
+DAILY_LIMIT = RuntimeError(
+    "Error code: 429 - Rate limit reached for model `openai/gpt-oss-120b` on tokens per day "
+    "(TPD): Limit 200000, Used 199500, Requested 1200."
+)
+MINUTE_LIMIT = RuntimeError(
+    "Error code: 429 - Rate limit reached for model `openai/gpt-oss-120b` on tokens per minute "
+    "(TPM): Limit 8000, Used 7000, Requested 2000. Please try again in 7.5s."
+)
+
+
 def test_exhausted_quota_waits_longer_than_a_transient_failure(service, model, monkeypatch):
     now = 1000.0
     monkeypatch.setattr(chat_service.time, "monotonic", lambda: now)
-    model.reply = RuntimeError("429 RESOURCE_EXHAUSTED")
+    model.reply = DAILY_LIMIT
     with pytest.raises(RuntimeError):
         service.answer("Öğrenci kulüpleri neler?")  # kota hatasını tetikler (uzun soğuma)
     model.reply = "Model yeniden yanıt veriyor."
@@ -203,6 +222,19 @@ def test_exhausted_quota_waits_longer_than_a_transient_failure(service, model, m
 
     # Kota soğuması bittikten sonra hazır yanıtı olmayan soru modele gider.
     now += 3600
+    assert service.answer("Öğrenci kulüpleri neler?").text == "Model yeniden yanıt veriyor."
+
+
+def test_the_per_minute_token_limit_is_a_short_wait(service, model, monkeypatch):
+    """Dakikalık sınır bir dakika içinde açılır; model bir saat kapatılmamalı."""
+    now = 1000.0
+    monkeypatch.setattr(chat_service.time, "monotonic", lambda: now)
+    model.reply = MINUTE_LIMIT
+    with pytest.raises(RuntimeError):
+        service.answer("Öğrenci kulüpleri neler?")
+    model.reply = "Model yeniden yanıt veriyor."
+
+    now += 61
     assert service.answer("Öğrenci kulüpleri neler?").text == "Model yeniden yanıt veriyor."
 
 
@@ -272,3 +304,20 @@ def test_chat_reports_questions_that_cannot_be_answered(client, model):
 
     assert response.status_code == 502
     assert response.json() == {"detail": UNAVAILABLE_DETAIL}
+
+
+def test_a_failing_tool_does_not_put_the_model_on_cooldown(staff_answers, model):
+    """Embedding servisinin 429'u Groq kotası sanılıp model bir saat kapatılmamalı."""
+
+    class BrokenRetriever(FakeRetriever):
+        def retrieve(self, query):
+            raise RuntimeError("Voyage: 429 Too Many Requests")
+
+    service = ChatService(
+        Tools(Catalog.empty(), BrokenRetriever([])), model, PreparedAnswerMatcher(staff_answers)
+    )
+    model.script = [tool_call("belge_ara", sorgu="öğrenci kulüpleri")]
+
+    assert service.answer("Öğrenci kulüpleri neler?").text == model.reply
+    assert "çalışmıyor" in model.messages[-1]["content"]
+    assert service.answer("Öğrenci kulüpleri neler?").text == model.reply

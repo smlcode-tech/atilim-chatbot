@@ -29,7 +29,8 @@ SYNONYMS = (
     ("hoca", "ogretim uye", "ogretim eleman", "ogretmen", "akademisyen", "akademik personel",
      "akademik kadro"),
     ("eposta", "e posta", "elektronik posta", "e mail", "email", "mail"),
-    ("iletisim", "ulas", "irtibat"),
+    # "ulaş" fiilinin biçimleri tek tek yazılır: kök tek başına "ulaşım"ı da (taşıma) yutardı.
+    ("iletisim", "ulasir", "ulasabil", "ulasma", "ulasil", "ulasac", "irtibat"),
     ("onkosul", "on kosul", "on sart", "onsart", "prerequisite", "prereq"),
     ("zorunlu", "mecburi", "sart mi", "zorunda"),
     ("staj", "internship"),
@@ -91,17 +92,25 @@ def stem(token: str) -> str:
 
 
 _COURSE_CODE = re.compile(r"\b([^\W\d_]{2,5}) ?(\d{3}[^\W\d_]?)\b")
+# Boşluklu yazımda ("matf 276") düzeltilecek harf kısmının en kısa uzunluğu.
+_MIN_SPACED_LETTERS = 4
 
 
 def correct_course_codes(text: str, known: frozenset[str]) -> str:
     """Bilinmeyen ders kodunu, harf kısmı tek harf farklı olan bilinen koda çevirir:
     "MATF276" → "MATH276". Sayı kısmı aynı olmalı ve aday tek olmalıdır; birden çok koda
     benzeyen ya da hiçbirine benzemeyen koda dokunulmaz. `known` normalleştirilmiş kodlardır.
+
+    Sayıdan boşlukla ayrılmış kısa küçük harfli sözcük kod sayılmaz: "kat 101", "oda 302" gibi
+    sıradan sözcükler de tek harf uzaktaki bir koda ("KAM101") çevrilirdi.
     """
 
     def replace(match: re.Match) -> str:
         letters, number = normalize(match.group(1)), normalize(match.group(2))
         if letters + number in known:
+            return match.group(0)
+        written = match.group(1)
+        if " " in match.group(0) and len(written) < _MIN_SPACED_LETTERS and not written.isupper():
             return match.group(0)
         candidates = [
             code

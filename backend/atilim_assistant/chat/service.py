@@ -20,9 +20,11 @@ logger = logging.getLogger(__name__)
 # hiç denenmez; yoksa kesinti sürerken her kullanıcı yeniden denemelerin bitmesini beklerdi.
 _TRANSIENT_COOLDOWN_SECONDS = 60
 
-# Kota bittiğinde yeniden denemek bir sonraki güne kadar boşunadır; geçici hata bekleyişiyle
-# aynı süreyi kullanmak dakikada bir çağrı harcar.
-_QUOTA_MARKERS = ("RESOURCE_EXHAUSTED", "429")
+# Günlük kota bittiğinde yeniden denemek bir sonraki güne kadar boşunadır; geçici hata
+# bekleyişiyle aynı süreyi kullanmak dakikada bir çağrı harcar. Groq'un dakikalık token sınırı
+# (TPM) da 429 döner ama dakika içinde açılır: yalnızca günlük sınırlar ("tokens per day (TPD)",
+# "requests per day (RPD)") uzun bekleyişe yol açar, diğer 429'lar geçici hatadır.
+_DAILY_QUOTA_MARKERS = ("per day", "(TPD)", "(RPD)")
 
 # Araç çağrısı turu sınırı; son turda araç verilmez, model eldekiyle yanıtlamak zorunda kalır.
 # Her tur bir model çağrısıdır ve dakikalık token kotasından yer.
@@ -33,6 +35,9 @@ _MAX_TURN_CHARS = 1500
 
 # Yanıtlanamayan soruda sunulan yakın soru sayısı.
 _SUGGESTION_COUNT = 5
+
+# Modelin yanıtın başına koyabildiği Markdown işaretleri ve boşluk.
+_MARKUP = " \t\n*_>#"
 
 
 class ChatService:
@@ -79,7 +84,7 @@ class ChatService:
                 logger.warning("Model yanıt veremedi, hazır yanıt verildi: %s", error)
                 return _prepared_answer(prepared)
             raise
-        if answer.text.startswith(NO_ANSWER):
+        if _says_no_answer(answer.text):
             return self._with_suggestions(question, answer)
         return answer
 
@@ -109,7 +114,7 @@ class ChatService:
                 if not text:
                     raise RuntimeError("Model boş yanıt döndürdü.")
                 # Model veriyi yetersiz bulduysa sorgulanan sayfalar yanıtın kaynağı değildir.
-                sources = [] if text.startswith(NO_ANSWER) else list(citations.values())
+                sources = [] if _says_no_answer(text) else list(citations.values())
                 return Answer(text=text, citations=sources)
 
             messages.append(_assistant_message(completion))
@@ -122,7 +127,7 @@ class ChatService:
         raise RuntimeError("Model araç turu sınırında yanıt üretmedi.")
 
     def _note_failure(self, error: Exception) -> None:
-        quota = any(marker in str(error) for marker in _QUOTA_MARKERS)
+        quota = any(marker in str(error) for marker in _DAILY_QUOTA_MARKERS)
         wait = self._quota_cooldown_seconds if quota else _TRANSIENT_COOLDOWN_SECONDS
         self._model_retry_at = time.monotonic() + wait
         if quota:
@@ -142,6 +147,12 @@ def _assistant_message(completion: Completion) -> dict:
             for call in completion.tool_calls
         ],
     }
+
+
+def _says_no_answer(text: str) -> bool:
+    """Model `NO_ANSWER` cümlesiyle mi başladı; başına koyduğu biçim işaretleri ("**", "> ")
+    yok sayılır, yoksa yanıt kaynaklı gösterilir ve yerine yakın sorular önerilmezdi."""
+    return text.lstrip(_MARKUP).startswith(NO_ANSWER)
 
 
 def _clip(text: str) -> str:

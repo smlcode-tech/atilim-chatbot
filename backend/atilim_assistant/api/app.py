@@ -3,6 +3,7 @@
 import hashlib
 import logging
 from collections.abc import Callable
+from typing import TypeVar
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
@@ -37,6 +38,13 @@ from atilim_assistant.domain import Turn, User
 from atilim_assistant.ports import ConversationRepository, UserRepository
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+# HS256 için önerilen en kısa anahtar (RFC 7518, 3.2).
+MIN_JWT_SECRET_BYTES = 32
+
+HISTORY_UNAVAILABLE_DETAIL = "Konuşma geçmişi şu anda kullanılamıyor."
 
 UNAVAILABLE_DETAIL = (
     "Asistan şu anda yanıt üretemiyor ve bu soru için hazır bir yanıt yok. "
@@ -76,6 +84,15 @@ def create_app(
         app.state.auth_enabled = bool(app.state.settings.google_client_id) and (
             app.state.users is not None
         )
+        # İmza anahtarı yoksa jeton üretilemez ve her giriş 500 verir; kısaysa jetonlar tahmin
+        # edilebilir. Giriş açık görünüp çalışmamaktansa kapatılır.
+        secret = app.state.settings.jwt_secret.get_secret_value()
+        if app.state.auth_enabled and len(secret.encode()) < MIN_JWT_SECRET_BYTES:
+            logger.error(
+                "JWT_SECRET boş ya da %d bayttan kısa; Google girişi kapatıldı.",
+                MIN_JWT_SECRET_BYTES,
+            )
+            app.state.auth_enabled = False
         if not app.state.auth_enabled:
             logger.warning("Google girişi yapılandırılmamış; sorular misafir olarak yanıtlanıyor.")
         yield
@@ -102,7 +119,7 @@ def create_app(
     def sign_in(body: GoogleSignInRequest, request: Request) -> SignInResponse:
         settings: Settings = request.app.state.settings
         users: UserRepository | None = request.app.state.users
-        if not settings.google_client_id or users is None:
+        if not request.app.state.auth_enabled or users is None:
             raise HTTPException(status_code=503, detail="Giriş şu anda kullanılamıyor.")
         try:
             google_sub, email, name = verify_google_token(
@@ -111,7 +128,12 @@ def create_app(
         except AuthError as error:
             raise HTTPException(status_code=401, detail=str(error)) from error
 
-        user = User(id=users.upsert(google_sub, email, name), email=email, name=name)
+        try:
+            user_id = users.upsert(google_sub, email, name)
+        except Exception as error:
+            logger.exception("Kullanıcı kaydedilemedi")
+            raise HTTPException(status_code=503, detail="Giriş şu anda kullanılamıyor.") from error
+        user = User(id=user_id, email=email, name=name)
         token = issue_token(
             user, settings.jwt_secret.get_secret_value(), settings.jwt_ttl_hours
         )
@@ -134,7 +156,7 @@ def create_app(
 
         users: UserRepository | None = request.app.state.users
         if user is not None:
-            _check_daily_limit(
+            counted_day = _check_daily_limit(
                 lambda day: users.count_question(user.id, day),
                 users,
                 f"Günlük {settings.daily_question_limit} soru sınırına ulaştın. Asistan ücretsiz "
@@ -143,7 +165,7 @@ def create_app(
             )
         else:
             guest = _guest_key(request)
-            _check_daily_limit(
+            counted_day = _check_daily_limit(
                 lambda day: users.count_guest_question(guest, day),
                 users,
                 f"Misafir olarak günlük {settings.guest_daily_question_limit} soru sınırına "
@@ -154,40 +176,65 @@ def create_app(
         history: list[Turn] = []
         conversation_id = None
         if conversations is not None and user is not None:
-            conversation_id, history = _resume(
-                conversations, user.id, body.conversation_id, settings
-            )
+            try:
+                conversation_id, history = _resume(
+                    conversations, user.id, body.conversation_id, settings
+                )
+            except HTTPException:
+                raise
+            except Exception:
+                # Geçmiş okunamıyorsa soru geçmişsiz yanıtlanır; kaydetmek de denenmez, çünkü
+                # depo büyük olasılıkla yazmayı da reddeder ve yanıt yine de verilmelidir.
+                logger.exception("Konuşma geçmişi okunamadı; soru geçmişsiz yanıtlanıyor")
+                conversations = None
         elif user is None:
-            history = [
-                Turn(role=turn.role, content=turn.content) for turn in body.history
-            ][-settings.history_turns :]
+            history = _last(
+                [Turn(role=turn.role, content=turn.content) for turn in body.history],
+                settings.history_turns,
+            )
 
         try:
             answer = service.answer(body.question, history)
         except Exception:
             logger.exception("Yanıt oluşturulamadı")
+            # Yanıtlanamayan soru günlük sınırdan düşülmez; kesinti sırasında yeniden deneyen
+            # kullanıcı hiç yanıt almadan sınırına ulaşırdı.
+            if counted_day is not None and users is not None:
+                try:
+                    if user is not None:
+                        users.uncount_question(user.id, counted_day)
+                    else:
+                        users.uncount_guest_question(guest, counted_day)
+                except Exception:
+                    logger.exception("Günlük soru sayacı geri alınamadı")
             raise HTTPException(status_code=502, detail=UNAVAILABLE_DETAIL)
 
         title = None
         if conversations is not None and user is not None:
-            if conversation_id is None:
-                title = _title_from(body.question)
-                conversation_id = conversations.start(user.id, title)
-            # Kullanıcının yazdığı ham metin saklanır; ders kodu düzeltilmiş hâli yalnızca
-            # yanıtlamada kullanılır, geçmişte görünmemelidir.
-            conversations.add_turns(
-                conversation_id,
-                user.id,
-                [
-                    Turn(role="user", content=body.question),
-                    Turn(
-                        role="assistant",
-                        content=answer.text,
-                        sources=answer.citations,
-                        suggestions=answer.suggestions,
-                    ),
-                ],
-            )
+            # Yanıt üretildi ve kotadan düşüldü; kaydedilemedi diye kullanıcıya verilmemesi
+            # boşa harcanmış bir soru olurdu.
+            try:
+                if conversation_id is None:
+                    new_title = _title_from(body.question)
+                    conversation_id = conversations.start(user.id, new_title)
+                    title = new_title
+                # Kullanıcının yazdığı ham metin saklanır; ders kodu düzeltilmiş hâli yalnızca
+                # yanıtlamada kullanılır, geçmişte görünmemelidir.
+                conversations.add_turns(
+                    conversation_id,
+                    user.id,
+                    [
+                        Turn(role="user", content=body.question),
+                        Turn(
+                            role="assistant",
+                            content=answer.text,
+                            sources=answer.citations,
+                            suggestions=answer.suggestions,
+                        ),
+                    ],
+                )
+            except Exception:
+                logger.exception("Konuşma kaydedilemedi; yanıt kaydedilmeden veriliyor")
 
         return ChatResponse(
             answer=answer.text,
@@ -202,19 +249,19 @@ def create_app(
     def list_conversations(
         request: Request, user: User = Depends(current_user)
     ) -> list[ConversationSummaryResponse]:
-        conversations = _require_history(request)
+        summaries = _from_history(request, lambda store: store.list_for(user.id))
         return [
             ConversationSummaryResponse(
                 id=summary.id, title=summary.title, updated_at=summary.updated_at
             )
-            for summary in conversations.list_for(user.id)
+            for summary in summaries
         ]
 
     @app.get("/api/conversations/{conversation_id}")
     def read_conversation(
         conversation_id: str, request: Request, user: User = Depends(current_user)
     ) -> ConversationResponse:
-        turns = _require_history(request).turns(conversation_id, user.id)
+        turns = _from_history(request, lambda store: store.turns(conversation_id, user.id))
         if turns is None:
             raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
         return ConversationResponse(
@@ -235,7 +282,7 @@ def create_app(
     def delete_conversation(
         conversation_id: str, request: Request, user: User = Depends(current_user)
     ) -> None:
-        if not _require_history(request).delete(conversation_id, user.id):
+        if not _from_history(request, lambda store: store.delete(conversation_id, user.id)):
             raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
 
     return app
@@ -243,18 +290,25 @@ def create_app(
 
 def _check_daily_limit(
     count: Callable[[str], int], users: UserRepository | None, detail: str, limit: int
-) -> None:
+) -> str | None:
     """`count` o günün sayacını artırıp döndürür. Sayaç tutulamıyorsa soru geçer: depo
-    kesintisi asistanı durdurmamalı."""
+    kesintisi asistanı durdurmamalı. Sayaç artırıldıysa günü döndürür (geri almak için)."""
     if users is None:
-        return
+        return None
+    day = datetime.now(UTC).date().isoformat()
     try:
-        asked = count(datetime.now(UTC).date().isoformat())
+        asked = count(day)
     except Exception:
         logger.exception("Günlük soru sayacı güncellenemedi")
-        return
+        return None
     if asked > limit:
         raise HTTPException(status_code=429, detail=detail)
+    return day
+
+
+def _last(turns: list[Turn], count: int) -> list[Turn]:
+    """Son `count` tur; `turns[-0:]` listenin tamamını verdiği için sıfır ayrıca ele alınır."""
+    return turns[-count:] if count > 0 else []
 
 
 def _guest_key(request: Request) -> str:
@@ -269,11 +323,17 @@ def _guest_key(request: Request) -> str:
     return hashlib.sha256(address.encode()).hexdigest()
 
 
-def _require_history(request: Request) -> ConversationRepository:
+def _from_history(request: Request, use: Callable[[ConversationRepository], T]) -> T:
+    """Geçmiş deposuna bir işlem; depo kapalıysa ya da o an ulaşılamıyorsa 503 (500 değil):
+    arayüz bunu "geçmiş kullanılamıyor" diye gösterir, sohbet sürer."""
     conversations: ConversationRepository | None = request.app.state.conversations
     if conversations is None:
-        raise HTTPException(status_code=503, detail="Konuşma geçmişi şu anda kullanılamıyor.")
-    return conversations
+        raise HTTPException(status_code=503, detail=HISTORY_UNAVAILABLE_DETAIL)
+    try:
+        return use(conversations)
+    except Exception as error:
+        logger.exception("Konuşma geçmişine ulaşılamadı")
+        raise HTTPException(status_code=503, detail=HISTORY_UNAVAILABLE_DETAIL) from error
 
 
 def _resume(
@@ -288,7 +348,7 @@ def _resume(
     turns = conversations.turns(conversation_id, user_id)
     if turns is None:
         raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
-    return conversation_id, turns[-settings.history_turns :]
+    return conversation_id, _last(turns, settings.history_turns)
 
 
 def _title_from(question: str) -> str:

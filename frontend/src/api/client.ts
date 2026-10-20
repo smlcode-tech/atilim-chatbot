@@ -35,6 +35,26 @@ export function writeToken(token: string | null) {
   }
 }
 
+/**
+ * Oturum jetonunun taşıdığı kullanıcı; imza doğrulanmaz, yalnızca sunucuya ulaşılamadığında
+ * arayüzü giriş ekranına düşürmemek için kullanılır. Jeton geçersizse sunucu ilk istekte 401
+ * döner ve oturum yine kapanır.
+ */
+export function userFromToken(token: string): User | null {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const bytes = Uint8Array.from(atob(part), (char) => char.charCodeAt(0))
+    const claims = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>
+    const { sub, email, name } = claims
+    if (typeof sub !== 'string' || typeof email !== 'string' || typeof name !== 'string') {
+      return null
+    }
+    return { id: sub, email, name }
+  } catch {
+    return null
+  }
+}
+
 type RequestOptions = {
   method?: string
   body?: unknown
@@ -59,7 +79,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (response.status === 204) return undefined as T
 
-  const payload: Record<string, unknown> = await response.json().catch(() => ({}))
+  const raw = await response.text().catch(() => '')
+  let payload: Record<string, unknown> = {}
+  try {
+    payload = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
+  } catch {
+    // JSON olmayan gövde (ör. sunucunun düz metin "Internal Server Error" yanıtı).
+  }
 
   if (response.status === 401) {
     writeToken(null)
@@ -69,8 +95,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     )
   }
   if (!response.ok) {
-    // Vite proxy'si arkadaki API kapalıyken JSON olmayan bir 5xx döndürür.
-    if (response.status >= 500 && payload.detail === undefined) {
+    // API'ye hiç ulaşılamadı: Vite proxy'si arkadaki API kapalıyken gövdesiz 500, Vercel ve
+    // Render uyanırken 502/503/504 döndürür. Gövdeli bir 500 ise sunucunun kendi hatasıdır;
+    // onu "bağlanılamadı" diye göstermek sorunu yanlış yere işaret ederdi.
+    const gateway = response.status >= 502 && response.status <= 504
+    if (payload.detail === undefined && (gateway || (response.status === 500 && !raw))) {
       throw new ApiUnreachableError(UNREACHABLE)
     }
     throw new Error(

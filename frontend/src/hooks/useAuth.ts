@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { checkHealth, fetchMe, readToken, signInWithGoogle, writeToken } from '../api/client'
+import {
+  ApiUnreachableError,
+  checkHealth,
+  fetchMe,
+  readToken,
+  signInWithGoogle,
+  userFromToken,
+  writeToken,
+} from '../api/client'
 import type { User } from '../types'
 
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
@@ -82,7 +90,8 @@ export function useAuth() {
         }
         return
       }
-      if (readToken() === null) {
+      const token = readToken()
+      if (token === null) {
         if (choseGuest() && isMounted) {
           setIsGuest(true)
           setUser(GUEST)
@@ -92,8 +101,10 @@ export function useAuth() {
       try {
         const me = await fetchMe()
         if (isMounted) setUser(me)
-      } catch {
-        // Geçersiz oturumu istemci 401'de zaten siler; sunucuya ulaşılamaması oturumu bitirmez.
+      } catch (cause) {
+        // Geçersiz oturumu istemci 401'de zaten siler. Sunucuya ulaşılamaması (ör. Render
+        // uyanırken) oturumu bitirmez: kullanıcı giriş ekranına değil, çevrimdışı sohbete döner.
+        if (cause instanceof ApiUnreachableError && isMounted) setUser(userFromToken(token))
       }
     }
     void resolveUser().finally(() => {

@@ -22,6 +22,8 @@ _MAX_TURNS = 100
 _MAX_LISTED = 50
 # Dokunulmayan konuşmalar bu süre sonunda kendiliğinden silinir.
 _RETENTION_DAYS = 90
+# Misafir sayacı yalnızca kendi günü için anlamlıdır; her IP için birikmemesi için silinir.
+_GUEST_QUOTA_RETENTION_DAYS = 2
 
 
 def connect(uri: str, database: str) -> Database:
@@ -49,6 +51,10 @@ def connect(uri: str, database: str) -> Database:
         db.conversations.create_index(
             [("updated_at", ASCENDING)], expireAfterSeconds=_RETENTION_DAYS * 86400
         )
+        db.guest_quotas.create_index(
+            [("quota_updated_at", ASCENDING)],
+            expireAfterSeconds=_GUEST_QUOTA_RETENTION_DAYS * 86400,
+        )
     except PyMongoError:
         logger.exception("MongoDB indeksleri kurulamadı; bağlantı sonraki işlemlerde denenecek")
     return db
@@ -73,14 +79,25 @@ class MongoUserRepository:
         return existing["_id"]
 
     def count_question(self, user_id: str, day: str) -> int:
-        return _count(self._users, user_id, day, upsert=False)
+        count = _count(self._users, user_id, day, upsert=False)
+        if count is None:
+            # Jeton geçerli ama kullanıcı kaydı yok (ör. veritabanı değişti): sayaç tutulamaz.
+            logger.warning("Kullanıcı kaydı bulunamadı, günlük sınır uygulanamıyor: %s", user_id)
+            return 1
+        return count
 
     def count_guest_question(self, guest_key: str, day: str) -> int:
         # Misafirin önceden kaydı yoktur; sayaç belgesi ilk soruda oluşur.
-        return _count(self._guest_quotas, guest_key, day, upsert=True)
+        return _count(self._guest_quotas, guest_key, day, upsert=True) or 1
+
+    def uncount_question(self, user_id: str, day: str) -> None:
+        _uncount(self._users, user_id, day)
+
+    def uncount_guest_question(self, guest_key: str, day: str) -> None:
+        _uncount(self._guest_quotas, guest_key, day)
 
 
-def _count(collection: Collection, key: str, day: str, upsert: bool) -> int:
+def _count(collection: Collection, key: str, day: str, upsert: bool) -> int | None:
     # Tek bir atomik işlemde ya artır ya sıfırla: okuyup sonra yazmak eşzamanlı
     # isteklerde sayacı eksik bırakırdı.
     document = collection.find_one_and_update(
@@ -96,13 +113,20 @@ def _count(collection: Collection, key: str, day: str, upsert: bool) -> int:
                             1,
                         ]
                     },
+                    "quota_updated_at": "$$NOW",
                 }
             }
         ],
         upsert=upsert,
         return_document=True,
     )
-    return 1 if document is None else document["quota_count"]
+    return None if document is None else document["quota_count"]
+
+
+def _uncount(collection: Collection, key: str, day: str) -> None:
+    collection.update_one(
+        {"_id": key, "quota_day": day, "quota_count": {"$gt": 0}}, {"$inc": {"quota_count": -1}}
+    )
 
 
 class MongoConversationRepository:
@@ -125,13 +149,16 @@ class MongoConversationRepository:
         return conversation_id
 
     def add_turns(self, conversation_id: str, user_id: str, turns: list[Turn]) -> None:
-        self._conversations.update_one(
+        result = self._conversations.update_one(
             {"_id": conversation_id, "user_id": user_id},
             {
                 "$push": {"turns": {"$each": [_as_document(t) for t in turns], "$slice": -_MAX_TURNS}},
                 "$set": {"updated_at": datetime.now(UTC)},
             },
         )
+        if result.matched_count == 0:
+            # Konuşma bu arada silinmiş ya da süresi dolmuş: turlar hiçbir yere yazılmadı.
+            logger.warning("Turlar kaydedilemedi, konuşma bulunamadı: %s", conversation_id)
 
     def turns(self, conversation_id: str, user_id: str) -> list[Turn] | None:
         document = self._conversations.find_one(

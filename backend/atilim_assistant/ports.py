@@ -21,6 +21,14 @@ class UserRepository(Protocol):
         """Misafir için `count_question`; `guest_key` IP adresinin özetidir."""
         ...
 
+    def uncount_question(self, user_id: str, day: str) -> None:
+        """`count_question`ın artırdığını geri alır: yanıtlanamayan soru sınırdan düşülmez."""
+        ...
+
+    def uncount_guest_question(self, guest_key: str, day: str) -> None:
+        """Misafir için `uncount_question`."""
+        ...
+
 
 class ConversationRepository(Protocol):
     def start(self, user_id: str, title: str) -> str:

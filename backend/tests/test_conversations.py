@@ -212,3 +212,74 @@ def test_each_user_has_their_own_daily_allowance(client, other_client, settings)
         client.post("/api/chat", json={"question": "Bölüm başkanı kim?"})
 
     assert other_client.post("/api/chat", json={"question": "Hocalar kimler?"}).status_code == 200
+
+
+class _UnreachableStore:
+    """Uygulama çalışırken ulaşılamaz hâle gelmiş depo: her işlem hata verir."""
+
+    def __getattr__(self, name):
+        def fail(*args, **kwargs):
+            raise ConnectionError("mongo down")
+
+        return fail
+
+
+@pytest.fixture
+def client_with_store_down(service, settings, auth_token):
+    app = create_app(service, _UnreachableStore(), settings, _UnreachableStore())
+    with TestClient(app, headers={"Authorization": f"Bearer {auth_token}"}) as client:
+        yield client
+
+
+@pytest.mark.parametrize("body", [{}, {"conversation_id": "abc"}])
+def test_questions_are_answered_when_the_store_goes_down(client_with_store_down, model, body):
+    question = {"question": "Bölüm başkanı kim?", **body}
+    response = client_with_store_down.post("/api/chat", json=question)
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == model.reply
+    assert response.json()["title"] is None
+
+
+def test_sign_in_reports_an_unreachable_store(client_with_store_down, monkeypatch):
+    monkeypatch.setattr(
+        "atilim_assistant.api.app.verify_google_token", lambda *_: ("sub", "a@b.c", "A")
+    )
+    response = client_with_store_down.post("/api/auth/google", json={"id_token": "t"})
+
+    assert response.status_code == 503
+
+
+def test_a_question_that_could_not_be_answered_does_not_count(anon_client, model, users):
+    """Kesinti sırasında yeniden deneyen misafir, yanıt almadan sınırına ulaşmamalı."""
+    model.reply = RuntimeError("geçici hata")
+
+    response = anon_client.post("/api/chat", json={"question": "Yemekhane menüsü nedir?"})
+
+    assert response.status_code == 502
+    assert set(users.asked.values()) == {0}
+
+
+def test_no_history_is_sent_when_history_turns_is_zero(service, users, settings, model):
+    """`turns[-0:]` tüm listeyi verir; sıfır "geçmiş yok" demek olmalı."""
+    app = create_app(service, users, settings.model_copy(update={"history_turns": 0}))
+    history = [
+        {"role": "user", "content": "Ali Yazıcı kim?"},
+        {"role": "assistant", "content": "…"},
+    ]
+    with TestClient(app) as client:
+        client.post("/api/chat", json={"question": "Telefonu ne?", "history": history})
+
+    assert [m["role"] for m in model.messages] == ["system", "user"]
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [("get", "/api/conversations"), ("get", "/api/conversations/abc"),
+     ("delete", "/api/conversations/abc")],
+)
+def test_history_reports_an_unreachable_store_as_unavailable(client_with_store_down, method, path):
+    response = getattr(client_with_store_down, method)(path)
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Konuşma geçmişi şu anda kullanılamıyor."}

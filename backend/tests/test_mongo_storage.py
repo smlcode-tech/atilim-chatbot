@@ -95,3 +95,24 @@ def test_conversations_are_listed_most_recently_updated_first(db):
     conversations.add_turns(first, "user-1", [Turn(role="user", content="Yeni soru")])
 
     assert [row.id for row in conversations.list_for("user-1")] == [first, second]
+
+
+def test_an_unanswered_question_is_taken_back_from_the_count(db):
+    users = MongoUserRepository(db)
+    user_id = users.upsert("google-sub-1", "ogrenci@atilim.edu.tr", "Öğrenci")
+
+    assert users.count_question(user_id, "2026-10-20") == 1
+    users.uncount_question(user_id, "2026-10-20")
+    assert users.count_question(user_id, "2026-10-20") == 1
+
+    assert users.count_guest_question("ip-hash", "2026-10-20") == 1
+    users.uncount_guest_question("ip-hash", "2026-10-20")
+    assert users.count_guest_question("ip-hash", "2026-10-20") == 1
+
+
+def test_guest_counters_expire(db):
+    MongoUserRepository(db).count_guest_question("ip-hash", "2026-10-20")
+
+    assert db.guest_quotas.find_one({"_id": "ip-hash"})["quota_updated_at"] is not None
+    ttl = [i for i in db.guest_quotas.list_indexes() if "expireAfterSeconds" in i]
+    assert [list(i["key"]) for i in ttl] == [["quota_updated_at"]]

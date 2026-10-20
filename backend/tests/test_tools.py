@@ -126,6 +126,17 @@ def test_bad_tool_calls_are_explained_to_the_model(tools, name, arguments, messa
     assert tools.run(name, arguments).text.startswith(message)
 
 
+class _BrokenRetriever(FakeRetriever):
+    def retrieve(self, query):
+        raise RuntimeError("Voyage: 429 Too Many Requests")
+
+
+def test_a_failing_tool_is_reported_to_the_model_instead_of_raising():
+    tools = Tools(Catalog.empty(), _BrokenRetriever([]))
+    result = tools.run("belge_ara", '{"sorgu": "staj"}')
+    assert result.text.startswith("belge_ara şu anda çalışmıyor")
+
+
 def test_an_empty_catalog_answers_without_failing(staff_documents):
     tools = Tools(Catalog.empty(), FakeRetriever(staff_documents))
     assert "eşleşen ders yok" in tools.ders_ara("MATH").text
