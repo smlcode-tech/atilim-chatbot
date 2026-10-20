@@ -248,3 +248,26 @@ def test_sign_in_reports_an_unreachable_store(client_with_store_down, monkeypatc
     response = client_with_store_down.post("/api/auth/google", json={"id_token": "t"})
 
     assert response.status_code == 503
+
+
+def test_a_question_that_could_not_be_answered_does_not_count(anon_client, model, users):
+    """Kesinti sırasında yeniden deneyen misafir, yanıt almadan sınırına ulaşmamalı."""
+    model.reply = RuntimeError("geçici hata")
+
+    response = anon_client.post("/api/chat", json={"question": "Yemekhane menüsü nedir?"})
+
+    assert response.status_code == 502
+    assert set(users.asked.values()) == {0}
+
+
+def test_no_history_is_sent_when_history_turns_is_zero(service, users, settings, model):
+    """`turns[-0:]` tüm listeyi verir; sıfır "geçmiş yok" demek olmalı."""
+    app = create_app(service, users, settings.model_copy(update={"history_turns": 0}))
+    history = [
+        {"role": "user", "content": "Ali Yazıcı kim?"},
+        {"role": "assistant", "content": "…"},
+    ]
+    with TestClient(app) as client:
+        client.post("/api/chat", json={"question": "Telefonu ne?", "history": history})
+
+    assert [m["role"] for m in model.messages] == ["system", "user"]

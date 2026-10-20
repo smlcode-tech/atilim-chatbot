@@ -151,7 +151,7 @@ def create_app(
 
         users: UserRepository | None = request.app.state.users
         if user is not None:
-            _check_daily_limit(
+            counted_day = _check_daily_limit(
                 lambda day: users.count_question(user.id, day),
                 users,
                 f"Günlük {settings.daily_question_limit} soru sınırına ulaştın. Asistan ücretsiz "
@@ -160,7 +160,7 @@ def create_app(
             )
         else:
             guest = _guest_key(request)
-            _check_daily_limit(
+            counted_day = _check_daily_limit(
                 lambda day: users.count_guest_question(guest, day),
                 users,
                 f"Misafir olarak günlük {settings.guest_daily_question_limit} soru sınırına "
@@ -183,14 +183,25 @@ def create_app(
                 logger.exception("Konuşma geçmişi okunamadı; soru geçmişsiz yanıtlanıyor")
                 conversations = None
         elif user is None:
-            history = [
-                Turn(role=turn.role, content=turn.content) for turn in body.history
-            ][-settings.history_turns :]
+            history = _last(
+                [Turn(role=turn.role, content=turn.content) for turn in body.history],
+                settings.history_turns,
+            )
 
         try:
             answer = service.answer(body.question, history)
         except Exception:
             logger.exception("Yanıt oluşturulamadı")
+            # Yanıtlanamayan soru günlük sınırdan düşülmez; kesinti sırasında yeniden deneyen
+            # kullanıcı hiç yanıt almadan sınırına ulaşırdı.
+            if counted_day is not None and users is not None:
+                try:
+                    if user is not None:
+                        users.uncount_question(user.id, counted_day)
+                    else:
+                        users.uncount_guest_question(guest, counted_day)
+                except Exception:
+                    logger.exception("Günlük soru sayacı geri alınamadı")
             raise HTTPException(status_code=502, detail=UNAVAILABLE_DETAIL)
 
         title = None
@@ -274,18 +285,25 @@ def create_app(
 
 def _check_daily_limit(
     count: Callable[[str], int], users: UserRepository | None, detail: str, limit: int
-) -> None:
+) -> str | None:
     """`count` o günün sayacını artırıp döndürür. Sayaç tutulamıyorsa soru geçer: depo
-    kesintisi asistanı durdurmamalı."""
+    kesintisi asistanı durdurmamalı. Sayaç artırıldıysa günü döndürür (geri almak için)."""
     if users is None:
-        return
+        return None
+    day = datetime.now(UTC).date().isoformat()
     try:
-        asked = count(datetime.now(UTC).date().isoformat())
+        asked = count(day)
     except Exception:
         logger.exception("Günlük soru sayacı güncellenemedi")
-        return
+        return None
     if asked > limit:
         raise HTTPException(status_code=429, detail=detail)
+    return day
+
+
+def _last(turns: list[Turn], count: int) -> list[Turn]:
+    """Son `count` tur; `turns[-0:]` listenin tamamını verdiği için sıfır ayrıca ele alınır."""
+    return turns[-count:] if count > 0 else []
 
 
 def _guest_key(request: Request) -> str:
@@ -319,7 +337,7 @@ def _resume(
     turns = conversations.turns(conversation_id, user_id)
     if turns is None:
         raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
-    return conversation_id, turns[-settings.history_turns :]
+    return conversation_id, _last(turns, settings.history_turns)
 
 
 def _title_from(question: str) -> str:

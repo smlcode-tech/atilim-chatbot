@@ -35,6 +35,26 @@ export function writeToken(token: string | null) {
   }
 }
 
+/**
+ * Oturum jetonunun taşıdığı kullanıcı; imza doğrulanmaz, yalnızca sunucuya ulaşılamadığında
+ * arayüzü giriş ekranına düşürmemek için kullanılır. Jeton geçersizse sunucu ilk istekte 401
+ * döner ve oturum yine kapanır.
+ */
+export function userFromToken(token: string): User | null {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const bytes = Uint8Array.from(atob(part), (char) => char.charCodeAt(0))
+    const claims = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>
+    const { sub, email, name } = claims
+    if (typeof sub !== 'string' || typeof email !== 'string' || typeof name !== 'string') {
+      return null
+    }
+    return { id: sub, email, name }
+  } catch {
+    return null
+  }
+}
+
 type RequestOptions = {
   method?: string
   body?: unknown

@@ -99,6 +99,13 @@ class InMemoryUserRepository:
     def count_guest_question(self, guest_key: str, day: str) -> int:
         return self.count_question(f"misafir:{guest_key}", day)
 
+    def uncount_question(self, user_id: str, day: str) -> None:
+        if self.asked.get((user_id, day), 0) > 0:
+            self.asked[user_id, day] -= 1
+
+    def uncount_guest_question(self, guest_key: str, day: str) -> None:
+        self.uncount_question(f"misafir:{guest_key}", day)
+
 
 class InMemoryConversationRepository:
     """`ConversationRepository` portunun test karşılığı.

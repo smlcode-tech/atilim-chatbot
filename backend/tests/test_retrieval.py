@@ -209,3 +209,12 @@ def test_lexical_index_knows_the_course_codes_in_its_documents():
         Document(id="2", title="SE 212", text="Ön koşul: SE 112", **_META),
     ]
     assert LexicalIndex(documents).course_codes == {"math276", "se212", "se112"}
+
+
+def test_suggestion_shapes_keep_ordinals_but_drop_codes():
+    from atilim_assistant.retrieval.retriever import _shape
+
+    assert _shape("ENG201 kaç AKTS?") == _shape("MECE322 kaç AKTS?")
+    assert _shape("Yazılım mühendisliği 1. yarıyıl dersleri") != _shape(
+        "Yazılım mühendisliği 2. yarıyıl dersleri"
+    )

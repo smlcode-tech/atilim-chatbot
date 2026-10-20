@@ -36,6 +36,9 @@ _MAX_TURN_CHARS = 1500
 # Yanıtlanamayan soruda sunulan yakın soru sayısı.
 _SUGGESTION_COUNT = 5
 
+# Modelin yanıtın başına koyabildiği Markdown işaretleri ve boşluk.
+_MARKUP = " \t\n*_>#"
+
 
 class ChatService:
     def __init__(
@@ -81,7 +84,7 @@ class ChatService:
                 logger.warning("Model yanıt veremedi, hazır yanıt verildi: %s", error)
                 return _prepared_answer(prepared)
             raise
-        if answer.text.startswith(NO_ANSWER):
+        if _says_no_answer(answer.text):
             return self._with_suggestions(question, answer)
         return answer
 
@@ -111,7 +114,7 @@ class ChatService:
                 if not text:
                     raise RuntimeError("Model boş yanıt döndürdü.")
                 # Model veriyi yetersiz bulduysa sorgulanan sayfalar yanıtın kaynağı değildir.
-                sources = [] if text.startswith(NO_ANSWER) else list(citations.values())
+                sources = [] if _says_no_answer(text) else list(citations.values())
                 return Answer(text=text, citations=sources)
 
             messages.append(_assistant_message(completion))
@@ -144,6 +147,12 @@ def _assistant_message(completion: Completion) -> dict:
             for call in completion.tool_calls
         ],
     }
+
+
+def _says_no_answer(text: str) -> bool:
+    """Model `NO_ANSWER` cümlesiyle mi başladı; başına koyduğu biçim işaretleri ("**", "> ")
+    yok sayılır, yoksa yanıt kaynaklı gösterilir ve yerine yakın sorular önerilmezdi."""
+    return text.lstrip(_MARKUP).startswith(NO_ANSWER)
 
 
 def _clip(text: str) -> str:

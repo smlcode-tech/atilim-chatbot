@@ -21,6 +21,8 @@ _QUESTIONS_PER_ANSWER = 8
 _STRONG_SIMILARITY = 0.45
 # Önerilere aday olarak bakılan kalıp sayısı.
 _SUGGESTION_CANDIDATES = 60
+# Ders kodu ("SE212", "PÇ3") ya da sıra sayısı olmayan uzun sayı; "1." gibi sıra sayıları değil.
+_CODE_LIKE = re.compile(r"[^\W\d_]\d|\d{2,}")
 
 
 class HybridRetriever:
@@ -134,11 +136,12 @@ class HybridRetriever:
 
 def _shape(question: str) -> str:
     """Kalıbın biçimi: ders kodu ve özel adlar atılır. "MECE322 kaç AKTS?" ile
-    "ENG201 kaç AKTS?" aynı biçimdir; ikisini birden önermek seçenek sunmaz."""
+    "ENG201 kaç AKTS?" aynı biçimdir; ikisini birden önermek seçenek sunmaz. Sıra sayıları
+    ("1. yarıyıl", "3. sınıf") kalır: başka bir dönemi soran kalıp başka bir seçenektir."""
     return " ".join(
         word.lower()
         for word in question.split()
-        if not (word[0].isupper() or re.search(r"\d", word))
+        if not (word[0].isupper() or _CODE_LIKE.search(word))
     )
 
 

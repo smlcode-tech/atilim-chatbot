@@ -99,6 +99,15 @@ def test_unanswered_questions_offer_the_five_closest_answerable_questions(model,
     assert answer.citations == []
 
 
+@pytest.mark.parametrize("prefix", ["**", "  ", "> "])
+def test_a_formatted_no_answer_still_offers_suggestions(model, staff_answers, prefix):
+    """Model cümleyi kalın yazınca da yanıtlanamadığı anlaşılmalı."""
+    model.reply = f"{prefix}Bu bilgi elimdeki verilerde yok.** atilim.edu.tr adresine bakın."
+    service = _service_with_similar(model, staff_answers, SIMILAR)
+
+    assert service.answer("Yemekhane menüsü nedir?").suggestions == SIMILAR[:5]
+
+
 def test_without_close_questions_the_models_reply_is_kept(model, staff_answers):
     model.reply = "Bu bilgi elimdeki verilerde yok. atilim.edu.tr adresine bakın."
     service = _service_with_similar(model, staff_answers, [])
