@@ -93,8 +93,9 @@ DEFINITIONS = [
     _function(
         "personel_bilgisi",
         "Yazılım Mühendisliği Bölümü'ndeki bir hocanın tüm bilgileri: iletişim, eğitim, "
-        "araştırma konuları, görevi ve bu dönem verdiği dersler.",
-        ad="Hocanın adı ya da soyadı",
+        "araştırma konuları, görevi ve bu dönem verdiği dersler. İdari personelin (bölüm "
+        "sekreteri vb.) unvan ve iletişim bilgilerini de verir.",
+        ad="Kişinin adı ya da soyadı",
     ),
     _function(
         "belge_ara",
@@ -233,9 +234,18 @@ class Tools:
 
     def personel_bilgisi(self, ad: str) -> ToolResult:
         members = [m for m in self._catalog.staff if _same(ad, m["name"])]
-        if not members:
+        admins = [m for m in self._catalog.admin_staff if _same(ad, m["name"])]
+        if not members and not admins:
             return ToolResult(f"Bölüm kadrosunda '{ad}' yok. hocanin_dersleri ile tüm üniversitede ara.")
-        blocks = []
+        blocks = [
+            "\n".join(
+                [f"{admin['name']} (idari personel)"]
+                + [f"{label}: {admin[key]}"
+                   for label, key in (("Unvan", "title"), ("Telefon", "phone"), ("E-posta", "email"))
+                   if admin[key]]
+            )
+            for admin in admins
+        ]
         for member in members:
             fields = [member["name"]]
             for label, key in (("Görev", "role"), ("Kadro", "employment"), ("Telefon", "phone"),
@@ -245,7 +255,8 @@ class Tools:
                     fields.append(f"{label}: {member[key]}")
             fields.append(f"{self.term} dersleri: {self._courses_of(member['name']) or 'yok'}")
             blocks.append("\n".join(fields))
-        return ToolResult("\n\n".join(blocks), self._citations("staff", SECTIONS))
+        keys = ["staff", SECTIONS] if members else []
+        return ToolResult("\n\n".join(blocks), self._citations(*keys, *(["admin_staff"] if admins else [])))
 
     def belge_ara(self, sorgu: str) -> ToolResult:
         documents: list[Document] = []

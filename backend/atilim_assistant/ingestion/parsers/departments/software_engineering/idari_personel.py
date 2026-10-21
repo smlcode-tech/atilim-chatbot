@@ -6,7 +6,7 @@ unvan, telefon ve (resim olarak yayınlanan, bkz. `staff_emails`) e-posta bilgis
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from bs4 import BeautifulSoup, Tag
 
@@ -40,6 +40,8 @@ def parse(html: str, source: Source) -> SourceContent:
         + [_member_document(m, source) for m in members],
         prepared_answers=_unit_answers(members, source)
         + [a for m in members for a in _member_answers(m, source)],
+        # Akademik kadrodan ayrı anahtar: katalog kaydı kaynak başına bütünüyle değiştirilir.
+        records={"admin_staff": [asdict(m) for m in members]},
     )
 
 

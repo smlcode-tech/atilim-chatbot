@@ -41,6 +41,12 @@ def tools(tmp_path, staff_documents) -> Tools:
         [_member("Prof. Dr. Ali YAZICI", "Algoritmalar"), _member("Doç. Dr. Erhan GÖKÇAY")],
         Citation("Akademik Personel", "https://example.edu/personel"),
     )
+    store.replace(
+        "admin_staff",
+        [{"name": "Yasemin KURT", "title": "Bölüm Sekreteri", "phone": "+90 (312) 586 8398",
+          "email": "yasemin.kurt@example.edu"}],
+        Citation("İdari Personel", "https://example.edu/idari-personel"),
+    )
     store.replace_timetable(
         Timetable(
             TERM,
@@ -106,6 +112,15 @@ def test_staff_details_include_this_terms_courses(tools):
     text = tools.personel_bilgisi("ali yazıcı").text
     assert text.startswith("Prof. Dr. Ali YAZICI")
     assert f"{TERM} dersleri: CMPE113" in text
+
+
+def test_staff_details_cover_administrative_staff(tools):
+    result = tools.personel_bilgisi("yasemin kurt")
+    assert result.text == (
+        "Yasemin KURT (idari personel)\nUnvan: Bölüm Sekreteri\n"
+        "Telefon: +90 (312) 586 8398\nE-posta: yasemin.kurt@example.edu"
+    )
+    assert [c.title for c in result.citations] == ["İdari Personel"]
 
 
 def test_document_search_returns_page_text_with_citations(tools, staff_source):

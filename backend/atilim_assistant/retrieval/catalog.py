@@ -7,7 +7,7 @@ dosyaya yazar; sohbet sırasında model katalog araçlarıyla (`chat/tools.py`) 
 """
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from atilim_assistant.domain import Citation
@@ -26,6 +26,8 @@ class Catalog:
     staff: list[dict]
     timetable: Timetable
     sources: dict[str, Citation]
+    # İdari personel (bölüm sekreteri vb.): ad, unvan, telefon, e-posta.
+    admin_staff: list[dict] = field(default_factory=list)
 
     @classmethod
     def empty(cls) -> "Catalog":
@@ -63,6 +65,7 @@ class CatalogStore:
         return Catalog(
             courses=data.get("courses", {}).get("rows", []),
             staff=data.get("staff", {}).get("rows", []),
+            admin_staff=data.get("admin_staff", {}).get("rows", []),
             timetable=timetable,
             sources={
                 key: Citation(title=entry["title"], url=entry["url"]) for key, entry in data.items()
