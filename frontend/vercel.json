@@ -1,9 +1,18 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "https://atilim-assistant-api.onrender.com/api/:path*"
+      "src": "/api/(.*)",
+      "dest": "https://atilim-assistant-api.onrender.com/api/$1",
+      "transforms": [
+        {
+          "type": "request.headers",
+          "op": "set",
+          "target": { "key": "x-proxy-secret" },
+          "args": "$PROXY_SECRET",
+          "env": ["PROXY_SECRET"]
+        }
+      ]
     }
   ]
 }

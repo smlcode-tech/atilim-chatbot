@@ -1,6 +1,7 @@
 """FastAPI uygulaması: /api/health ve /api/chat uç noktaları."""
 
 import hashlib
+import hmac
 import logging
 from collections.abc import Callable
 from typing import TypeVar
@@ -312,15 +313,34 @@ def _last(turns: list[Turn], count: int) -> list[Turn]:
 
 
 def _guest_key(request: Request) -> str:
-    """Misafirin sayaç anahtarı: IP adresinin özeti; adresin kendisi saklanmaz.
-
-    Render isteği vekil sunucu üzerinden iletir ve istemcinin adresini `X-Forwarded-For`
-    başlığının sonuna ekler. Baştaki öğeleri istemci kendisi yazabilir; onlara güvenmek her
-    istekte farklı adres uydurarak sınırı aşmaya izin verirdi.
-    """
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    address = forwarded.split(",")[-1].strip() or (request.client.host if request.client else "")
+    """Misafirin sayaç anahtarı: istemci IP adresinin özeti; adresin kendisi saklanmaz."""
+    address = _client_ip(request, request.app.state.settings.proxy_secret.get_secret_value())
     return hashlib.sha256(address.encode()).hexdigest()
+
+
+def _client_ip(request: Request, proxy_secret: str) -> str:
+    """İsteği gönderen istemcinin IP adresi.
+
+    Arayüz `/api` isteklerini Vercel üzerinden iletir; Render'ın `X-Forwarded-For` sonuna
+    eklediği adres o zaman Vercel'in çıkış adresidir ve misafirlerin hepsi birkaç sayacı
+    paylaşır. Vercel istemci adresini kendi başlıklarına yazar (istemcinin gönderdiği aynı
+    adlı başlıkların üzerine yazarak), ama Render'a doğrudan gelen biri de bu başlıkları
+    uydurabilir. Bu yüzden onlara yalnızca Vercel'in eklediği ortak gizli `X-Proxy-Secret`
+    doğruysa güvenilir.
+
+    Aksi hâlde `X-Forwarded-For` başlığının son öğesi alınır: onu Render ekler. Baştaki
+    öğeleri istemci kendisi yazabilir; onlara güvenmek her istekte farklı adres uydurarak
+    sınırı aşmaya izin verirdi.
+    """
+    if proxy_secret and hmac.compare_digest(
+        request.headers.get("X-Proxy-Secret", "").encode(), proxy_secret.encode()
+    ):
+        for header in ("X-Vercel-Forwarded-For", "X-Real-IP", "X-Forwarded-For"):
+            address = request.headers.get(header, "").split(",")[0].strip()
+            if address:
+                return address
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    return forwarded.split(",")[-1].strip() or (request.client.host if request.client else "")
 
 
 def _from_history(request: Request, use: Callable[[ConversationRepository], T]) -> T:

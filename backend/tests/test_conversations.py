@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from atilim_assistant.api.app import create_app
 from atilim_assistant.auth import issue_token
@@ -193,6 +194,63 @@ def test_guests_have_a_lower_daily_limit_per_address(anon_client, settings):
         "/api/chat", json={"question": "Soru"}, headers={"X-Forwarded-For": "7.7.7.7, 2.2.2.2"}
     )
     assert blocked.status_code == 429
+
+
+def _use_up_guest_limit(client, settings, headers):
+    for _ in range(settings.guest_daily_question_limit):
+        assert client.post("/api/chat", json={"question": "Soru"}, headers=headers).status_code == 200
+
+
+def test_a_direct_guest_is_counted_by_the_address_render_appends(anon_client, settings):
+    settings.proxy_secret = SecretStr("vercel-secret")
+    _use_up_guest_limit(anon_client, settings, {"X-Forwarded-For": "5.5.5.5"})
+
+    # Gizli değer olmadan Vercel başlıkları yok sayılır: adres yine Render'ın eklediği son öğe.
+    blocked = anon_client.post(
+        "/api/chat",
+        json={"question": "Soru"},
+        headers={"X-Forwarded-For": "5.5.5.5", "X-Vercel-Forwarded-For": "6.6.6.6"},
+    )
+    assert blocked.status_code == 429
+
+
+def test_guests_behind_vercel_are_counted_by_their_own_address(anon_client, settings):
+    settings.proxy_secret = SecretStr("vercel-secret")
+    vercel_egress = "76.76.21.21"
+
+    def via_vercel(client_ip):
+        return {
+            "X-Proxy-Secret": "vercel-secret",
+            "X-Vercel-Forwarded-For": client_ip,
+            "X-Forwarded-For": f"{client_ip}, {vercel_egress}",
+        }
+
+    _use_up_guest_limit(anon_client, settings, via_vercel("1.1.1.1"))
+    assert anon_client.post(
+        "/api/chat", json={"question": "Soru"}, headers=via_vercel("1.1.1.1")
+    ).status_code == 429
+    # Aynı Vercel çıkış adresinden gelen başka bir misafirin sayacı ayrıdır.
+    assert anon_client.post(
+        "/api/chat", json={"question": "Soru"}, headers=via_vercel("3.3.3.3")
+    ).status_code == 200
+
+
+def test_a_spoofed_vercel_header_without_the_secret_is_ignored(anon_client, settings):
+    settings.proxy_secret = SecretStr("vercel-secret")
+    _use_up_guest_limit(anon_client, settings, {"X-Forwarded-For": "4.4.4.4"})
+
+    for forged in ("", "wrong-secret"):
+        response = anon_client.post(
+            "/api/chat",
+            json={"question": "Soru"},
+            headers={
+                "X-Proxy-Secret": forged,
+                "X-Vercel-Forwarded-For": "10.0.0.1",
+                "X-Real-IP": "10.0.0.1",
+                "X-Forwarded-For": "10.0.0.1, 4.4.4.4",
+            },
+        )
+        assert response.status_code == 429
 
 
 def test_a_user_who_hits_the_daily_limit_is_asked_to_come_back_tomorrow(

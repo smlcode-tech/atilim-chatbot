@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # Misafirin sınırı IP başınadır ve daha düşüktür: giriş gerektirmediği için kotayı
     # tüketmenin en kolay yolu misafirliktir.
     guest_daily_question_limit: int = 10
+    # Vercel'in `/api` isteklerine eklediği `X-Proxy-Secret` başlığının değeri. Eşleşirse
+    # misafirin adresi Vercel'in istemci IP başlıklarından alınır; boşsa bu başlıklara
+    # güvenilmez ve Vercel üzerinden gelen misafirler Vercel'in çıkış adresini paylaşır.
+    proxy_secret: SecretStr = SecretStr("")
 
     @property
     def vector_store_dir(self) -> Path:
