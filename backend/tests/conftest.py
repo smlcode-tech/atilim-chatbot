@@ -173,7 +173,7 @@ def conversations() -> InMemoryConversationRepository:
 
 @pytest.fixture
 def settings() -> Settings:
-    """Gerçek ayarlar `.env` ve bir Gemini anahtarı ister; testler kendi ayarlarını kurar."""
+    """Gerçek ayarlar `.env` ve Groq/Voyage anahtarları ister; testler kendi ayarlarını kurar."""
     return Settings(
         voyage_api_key=SecretStr("test-voyage-key"),
         groq_api_key=SecretStr("test-groq-key"),

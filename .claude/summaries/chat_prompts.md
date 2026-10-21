@@ -1,7 +1,7 @@
 ---
 source: backend/atilim_assistant/chat/prompts.py
-hash: 0b18c85a5a2b21f3551035eb4014288c985e7e0b
-updated: 2026-10-18
+hash: 0f21a1597c95b17ef0b1a71e4bf3de357a79cc26
+updated: 2026-10-20
 ---
 
 ## Amaç
@@ -9,6 +9,7 @@ Modelin sistem talimatı.
 
 ## Public API
 - `NO_ANSWER: str` — veri yetmediğinde yanıtın başlaması gereken cümle
+- `SUGGESTIONS_INTRO: str` — yanıtlanamayan soruda yakın sorular bulunduysa modelin yanıtı yerine gösterilen giriş metni
 - `system_prompt(term) -> str` — `term` katalogdaki ders programının dönemi
 
 ## Talimatın özü
