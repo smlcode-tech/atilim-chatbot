@@ -35,6 +35,10 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
+      # Vercel projesindeki PROXY_SECRET ile aynı olmalı; misafir sınırı gerçek istemci
+      # adresine göre sayılsın diye Vercel bunu X-Proxy-Secret başlığıyla gönderir.
+      - key: PROXY_SECRET
+        sync: false
       # Servis yeniden oluşturulursa yeni değer üretilir ve herkes çıkış yapmış olur.
       - key: JWT_SECRET
         generateValue: true
