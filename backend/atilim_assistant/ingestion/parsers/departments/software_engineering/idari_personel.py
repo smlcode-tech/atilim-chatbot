@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.ingestion.parsers.departments.software_engineering.staff_emails import (
     card_email,
     known_emails,
@@ -73,7 +74,7 @@ def _roster_document(members: list[_StaffMember], source: Source) -> Document:
         label = m.title or "İdari Personel"
         entries.append(f"{m.name} – {label}")
     text = f"{source.unit} idari kadrosu ({len(members)} kişi):\n" + "\n".join(f"- {e}" for e in entries)
-    return _doc(source, "kadro", f"{source.unit} idari kadrosu", text)
+    return doc_for(source, "kadro", f"{source.unit} idari kadrosu", text)
 
 
 def _member_document(m: _StaffMember, source: Source) -> Document:
@@ -85,7 +86,7 @@ def _member_document(m: _StaffMember, source: Source) -> Document:
         lines.append(f"Telefon: {m.phone}")
     if m.email:
         lines.append(f"E-posta: {m.email}")
-    return _doc(source, slugify(m.name), m.name, "\n".join(lines))
+    return doc_for(source, slugify(m.name), m.name, "\n".join(lines))
 
 
 def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedAnswer]:
@@ -100,7 +101,7 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
         entries.append(f"{m.name} – {label}" + (f" ({contact})" if contact else ""))
     roster_text = f"{unit} idari kadrosu ({len(members)} kişi):\n" + "\n".join(f"- {e}" for e in entries)
     return [
-        _answer(
+        answer_for(
             source,
             [
                 f"{unit} idari personeli kimler?",
@@ -130,7 +131,7 @@ def _member_answers(m: _StaffMember, source: Source) -> list[PreparedAnswer]:
         profile_lines.append(f"- E-posta: {m.email}")
 
     answers.append(
-        _answer(
+        answer_for(
             source,
             [
                 m.name,
@@ -145,7 +146,7 @@ def _member_answers(m: _StaffMember, source: Source) -> list[PreparedAnswer]:
     contact += [f"e-posta: {m.email}"] if m.email else []
     if contact:
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{m.name} telefon numarası nedir?",
@@ -157,29 +158,3 @@ def _member_answers(m: _StaffMember, source: Source) -> list[PreparedAnswer]:
             )
         )
     return answers
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )

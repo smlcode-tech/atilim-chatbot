@@ -1,7 +1,7 @@
 import pytest
 
-from atilim_assistant.chat.tools import Tools
-from atilim_assistant.domain import Citation
+from atilim_assistant.chat.tools import _MAX_DOCUMENT_CHARS, Tools
+from atilim_assistant.domain import Citation, Document
 from atilim_assistant.ingestion.parsers.departments.software_engineering.ders_programi import (
     Section,
     Timetable,
@@ -127,6 +127,23 @@ def test_document_search_returns_page_text_with_citations(tools, staff_source):
     result = tools.belge_ara("bölüm başkanı")
     assert "Görev: Bölüm Başkanı" in result.text
     assert [c.url for c in result.citations] == [staff_source.url]
+
+
+def test_document_search_skips_documents_that_overflow_the_context_budget():
+    def document(id_: str, size: int) -> Document:
+        return Document(
+            id=id_, source_id="s", source_title="Sayfa", url="https://example.edu",
+            unit="", category="", title=id_, text=id_ * size,
+        )
+
+    big = _MAX_DOCUMENT_CHARS * 2 // 3
+    retrieved = [document("A", big), document("B", big), document("C", 100)]
+    result = Tools(Catalog.empty(), FakeRetriever(retrieved)).belge_ara("staj")
+
+    # İkinci büyük belge bütçeyi aşar ve atlanır; arama sürer, sonraki kısa belge yine sığar.
+    assert "A" * big in result.text
+    assert "B" * big not in result.text
+    assert "C" * 100 in result.text
 
 
 @pytest.mark.parametrize(

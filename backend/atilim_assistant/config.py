@@ -36,9 +36,6 @@ class Settings(BaseSettings):
     collection: str = "atilim_documents"
     # Her arama yönteminden alınan ve modele verilen belge sayısı.
     retrieval_top_k: int = 6
-    # Modele verilen bağlamın karakter sınırı. Groq ücretsiz katmanı dakikada 8000 token kabul
-    # eder; Türkçe metinde bu bütçe yaklaşık 2500 token tutar, soru ve yanıta yer kalır.
-    retrieval_max_chars: int = 8000
 
     # Kota bittiğinde modelin yeniden denenmeden önce bekleyeceği süre.
     quota_cooldown_seconds: int = 3600

@@ -7,6 +7,7 @@ Sayfa yapısı (div.detail-container > div.col-md-12):
 from bs4 import BeautifulSoup
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.text import collapse_whitespace
 
 
@@ -41,17 +42,17 @@ def parse(html: str, source: Source) -> SourceContent:
     roster_lines = [f"{source.title} ({len(outcomes)} çıktı):"]
     for code, description, _ in outcomes:
         roster_lines.append(f"- {code}: {description[:80]}{'…' if len(description) > 80 else ''}")
-    documents.append(_doc(source, "liste", source.title, "\n".join(roster_lines)))
+    documents.append(doc_for(source, "liste", source.title, "\n".join(roster_lines)))
 
     for code, description, courses in outcomes:
         lines = [f"{code} — {source.unit} program çıktısı", f"Açıklama: {description}"]
         if courses:
             lines.append(f"İlgili dersler: {courses}")
         slug = code.lower().replace(" ", "-")
-        documents.append(_doc(source, slug, code, "\n".join(lines)))
+        documents.append(doc_for(source, slug, code, "\n".join(lines)))
 
     answers: list[PreparedAnswer] = [
-        _answer(
+        answer_for(
             source,
             [
                 f"{source.unit} program çıktıları nelerdir?",
@@ -69,7 +70,7 @@ def parse(html: str, source: Source) -> SourceContent:
         if courses:
             answer_text += f"\n\nİlgili dersler: {courses}"
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{code} program çıktısı nedir?",
@@ -90,29 +91,3 @@ def _number_questions(code: str) -> list[str]:
     if not number.isdigit():
         return []
     return [f"{number}. program çıktısı nedir?", f"{number} numaralı öğrenme çıktısı nedir?"]
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )

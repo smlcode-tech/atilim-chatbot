@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from bs4 import BeautifulSoup
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.text import collapse_whitespace
 
 # Yarıyıl başlığındaki sıra sayısı ("5. Yarıyıl" → 5).
@@ -66,7 +67,7 @@ def parse(html: str, source: Source) -> SourceContent:
         if sem.total_akts:
             all_lines.append(f"  {_total_line(sem)}")
     full_roster = "\n".join(all_lines)
-    documents.append(_doc(source, "mufredat-ozet", source.title, full_roster))
+    documents.append(doc_for(source, "mufredat-ozet", source.title, full_roster))
 
     # Toplamı model ders listesinden kendisi hesaplamaya kalkışmasın (seçmeli yuvaları atlayıp
     # yanlış sonuç verir); sayfadaki yarıyıl toplamları kısa, ayrı bir belgede verilir. Uzun
@@ -77,12 +78,12 @@ def parse(html: str, source: Source) -> SourceContent:
         total_lines += [f"- {sem.name}: {sem.total_akts:g} AKTS" for sem in semesters]
         total_lines.append(f"Sekiz yarıyılın toplamı: {sum(totals):g} AKTS")
         documents.append(
-            _doc(source, "akts-toplamlari", "Müfredat AKTS Toplamları", "\n".join(total_lines))
+            doc_for(source, "akts-toplamlari", "Müfredat AKTS Toplamları", "\n".join(total_lines))
         )
 
     # Hazır yanıt: genel müfredat sorusu
     answers.append(
-        _answer(
+        answer_for(
             source,
             [
                 f"{source.unit} müfredatı nedir?",
@@ -108,9 +109,9 @@ def parse(html: str, source: Source) -> SourceContent:
             sem_lines.append(_total_line(sem))
         sem_text = "\n".join(sem_lines)
         slug = sem.name.lower().replace(". ", "-").replace(" ", "-")
-        documents.append(_doc(source, slug, f"{sem.name} Dersleri", sem_text))
+        documents.append(doc_for(source, slug, f"{sem.name} Dersleri", sem_text))
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{sem.name} dersleri neler?",
@@ -138,9 +139,9 @@ def parse(html: str, source: Source) -> SourceContent:
             if sem.total_akts:
                 year_lines.append(_total_line(sem))
         year_text = "\n".join(year_lines)
-        documents.append(_doc(source, f"{year}-sinif", f"{year}. Sınıf Dersleri", year_text))
+        documents.append(doc_for(source, f"{year}-sinif", f"{year}. Sınıf Dersleri", year_text))
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{year}. sınıf dersleri neler?",
@@ -245,29 +246,3 @@ def _total_line(sem: _Semester) -> str:
     """Yarıyıl toplamı satırı; "sayfada belirtilen" ibaresi modelin toplamı kendisi
     yeniden hesaplamaya kalkışmamasına yardım eder."""
     return f"Yarıyıl toplamı (sayfada belirtilen): {sem.total_akts:g} AKTS" if sem.total_akts else ""
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )
