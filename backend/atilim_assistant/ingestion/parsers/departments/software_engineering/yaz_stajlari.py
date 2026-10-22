@@ -103,8 +103,8 @@ def parse(html: str, source: Source) -> SourceContent:
     """Bilinen her bölüm başlığı için ayrı belge ve hazır yanıt, ayrıca elle yazılmış prosedür.
 
     Sayfa düz bir başlık-liste dizisidir: başlıklar sırayla izlenir, ardından gelen listeler o
-    başlığa eklenir. Not: başlıklar değişip hiçbir bölüm bulunamazsa hata verilmez, yalnızca
-    prosedür belgesi üretilir.
+    başlığa eklenir. Bilinen başlıklardan hiçbiri bulunamazsa sayfa yapısı değişmiştir: elle
+    yazılmış prosedür tek başına indekslenip sayfanın eski verisini silmesin diye hata verilir.
     """
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
@@ -139,6 +139,9 @@ def parse(html: str, source: Source) -> SourceContent:
 
     if current_heading is not None and current_items:
         sections.append((current_heading, current_items))
+
+    if not sections:
+        raise ValueError(f"{source.url} sayfasında bilinen staj bölümü başlığı bulunamadı.")
 
     documents: list[Document] = []
     answers: list[PreparedAnswer] = []

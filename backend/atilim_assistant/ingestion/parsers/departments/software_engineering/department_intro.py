@@ -49,6 +49,20 @@ def _intro_text(soup: BeautifulSoup) -> str:
     return collapse_whitespace(landing.get_text(" "))
 
 
+def _sentences(text: str, *phrases: str) -> str:
+    """Metindeki, ifadelerden birini içeren cümleler, sırasıyla; hiçbiri yoksa boş.
+
+    Tanıtım paragrafı tek bir metin olarak gelir; belirli bir konuyu soran soruya paragrafın
+    tamamını değil yalnızca ilgili cümleleri vermek için kullanılır.
+    """
+    picked = [
+        sentence.strip().rstrip(".")
+        for sentence in text.split(". ")
+        if any(phrase in sentence for phrase in phrases)
+    ]
+    return " ".join(f"{sentence}." for sentence in picked)
+
+
 def _section_text(soup: BeautifulSoup, heading: str) -> str:
     """Başlığı `heading` olan kutunun metni, başlığın kendisi olmadan; bulunamazsa boş."""
     for h3 in soup.find_all("h3", class_="colorBlue"):
@@ -94,12 +108,13 @@ def _prepared_answers(
 ) -> list[PreparedAnswer]:
     """Tanıtım sayfasının hazır yanıtları.
 
-    Dikkat: akreditasyon, mezun iş olanakları ve lisansüstü programlar yanıtları sayfadan
-    ayrıştırılmaz, metinleri burada elle yazılmıştır. Bilgi değişirse (ör. MÜDEK akreditasyon
-    tarihi) ingest bunu fark etmez; metinler elle güncellenmelidir.
+    Akreditasyon, mezun iş olanakları ve lisansüstü programlar yanıtları tanıtım paragrafındaki
+    ilgili cümlelerden kurulur; sayfadaki bilgi (ör. MÜDEK akreditasyon tarihi) değişince yanıt
+    da sonraki ingest'te kendiliğinden güncellenir. Cümle bulunamazsa o yanıt üretilmez: eskimiş
+    bir metin vermektense soru modele gider.
     """
     unit = source.unit
-    return [
+    answers = [
         _answer(
             source,
             [
@@ -134,8 +149,12 @@ def _prepared_answers(
             ],
             f"**{unit} Vizyonu:** {vision}",
         ),
-        _answer(
-            source,
+    ]
+
+    # Soru kalıpları → yanıtın kurulacağı cümlelerin ifadeleri. "Bölümümüz mezunları" yalın
+    # "mezunları" değildir: o, akreditasyon cümlesindeki "mezunlarımız"ı da yakalardı.
+    topics = [
+        (
             [
                 "MÜDEK akreditasyonu var mı?",
                 "EUR-ACE etiketi nedir?",
@@ -144,15 +163,9 @@ def _prepared_answers(
                 "Bölümün akreditasyonu var mı, ne zamana kadar geçerli?",
                 "Diploma yurt dışında tanınıyor mu?",
             ],
-            (
-                f"{unit}, MÜDEK tarafından 30 Eylül 2030 tarihine kadar akredite edilmiş "
-                "ve Avrupa'da geçerli EUR-ACE etiketi almıştır. "
-                "Bu sayede mezunlar AB ülkelerinde lisansüstü programlara kabul ve "
-                "çalışma ortamlarına girmede avantaj elde etmektedir."
-            ),
+            ("MÜDEK", "Bu etiket sayesinde"),
         ),
-        _answer(
-            source,
+        (
             [
                 "Yazılım mühendisliği mezunları nerede çalışabilir?",
                 "Mezun iş imkânları neler?",
@@ -160,15 +173,9 @@ def _prepared_answers(
                 "Yazılım mühendisleri nerelerde iş bulur, kariyer olanakları neler?",
                 "Mezunlar hangi kurum ve firmalarda çalışıyor?",
             ],
-            (
-                f"{unit} mezunları; yazılım ve AR-GE firmalarında (Teknoparklarda), "
-                "bankalar, sağlık kurumları, kamu bilgi işlem merkezleri, Telekom firmaları, "
-                "TÜİK, SPK, BDDK, EPDK ve üniversiteler gibi ulusal/uluslararası kurumlarda "
-                "ile TÜBİTAK gibi araştırma kurumlarında çalışabilmektedir."
-            ),
+            ("Bölümümüz mezunları",),
         ),
-        _answer(
-            source,
+        (
             [
                 "Doktora programı var mı?",
                 "Yüksek lisans programı var mı?",
@@ -177,10 +184,11 @@ def _prepared_answers(
                 "Mezun olduktan sonra master veya doktora yapabilir miyim?",
                 "Bölümde lisansüstü program var mı?",
             ],
-            (
-                f"{unit}, Lisans, Yüksek Lisans ve Doktora düzeyinde eğitim vermektedir. "
-                "Üniversite, Yazılım Mühendisliği alanında Türkiye'de Doktora düzeyinde "
-                "eğitim veren iki üniversiteden biridir."
-            ),
+            ("Doktora düzeyinde",),
         ),
     ]
+    for questions, phrases in topics:
+        text = _sentences(intro, *phrases)
+        if text:
+            answers.append(_answer(source, questions, text))
+    return answers

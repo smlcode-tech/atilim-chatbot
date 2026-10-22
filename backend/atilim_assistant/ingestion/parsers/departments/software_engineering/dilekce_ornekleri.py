@@ -90,8 +90,8 @@ def parse(html: str, source: Source) -> SourceContent:
 
     Bağlantılar her ingest'te canlı sayfadan alınır, eskimez; şablon metinleri ise elle
     saklanır (bkz. `_TEMPLATES`). Şablonu bilinmeyen dilekçe yine listelenir, kullanıcı
-    Word dosyasına yönlendirilir. Not: sayfada hiç bağlantı bulunamazsa hata verilmez,
-    yalnızca boş bir liste belgesi üretilir.
+    Word dosyasına yönlendirilir. Sayfada hiç indirme bağlantısı yoksa sayfa yapısı
+    değişmiştir: boş bir liste indekslenmesin diye hata verilir.
     """
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
@@ -105,6 +105,9 @@ def parse(html: str, source: Source) -> SourceContent:
         href = a.get("href", "").strip()
         if title and href and any(href.endswith(ext) for ext in (".doc", ".docx", ".pdf")):
             links[title] = href
+
+    if not links:
+        raise ValueError(f"{source.url} sayfasında dilekçe indirme bağlantısı bulunamadı.")
 
     documents: list[Document] = []
     answers: list[PreparedAnswer] = []
@@ -145,7 +148,7 @@ def parse(html: str, source: Source) -> SourceContent:
         answers.append(
             _answer(
                 source,
-                _questions(title, download_url),
+                _questions(title),
                 doc_text,
             )
         )
@@ -160,8 +163,8 @@ def _slugify(title: str) -> str:
     return title.lower().translate(tr).replace(" ", "-")[:40]
 
 
-def _questions(title: str, url: str) -> list[str]:
-    """Dilekçe adından soru kalıpları. (`url` şu an kullanılmıyor.)"""
+def _questions(title: str) -> list[str]:
+    """Dilekçe adından soru kalıpları."""
     base = title.rstrip(".")
     subject = base.removesuffix("Dilekçesi").strip()
     return [

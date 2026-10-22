@@ -24,6 +24,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
 from atilim_assistant.ingestion.pipeline import index_content, load_content
 from atilim_assistant.ingestion.sources import SOURCES, get_source
 
+logger = logging.getLogger(__name__)
 
 def main() -> None:
     """`python -m atilim_assistant <komut>` giriş noktası (`__main__.py`)."""
@@ -57,6 +58,11 @@ def _ingest(args: argparse.Namespace) -> None:
     `--dry-run` ayar ve API anahtarı istemez, hiçbir şey yazmaz: yeni bir ayrıştırıcının
     çıktısını Voyage kotası harcamadan görmek içindir. `--html` sitedeki sayfa değişmeden önce
     kaydedilmiş bir kopyayla ayrıştırıcıyı denemeyi sağlar.
+
+    Bir kaynak hata verirse (sayfa alınamadı, yapısı değişti) o kaynak atlanır, eski verisi
+    yerinde kalır ve diğer kaynaklar işlenmeye devam eder: tek bir bozuk sayfa tüm ingest'i
+    yarıda bırakmamalı. Sonunda hatalı kaynaklar listelenir ve çıkış kodu 1 olur, böylece
+    betikler ve CI hatayı fark eder.
     """
     if args.html and not args.source:
         raise SystemExit("--html yalnızca --source ile birlikte kullanılabilir.")
@@ -71,8 +77,16 @@ def _ingest(args: argparse.Namespace) -> None:
         questions = build_question_store(settings)
         catalog = build_catalog_store(settings)
 
+    failed: list[str] = []
     for source in sources:
-        content = load_content(source, html)
+        try:
+            content = load_content(source, html)
+        except Exception as error:
+            # Ayrıştırma yazmadan önce yapılır; hata olursa depoya hiç dokunulmamıştır.
+            logger.exception("%s işlenemedi", source.id)
+            print(f"{source.id}: HATA — {error}")
+            failed.append(source.id)
+            continue
         if args.dry_run:
             for document in content.documents:
                 print(f"\n=== {document.id} ===\n{document.text}")
@@ -92,6 +106,9 @@ def _ingest(args: argparse.Namespace) -> None:
         citation = Citation(title=f"Ders Programı — {timetable.term}", url=ders_programi.PUBLIC_URL)
         catalog.replace_timetable(timetable, citation)
         print(f"ders programı: {len(timetable.sections)} şube ({timetable.term})")
+
+    if failed:
+        raise SystemExit(f"{len(failed)} kaynak işlenemedi: {', '.join(failed)}")
 
 
 def _serve(_: argparse.Namespace) -> None:
