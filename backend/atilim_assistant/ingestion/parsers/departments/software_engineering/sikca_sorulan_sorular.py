@@ -57,6 +57,8 @@ _EXTRA_QUESTIONS = {
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Her soru-cevap çifti ayrı belge ve hazır yanıt; Erasmus tablosu ayrıca listelenir.
+    SSS sayfası zaten soru biçiminde olduğu için sayfanın kendi sorusu ilk kalıptır."""
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
     if not container:
@@ -121,6 +123,7 @@ def _extract_qa(col: Tag) -> list[tuple[str, str]]:
     current_answer_parts: list[str] = []
 
     def _flush() -> None:
+        """Biriken soru-cevabı listeye ekler; cevabı olmayan soru eklenmez."""
         if current_question and current_answer_parts:
             qa.append((current_question, "\n\n".join(current_answer_parts)))
 
@@ -153,11 +156,13 @@ def _extract_qa(col: Tag) -> list[tuple[str, str]]:
 
 
 def _is_question(strong: Tag) -> bool:
+    """Kalın yazı soru mu: soru işaretiyle bitiyorsa. Yanıtların içindeki vurgular soru başlığı
+    sanılmasın diye."""
     return collapse_whitespace(strong.get_text()).endswith("?")
 
 
 def _extract_erasmus(col: Tag) -> list[tuple[str, str]]:
-    """Erasmus üniversite-ülke tablosunu çıkarır."""
+    """Erasmus üniversite-ülke tablosunu çıkarır; iki sütunlu ilk tablo alınır, başlık satırı atlanır."""
     rows: list[tuple[str, str]] = []
     for table in col.find_all("table"):
         for row in table.find_all("tr"):
@@ -174,6 +179,8 @@ def _extract_erasmus(col: Tag) -> list[tuple[str, str]]:
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -187,6 +194,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,

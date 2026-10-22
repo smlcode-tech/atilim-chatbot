@@ -11,6 +11,12 @@ from atilim_assistant.text import collapse_whitespace
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Kısa bir çıktı listesi ve her çıktı için ayrı belge ile hazır yanıt.
+
+    Liste açıklamaları 80 karakterde kırpar: "program çıktıları neler?" sorusu tüm çıktıları
+    görmeli ama uzun açıklamaların tamamı listeyi şişirirdi. Tam açıklama çıktının kendi
+    belgesindedir.
+    """
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
     if not container:
@@ -87,6 +93,8 @@ def _number_questions(code: str) -> list[str]:
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -100,6 +108,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,

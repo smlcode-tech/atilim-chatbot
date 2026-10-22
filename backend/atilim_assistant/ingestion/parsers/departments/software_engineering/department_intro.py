@@ -12,6 +12,8 @@ from atilim_assistant.text import collapse_whitespace
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Tanıtım ile misyon-vizyon iki ayrı belge olur: farklı sorulara yanıt verirler ve
+    uzun tanıtım metni misyon sorusunda bağlamı gereksiz yere doldururdu."""
     soup = BeautifulSoup(html, "html.parser")
 
     intro = _intro_text(soup)
@@ -37,6 +39,7 @@ def parse(html: str, source: Source) -> SourceContent:
 # ---------------------------------------------------------------------------
 
 def _intro_text(soup: BeautifulSoup) -> str:
+    """Giriş bölümündeki tanıtım paragrafı; menü bağlantıları metne karışmasın diye atılır."""
     landing = soup.find("section", class_="site_landing_container")
     if not landing:
         return ""
@@ -47,6 +50,7 @@ def _intro_text(soup: BeautifulSoup) -> str:
 
 
 def _section_text(soup: BeautifulSoup, heading: str) -> str:
+    """Başlığı `heading` olan kutunun metni, başlığın kendisi olmadan; bulunamazsa boş."""
     for h3 in soup.find_all("h3", class_="colorBlue"):
         if heading.lower() in h3.get_text().lower():
             parent = h3.parent
@@ -60,6 +64,8 @@ def _section_text(soup: BeautifulSoup, heading: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -73,6 +79,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,
@@ -85,6 +92,12 @@ def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer
 def _prepared_answers(
     source: Source, intro: str, mission: str, vision: str
 ) -> list[PreparedAnswer]:
+    """Tanıtım sayfasının hazır yanıtları.
+
+    Dikkat: akreditasyon, mezun iş olanakları ve lisansüstü programlar yanıtları sayfadan
+    ayrıştırılmaz, metinleri burada elle yazılmıştır. Bilgi değişirse (ör. MÜDEK akreditasyon
+    tarihi) ingest bunu fark etmez; metinler elle güncellenmelidir.
+    """
     unit = source.unit
     return [
         _answer(

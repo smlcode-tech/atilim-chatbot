@@ -14,6 +14,7 @@ from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceCont
 from atilim_assistant.ingestion.parsers.departments.software_engineering import ders_programi
 from atilim_assistant.text import collapse_whitespace, normalize
 
+# Sayfadaki sekme kimliği → Türkçe adı; ad, dersin kategorisi olarak kataloğa da yazılır.
 _TABS = {
     "required_les": "Zorunlu Dersler",
     "technical_lessons": "Alan Seçmeli Dersler",
@@ -23,6 +24,8 @@ _TABS = {
 
 @dataclass(frozen=True, slots=True)
 class _Course:
+    """Bir ders kartının verisi; alanları katalogdaki `courses` kaydına da aynen geçer."""
+
     code: str
     name: str
     theory: int
@@ -36,12 +39,20 @@ class _Course:
 
 @dataclass(frozen=True, slots=True)
 class _Tab:
+    """Bir sekme ve içindeki dersler."""
+
     id: str
     label: str
     courses: list[_Course] = field(default_factory=list)
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Ders sayfasından: sekme özetleri, ders başına belge, hazır yanıtlar ve katalog kaydı.
+
+    Bölüm dersleriyle ilgili ana kaynak budur: kredi, AKTS, ön koşul, içerik ve (ders
+    programından) bu dönemin hocaları. `ders_ara` ve `ders_detayi` araçları katalogdaki
+    `courses` kaydını kullanır.
+    """
     # Ders kartlarında hoca alanı boştur; hoca, güncel dönemin ders programından eklenir.
     timetable = ders_programi.current()
     soup = BeautifulSoup(html, "html.parser")
@@ -160,6 +171,7 @@ def parse(html: str, source: Source) -> SourceContent:
             if c.content:
                 lines.append(f"İçerik: {c.content}")
             doc_text = "\n".join(lines)
+            # Aynı ders bir sekmede iki kez listelenebilir; belge kimliği tekil kalmalıdır.
             base = f"{tab.id}-{c.code.lower()}"
             local_id = base if base not in seen else f"{base}-2"
             seen.add(local_id)
@@ -202,6 +214,9 @@ def parse(html: str, source: Source) -> SourceContent:
 
 
 def _extract_tabs(container) -> list[_Tab]:
+    """Sekmelerdeki ders kartlarını okur. Ders verisi kartın görünen metninden değil
+    `data-lesson-data` JSON özniteliğinden alınır: alanlar ayrı ve kesindir. JSON'u bozuk kart
+    atlanır, tek kart yüzünden tüm sayfa düşmez; eksik sayılar 0 sayılır."""
     tabs = []
     for tab_id, label in _TABS.items():
         pane = container.find(id=tab_id)
@@ -231,6 +246,8 @@ def _extract_tabs(container) -> list[_Tab]:
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -244,6 +261,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,

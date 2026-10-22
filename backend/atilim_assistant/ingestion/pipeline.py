@@ -1,4 +1,8 @@
-"""Bir kaynağı siteden alıp içeriğe çeviren ve indeksleyen adımlar."""
+"""Bir kaynağı siteden alıp içeriğe çeviren ve indeksleyen adımlar.
+
+Alma (`load_content`) ve yazma (`index_content`) ayrıdır: `cli ingest --dry-run` yalnızca
+ilkini çalıştırır, ayrıştırıcının çıktısı hiçbir şey yazılmadan ve kota harcanmadan görülür.
+"""
 
 import httpx
 
@@ -8,10 +12,13 @@ from atilim_assistant.retrieval.catalog import CatalogStore
 from atilim_assistant.retrieval.prepared import PreparedAnswerStore
 from atilim_assistant.retrieval.store import DocumentStore
 
+# İstekler kendini bot olarak tanıtır: site yöneticisi kayıtlarda kimin tarattığını görebilir.
 _USER_AGENT = "AtilimAssistantBot/0.1 (+https://www.atilim.edu.tr)"
 
 
 def fetch_html(url: str) -> str:
+    """Sayfanın HTML'i. Hata durumu (404, 500) istisna olur: hata sayfası ayrıştırılıp
+    indekslenmemeli. Yönlendirmeler izlenir, site eski adresleri yenilerine taşıyabilir."""
     response = httpx.get(
         url, headers={"User-Agent": _USER_AGENT}, timeout=30, follow_redirects=True
     )
@@ -40,7 +47,12 @@ def index_content(
     questions: DocumentStore,
     catalog: CatalogStore | None = None,
 ) -> None:
-    """Kaynağın eski belgelerini ve hazır yanıtlarını yenileriyle değiştirir; diğer kaynaklara dokunmaz."""
+    """Kaynağın eski belgelerini ve hazır yanıtlarını yenileriyle değiştirir; diğer kaynaklara dokunmaz.
+
+    Embedding'ler yazmadan önce alınır: Voyage hata verirse depoya hiç dokunulmaz ve eski
+    veri yerinde kalır. Soru kalıpları kalıbın kendisiyle (`title`) embedding'lenir, yanıt
+    metniyle değil; aranan şey kullanıcının sorusuna benzeyen kalıptır.
+    """
     embeddings = embedder.embed_documents([document.text for document in content.documents])
     store.replace_source(source.id, content.documents, embeddings)
     prepared_answers.replace_source(source.id, content.prepared_answers)

@@ -16,12 +16,16 @@ from bs4 import BeautifulSoup
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.text import collapse_whitespace
 
+# Yarıyıl başlığındaki sıra sayısı ("5. Yarıyıl" → 5).
 _SEMESTER_NUMBER = re.compile(r"(\d+)\.\s*Yarıyıl")
+# Sınıflar yazıyla da sorulur ("üçüncü sınıf dersleri"); kalıplar iki biçimle de üretilir.
 _ORDINALS = {1: "Birinci", 2: "İkinci", 3: "Üçüncü", 4: "Dördüncü", 5: "Beşinci", 6: "Altıncı"}
 
 
 @dataclass(frozen=True, slots=True)
 class _Course:
+    """Müfredat tablosundaki bir satır. Seçmeli ders yuvalarında `code` boştur."""
+
     code: str
     name: str
     theory: int
@@ -32,12 +36,16 @@ class _Course:
 
 @dataclass(frozen=True, slots=True)
 class _Semester:
+    """Bir yarıyıl; `total_akts` sayfanın kendi yazdığı toplamdır, hesaplanmaz."""
+
     name: str
     courses: list[_Course] = field(default_factory=list)
     total_akts: float | None = None
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Müfredattan yarıyıl ve sınıf düzeyinde belgeler ve hazır yanıtlar. Bu sayfanın
+    katkısı derslerin hangi yarıyılda okunduğudur; ders ayrıntıları "Dersler" sayfasından gelir."""
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
     if not container:
@@ -155,6 +163,7 @@ def parse(html: str, source: Source) -> SourceContent:
 
 
 def _semester_number(name: str) -> int | None:
+    """Başlıktaki yarıyıl numarası; numarasız başlıkta None."""
     match = _SEMESTER_NUMBER.match(name)
     return int(match.group(1)) if match else None
 
@@ -169,6 +178,8 @@ def _year_label(semester_name: str) -> str:
 
 
 def _extract_semesters(container) -> list[_Semester]:
+    """Her h3 başlığı ve ardından gelen tablo bir yarıyıldır. Dersi olmayan başlıklar (sayfadaki
+    başka başlıklar) yarıyıl sayılmaz."""
     semesters = []
     for h3 in container.find_all("h3"):
         name = collapse_whitespace(h3.get_text())
@@ -221,6 +232,7 @@ def _extract_semesters(container) -> list[_Semester]:
 
 
 def _number(text: str) -> float | None:
+    """Tablo hücresindeki sayı; Türkçe ondalık virgülü ("7,5") de okunur. Sayı değilse None."""
     try:
         return float(text.replace(",", "."))
     except ValueError:
@@ -228,14 +240,19 @@ def _number(text: str) -> float | None:
 
 
 def _label(course: _Course) -> str:
+    """"SE212 Ad"; kodsuz seçmeli yuvalarda yalnızca ad."""
     return f"{course.code} {course.name}".strip()
 
 
 def _total_line(sem: _Semester) -> str:
+    """Yarıyıl toplamı satırı; "sayfada belirtilen" ibaresi modelin toplamı kendisi
+    yeniden hesaplamaya kalkışmamasına yardım eder."""
     return f"Yarıyıl toplamı (sayfada belirtilen): {sem.total_akts:g} AKTS" if sem.total_akts else ""
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -249,6 +266,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,

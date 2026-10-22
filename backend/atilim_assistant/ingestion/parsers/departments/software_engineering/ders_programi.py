@@ -28,9 +28,12 @@ _GSH = "00000000"
 # Yeni öğretim yılı EduPage'de 1 Ağustos'ta başlar (`schoolyear_turnover`).
 _TURNOVER_MONTH = 8
 
+# Programdaki ders adı: kod, şube numarası ve ad ("SE221-SEC-01-Software Requirements …").
 _SUBJECT = re.compile(r"^([A-ZÇĞİÖŞÜ]{2,5}) ?(\d{3}[A-Z]?)-SEC-(\d+)-(.*)$")
 # Hocası henüz atanmamış şubeler "Staff", "STAFF1" gibi yer tutucularla görünür.
 _PLACEHOLDER = re.compile(r"^staff\d*$")
+# Ad karşılaştırmasında atılan unvan sözcükleri (normalleştirilmiş): personel sayfası adları
+# unvanla ("Prof. Dr. …"), ders programı unvansız yazar.
 _TITLE_WORDS = frozenset({"prof", "doc", "dr", "ogr", "uyesi", "gor", "ars", "yrd"})
 
 logger = logging.getLogger(__name__)
@@ -38,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class Section:
+    """Bir dersin bir şubesi ve onu veren hocalar (ders programındaki yazımla)."""
+
     code: str
     number: str
     name: str
@@ -46,13 +51,19 @@ class Section:
 
 @dataclass(frozen=True, slots=True)
 class Timetable:
+    """Bir dönemin tüm şubeleri. `term` dönemin adıdır ("2025-2026 Güz" gibi); yanıtlarda
+    bilginin hangi döneme ait olduğunu söylemek için taşınır."""
+
     term: str
     sections: tuple[Section, ...]
 
     def sections_of_course(self, code: str) -> list[Section]:
+        """Dersin bu dönemki şubeleri; ders açılmadıysa boş."""
         return [section for section in self.sections if section.code == code]
 
     def sections_of_teacher(self, name: str) -> list[Section]:
+        """Personel sayfasındaki adla eşleşen hocanın şubeleri; adlar iki kaynakta farklı
+        yazıldığı için eşitlik değil `same_person` kullanılır."""
         return [
             section
             for section in self.sections
@@ -62,7 +73,12 @@ class Timetable:
 
 @lru_cache(maxsize=1)
 def current() -> Timetable | None:
-    """Güncel dönemin programı; ingest boyunca bir kez çekilir. Alınamazsa None."""
+    """Güncel dönemin programı; ingest boyunca bir kez çekilir. Alınamazsa None.
+
+    Önbelleklenir çünkü üç yer çağırır (dersler, akademik personel, `cli ingest`) ve program
+    büyük bir yanıttır. Hata yutulup None döner: EduPage kapalıyken bölüm sayfalarının
+    indekslenmesi engellenmemelidir.
+    """
     try:
         versions = _call("ttviewer.js", "getTTViewerData", [None, _school_year(date.today())])
         number = versions["regular"]["default_num"]
@@ -134,14 +150,18 @@ def name_tokens(name: str) -> list[str]:
 
 
 def _order(section: Section) -> tuple[str, str]:
+    """Şubelerin sırası: koda, sonra şube numarasına göre; çıktı her ingest'te aynı sırada olur."""
     return section.code, section.number
 
 
 def _school_year(today: date) -> int:
+    """EduPage'in beklediği öğretim yılı: Ağustos'tan önce bir önceki yıl ("2025" = 2025-2026)."""
     return today.year if today.month >= _TURNOVER_MONTH else today.year - 1
 
 
 def _call(script: str, function: str, args: list) -> dict:
+    """EduPage sunucusundaki bir işlevi çağırır; tarayıcının yaptığı isteğin aynısıdır.
+    Bu belgelenmiş bir API değildir: EduPage biçimi değiştirirse `current()` None döner."""
     response = httpx.post(
         f"{_SERVER}/{script}",
         params={"__func": function},

@@ -20,14 +20,20 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering.staff_e
 )
 from atilim_assistant.text import collapse_whitespace, normalize, slugify
 
+# Kartta telefon ayrı bir alanda değil, düz metin içinde durur; +90 ile başlayan dizi aranır.
 _PHONE = re.compile(r"\+90[\d ()]{10,}")
+# Karttaki etiketli alanlardan araştırma konuları ayrı tutulur; geri kalanı eğitim bilgisidir.
 _RESEARCH_LABEL = "Araştırma Konuları"
+# Boş alan sessizce atlanmaz, açıkça yazılır: "araştırma konusu ne?" sorusu "yok" değil
+# "sayfada belirtilmemiş" yanıtını almalıdır.
 _UNSPECIFIED = "Sayfada belirtilmemiş"
 _SEE_SOURCE_FOR_EMAIL = "E-posta adresi için kaynak sayfaya bakabilirsin."
 
 
 @dataclass(frozen=True, slots=True)
 class _StaffMember:
+    """Bir akademik personel kartı; katalogdaki `staff` kaydının alanları da bunlardır."""
+
     name: str
     role: str
     employment: str
@@ -40,6 +46,12 @@ class _StaffMember:
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Kadro sayfasından: kadro listesi, kişi başına belge, toplu iletişim belgesi, hazır
+    yanıtlar ve katalog kaydı.
+
+    Verilen dersler sayfada yoktur, ders programından eklenir. Program alınamazsa kişiler ders
+    bilgisi olmadan indekslenir; ingest durmaz.
+    """
     cards = BeautifulSoup(html, "html.parser").select("div.staff-academician")
     emails = known_emails()
     members = [_parse_card(card, emails) for card in cards]
@@ -62,10 +74,13 @@ def parse(html: str, source: Source) -> SourceContent:
 
 
 def _record(member: _StaffMember) -> dict:
+    """Katalog kaydı; `courses` dışarıda bırakılır (bkz. `parse`'taki not)."""
     return {key: value for key, value in asdict(member).items() if key != "courses"}
 
 
 def _parse_card(card: Tag, emails: dict[str, str]) -> _StaffMember:
+    """Kartı alanlara ayırır. Görev (ör. Bölüm Başkanı) başlıktaki `<small>` içindedir; adın
+    içine karışmasın diye önce çıkarılır, kalan başlık metni addır."""
     heading = card.find("h4")
     role_tag = heading.find("small")
     role = collapse_whitespace(role_tag.extract().get_text()).lstrip("/ ") if role_tag else ""
@@ -109,6 +124,8 @@ def _labelled_fields(card: Tag) -> list[tuple[str, str]]:
 
 
 def _member_fields(member: _StaffMember) -> list[str]:
+    """Kişinin "Etiket: değer" satırları; kişi belgesi ve profil yanıtı aynı satırları kullanır,
+    ikisi birbirinden farklı bilgi vermez."""
     fields = []
     if member.role:
         fields.append(f"Görev: {member.role}")
@@ -139,6 +156,8 @@ def _courses_text(timetable: ders_programi.Timetable, name: str) -> str:
 def _teaching_answers(
     members: list[_StaffMember], source: Source, timetable: ders_programi.Timetable | None
 ) -> list[PreparedAnswer]:
+    """"Kim hangi dersi veriyor?" hazır yanıtları; ders programı yoksa hiç üretilmez, eskimiş
+    ya da boş bir liste vermektense soru modele bırakılır."""
     teaching = [member for member in members if member.courses]
     if not timetable or not teaching:
         return []
@@ -171,6 +190,7 @@ def _teaching_answers(
 
 
 def _roster_text(members: list[_StaffMember], source: Source) -> str:
+    """Kadro listesi: kişi başına tek satır, ad ve görev. Ayrıntı kişi belgelerindedir."""
     entries = []
     for member in members:
         # Önce görev unvanı (Bölüm Başkanı vb.), yoksa kadro türü (Yarı Zamanlı vb.) göster
@@ -181,6 +201,7 @@ def _roster_text(members: list[_StaffMember], source: Source) -> str:
 
 
 def _contacts_text(members: list[_StaffMember], source: Source) -> str:
+    """Tüm kadronun iletişim bilgileri tek metinde."""
     # Kişi kartları tek tek getirildiğinde bağlama ancak birkaçı sığar; toplu iletişim sorusu
     # kadronun tamamını tek belgede görmelidir.
     entries = [f"**{member.name}** — {_contact(member)}" for member in members]
@@ -191,27 +212,34 @@ def _contacts_text(members: list[_StaffMember], source: Source) -> str:
 
 
 def _contact(member: _StaffMember) -> str:
+    """"telefon: …, e-posta: …"; e-postası çözülemeyen kişide e-posta hiç yazılmaz."""
     contact = f"telefon: {member.phone or _UNSPECIFIED.lower()}"
     return f"{contact}, e-posta: {member.email}" if member.email else contact
 
 
 def _member_document(member: _StaffMember, source: Source) -> Document:
+    """Kişi başına belge; kimlik addan türetilir. Başlıktaki birim adı, belge tek başına
+    modele verildiğinde kişinin hangi bölümden olduğunu söyler."""
     heading = f"{member.name} — {source.unit} akademik personeli"
     text = "\n".join([heading, *_member_fields(member)])
     return _document(source, slugify(member.name), member.name, text)
 
 
 def _roster_document(members: list[_StaffMember], source: Source) -> Document:
+    """"Kadroda kimler var?" sorusu için tüm kadro tek belgede."""
     title = f"{source.unit} akademik kadrosu"
     return _document(source, "kadro", title, _roster_text(members, source))
 
 
 def _contacts_document(members: list[_StaffMember], source: Source) -> Document:
+    """"Hocalara nasıl ulaşırım?" sorusu için tüm iletişim bilgileri tek belgede."""
     title = f"{source.unit} akademik kadrosu iletişim bilgileri"
     return _document(source, "kadro-iletisim", title, _contacts_text(members, source))
 
 
 def _document(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -225,6 +253,9 @@ def _document(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer]:
+    """Kişi başına dört yanıt: profil, araştırma, iletişim, eğitim. Ayrı tutulurlar ki "X'in
+    telefonu ne?" sorusu tüm profili değil yalnızca istenen bilgiyi alsın. Kalıp listesinin
+    ilk öğesi adın kendisidir: kullanıcı yalnızca adı yazarsa profil verilir."""
     name = member.name
     profile = "\n".join(
         [f"**{name}** — {source.unit} akademik personeli", ""]
@@ -285,6 +316,9 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
 
 
 def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedAnswer]:
+    """Birim düzeyindeki yanıtlar: kadro, toplu iletişim, görevliler ve kadro türleri
+    (ör. "yarı zamanlı öğretim elemanları kimler?"). Görevli ve kadro türü kalıpları sayfadaki
+    değerlerden üretilir; sayfaya yeni bir görev eklenince kalıbı da kendiliğinden oluşur."""
     unit = source.unit
     roster_questions = [
         "akademik kadrosunda kimler var?",
@@ -394,10 +428,12 @@ def _short_unit(unit: str) -> str:
 
 
 def _bullets(heading: str, items: list[str]) -> str:
+    """Başlık ve madde işaretli liste; liste yanıtlarının hepsi aynı biçimde görünür."""
     return "\n".join([heading, *(f"- {item}" for item in items)])
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,

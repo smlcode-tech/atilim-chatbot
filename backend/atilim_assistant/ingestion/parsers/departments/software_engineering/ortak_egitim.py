@@ -52,6 +52,9 @@ _EXTRA_QUESTIONS = {
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Sayfa bir soru-cevap listesidir: tüm sayfa tek özet belge, her soru-cevap çifti ayrı belge
+    ve hazır yanıt, müfredat tablosu ayrı belge. Genel soru ("ortak eğitim nedir?") özeti,
+    özel soru ilgili çifti bulur."""
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
     if not container:
@@ -101,6 +104,8 @@ def parse(html: str, source: Source) -> SourceContent:
 
 
 def _questions(question: str) -> list[str]:
+    """Sayfadaki sorudan soru kalıpları: sorunun kendisi ve `_EXTRA_QUESTIONS`'taki eşleşen
+    ek söyleyişler."""
     # "İletişim Bilgileri:" gibi başlıklar konuyu anmaz; kalıp olarak her iletişim sorusuna
     # uyardı. Konu adı eklenir.
     question = question.rstrip(": ")
@@ -113,7 +118,11 @@ def _questions(question: str) -> list[str]:
 
 
 def _extract_qa(container: Tag) -> list[tuple[str, str]]:
-    """<strong> içeren <p> → soru, hemen ardından gelen <p> → yanıt."""
+    """<strong> içeren <p> → soru, hemen ardından gelen <p> → yanıt.
+
+    Yanıt birden çok paragraf ya da liste olabilir; sonraki soru başlığına ya da tabloya kadar
+    gelen her şey toplanır. Yanıtı boş soru atlanır.
+    """
     pairs: list[tuple[str, str]] = []
     # İçerik genellikle div.col-md-12 içinde; yoksa container'ın kendisi taranır.
     inner = container.find("div", class_="col-md-12") or container
@@ -149,7 +158,8 @@ def _extract_qa(container: Tag) -> list[tuple[str, str]]:
 
 
 def _extract_table(container: Tag) -> str:
-    """Müfredat tablosunu düz metin satırlarına çevirir."""
+    """Müfredat tablosunu düz metin satırlarına çevirir ("hücre | hücre"); model HTML tablosunu
+    değil okunur satırları görür. Boş hücreler atılır."""
     inner = container.find("div", class_="col-md-12") or container
     table = inner.find("table")
     if not table:
@@ -164,6 +174,8 @@ def _extract_table(container: Tag) -> str:
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -177,6 +189,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,

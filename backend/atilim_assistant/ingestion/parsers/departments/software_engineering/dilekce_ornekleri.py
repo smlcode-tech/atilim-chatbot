@@ -86,6 +86,13 @@ Posta (Yazışma) Adresi:""",
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Dilekçe listesi (indirme bağlantılarıyla) ve dilekçe başına belge ile hazır yanıt.
+
+    Bağlantılar her ingest'te canlı sayfadan alınır, eskimez; şablon metinleri ise elle
+    saklanır (bkz. `_TEMPLATES`). Şablonu bilinmeyen dilekçe yine listelenir, kullanıcı
+    Word dosyasına yönlendirilir. Not: sayfada hiç bağlantı bulunamazsa hata verilmez,
+    yalnızca boş bir liste belgesi üretilir.
+    """
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
     if not container:
@@ -147,11 +154,14 @@ def parse(html: str, source: Source) -> SourceContent:
 
 
 def _slugify(title: str) -> str:
+    """Belge kimliği için dilekçe adının kısa biçimi (en fazla 40 karakter). Not:
+    `text.slugify`'dan farklı kurallarla çalışır; kimlikleri değiştirmemek için korunmuştur."""
     tr = str.maketrans("çğıöşüÇĞİÖŞÜ\"", "cgiosucgiOSU_")
     return title.lower().translate(tr).replace(" ", "-")[:40]
 
 
 def _questions(title: str, url: str) -> list[str]:
+    """Dilekçe adından soru kalıpları. (`url` şu an kullanılmıyor.)"""
     base = title.rstrip(".")
     subject = base.removesuffix("Dilekçesi").strip()
     return [
@@ -166,6 +176,8 @@ def _questions(title: str, url: str) -> list[str]:
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -179,6 +191,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,
