@@ -23,7 +23,7 @@ from functools import lru_cache
 
 import httpx
 
-from atilim_assistant.text import normalize
+from atilim_assistant.text import markdown_table, normalize
 
 _SERVER = "https://atilim.edupage.org/timetable/server"
 PUBLIC_URL = "https://atilim.edupage.org/timetable/"
@@ -201,24 +201,23 @@ def instructors_line(sections: list[Section]) -> str:
     )
 
 
-def meetings_line(meetings: tuple[Meeting, ...]) -> str:
-    """Bir şubenin oturumları: "Salı 09:30–12:20 (Müh. 1025H), Perşembe 13:30–14:20"."""
-    if not meetings:
-        return "programda gün/saat yok"
-    return ", ".join(
-        f"{m.day} {m.start}–{m.end}" + (f" ({m.room})" if m.room else "") for m in meetings
-    )
+def schedule_table(sections: list[Section], by_teacher: bool = False) -> str:
+    """Şubelerin haftalık oturumları, oturum başına bir satırlık Markdown tablosu.
 
-
-def schedule_lines(sections: list[Section]) -> list[str]:
-    """Şube başına bir satır: "Şube 01 (Fatma Eroğlu): Salı 09:30–12:20 (Müh. 1025H)".
-
-    "SE221 ne zaman, hangi derslikte?" sorusunun yanıtıdır. Şubeler farklı gün, saat ve hocayla
-    açılabildiği için her şube ayrı yazılır.
+    Ders için ("SE221 ne zaman, hangi derslikte?") sütunlar Şube, Öğretim elemanı, Gün, Saat,
+    Derslik'tir; `by_teacher` ile hocanın programı için ("X hoca salı günü derste mi?") Ders,
+    Şube, Gün, Saat, Derslik. Şubeler farklı gün, saat ve hocayla açılabildiği için her oturum
+    ayrı satırdır; programa yerleştirilmemiş şube "programda yok" diye yine yazılır.
     """
-    return [
-        f"Şube {s.number} ({', '.join(s.teachers)}): {meetings_line(s.meetings)}" for s in sections
-    ]
+    first = ["Ders"] if by_teacher else []
+    headers = [*first, "Şube", *([] if by_teacher else ["Öğretim elemanı"]), "Gün", "Saat", "Derslik"]
+    rows = []
+    for s in sections:
+        lead = [f"{s.code} {s.name}", s.number] if by_teacher else [s.number, ", ".join(s.teachers)]
+        if not s.meetings:
+            rows.append([*lead, "programda yok", "", ""])
+        rows += [[*lead, m.day, f"{m.start}–{m.end}", m.room] for m in s.meetings]
+    return markdown_table(headers, rows)
 
 
 def teaching_line(sections: list[Section]) -> str:

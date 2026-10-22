@@ -159,3 +159,21 @@ def collapse_whitespace(text: str) -> str:
     """HTML'den çıkan metindeki satır sonu ve girinti yığınlarını tek boşluğa indirir;
     gereksiz boşluklar hem indeksi hem modele giden token bütçesini şişirirdi."""
     return _WHITESPACE.sub(" ", text).strip()
+
+
+def markdown_table(headers: list[str], rows: list[list[object]]) -> str:
+    """Satır ve sütunlu veriyi (ders saatleri, ders listeleri, kadro, müfredat) Markdown tablosu
+    olarak yazar; arayüz GFM tablosu olarak gösterir, model de tabloyu olduğu gibi aktarır.
+
+    Hücredeki "|" tabloyu böleceği için kaçırılır, satır sonları tek boşluğa iner; boş hücre
+    "—" olur ki model boşluğu "bilgi yok" ile karıştırmasın.
+    """
+
+    def cell(value: object) -> str:
+        text = collapse_whitespace(str(value)).replace("|", "\\|")
+        return text or "—"
+
+    lines = ["| " + " | ".join(cell(h) for h in headers) + " |"]
+    lines.append("|" + "|".join("---" for _ in headers) + "|")
+    lines += ["| " + " | ".join(cell(v) for v in row) + " |" for row in rows]
+    return "\n".join(lines)

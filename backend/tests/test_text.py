@@ -4,6 +4,7 @@ from atilim_assistant.text import (
     canonicalize,
     correct_course_codes,
     collapse_whitespace,
+    markdown_table,
     normalize,
     slugify,
     stem,
@@ -92,3 +93,9 @@ def test_correct_course_codes_fixes_one_letter_typos(question, corrected):
 def test_correct_course_codes_leaves_ambiguous_codes_alone():
     # "SF221" hem "SE221"e hem "SA221"e tek harf uzak.
     assert correct_course_codes("SF221", _CODES | {"sa221"}) == "SF221"
+
+
+def test_markdown_table_escapes_pipes_and_marks_empty_cells():
+    assert markdown_table(["Kod", "Ders"], [["SE221", "A | B"], ["", "Alan\nSeçmeli"]]) == (
+        "| Kod | Ders |\n|---|---|\n| SE221 | A \\| B |\n| — | Alan Seçmeli |"
+    )

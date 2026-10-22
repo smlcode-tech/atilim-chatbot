@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
-from atilim_assistant.text import collapse_whitespace
+from atilim_assistant.text import collapse_whitespace, markdown_table
 
 # Yarıyıl başlığındaki sıra sayısı ("5. Yarıyıl" → 5).
 _SEMESTER_NUMBER = re.compile(r"(\d+)\.\s*Yarıyıl")
@@ -59,14 +59,12 @@ def parse(html: str, source: Source) -> SourceContent:
     answers: list[PreparedAnswer] = []
 
     # Tüm müfredatı özetleyen tek bir belge
-    all_lines = [f"{source.unit} Lisans Programı Müfredatı"]
+    all_parts = [f"{source.unit} Lisans Programı Müfredatı"]
     for sem in semesters:
-        all_lines.append(f"\n{sem.name}:")
-        for c in sem.courses:
-            all_lines.append(f"  {_label(c)} (AKTS: {c.akts:g})")
+        all_parts.append(f"{sem.name}:\n{_courses_table(sem.courses)}")
         if sem.total_akts:
-            all_lines.append(f"  {_total_line(sem)}")
-    full_roster = "\n".join(all_lines)
+            all_parts.append(_total_line(sem))
+    full_roster = "\n\n".join(all_parts)
     documents.append(doc_for(source, "mufredat-ozet", source.title, full_roster))
 
     # Toplamı model ders listesinden kendisi hesaplamaya kalkışmasın (seçmeli yuvaları atlayıp
@@ -74,12 +72,14 @@ def parse(html: str, source: Source) -> SourceContent:
     # müfredat özeti bağlam bütçesine çoğu zaman sığmaz.
     totals = [sem.total_akts for sem in semesters]
     if all(totals):
-        total_lines = [f"{source.unit} lisans programı AKTS toplamları (müfredat sayfasına göre):"]
-        total_lines += [f"- {sem.name}: {sem.total_akts:g} AKTS" for sem in semesters]
-        total_lines.append(f"Sekiz yarıyılın toplamı: {sum(totals):g} AKTS")
-        documents.append(
-            doc_for(source, "akts-toplamlari", "Müfredat AKTS Toplamları", "\n".join(total_lines))
+        totals_table = markdown_table(
+            ["Yarıyıl", "AKTS"], [[sem.name, f"{sem.total_akts:g}"] for sem in semesters]
         )
+        totals_text = (
+            f"{source.unit} lisans programı AKTS toplamları (müfredat sayfasına göre):\n"
+            f"{totals_table}\n\nSekiz yarıyılın toplamı: {sum(totals):g} AKTS"
+        )
+        documents.append(doc_for(source, "akts-toplamlari", "Müfredat AKTS Toplamları", totals_text))
 
     # Hazır yanıt: genel müfredat sorusu
     answers.append(
@@ -100,14 +100,13 @@ def parse(html: str, source: Source) -> SourceContent:
 
     # Her yarıyıl için ayrı belge ve hazır yanıt
     for sem in semesters:
-        sem_lines = [f"{source.unit} {sem.name}{_year_label(sem.name)} dersleri:"]
-        for c in sem.courses:
-            sem_lines.append(
-                f"- {_label(c)} | Teorik: {c.theory} | Uygulama: {c.practice} | AKTS: {c.akts:g}"
-            )
+        sem_parts = [
+            f"{source.unit} {sem.name}{_year_label(sem.name)} dersleri:\n"
+            + _courses_table(sem.courses, hours=True)
+        ]
         if sem.total_akts:
-            sem_lines.append(_total_line(sem))
-        sem_text = "\n".join(sem_lines)
+            sem_parts.append(_total_line(sem))
+        sem_text = "\n\n".join(sem_parts)
         slug = sem.name.lower().replace(". ", "-").replace(" ", "-")
         documents.append(doc_for(source, slug, f"{sem.name} Dersleri", sem_text))
         answers.append(
@@ -131,14 +130,12 @@ def parse(html: str, source: Source) -> SourceContent:
         if number:
             years.setdefault((number + 1) // 2, []).append(sem)
     for year, year_semesters in sorted(years.items()):
-        year_lines = [f"{source.unit} {year}. sınıf dersleri:"]
+        year_parts = [f"{source.unit} {year}. sınıf dersleri:"]
         for sem in year_semesters:
-            year_lines.append(f"\n{sem.name}{_year_label(sem.name)}:")
-            for c in sem.courses:
-                year_lines.append(f"- {_label(c)} | AKTS: {c.akts:g}")
+            year_parts.append(f"{sem.name}{_year_label(sem.name)}:\n{_courses_table(sem.courses)}")
             if sem.total_akts:
-                year_lines.append(_total_line(sem))
-        year_text = "\n".join(year_lines)
+                year_parts.append(_total_line(sem))
+        year_text = "\n\n".join(year_parts)
         documents.append(doc_for(source, f"{year}-sinif", f"{year}. Sınıf Dersleri", year_text))
         answers.append(
             answer_for(
@@ -237,9 +234,16 @@ def _number(text: str) -> float | None:
         return None
 
 
-def _label(course: _Course) -> str:
-    """"SE212 Ad"; kodsuz seçmeli yuvalarda yalnızca ad."""
-    return f"{course.code} {course.name}".strip()
+def _courses_table(courses: list[_Course], hours: bool = False) -> str:
+    """Yarıyıl derslerinin tablosu; `hours` ile teorik ve uygulama saatleri de yazılır. Kodsuz
+    seçmeli yuvalarda kod hücresi "—" olur. Tablodan sonra gelen metin boş satırla ayrılmalıdır:
+    Markdown'da bitişik satır tabloya katılır."""
+    if hours:
+        return markdown_table(
+            ["Kod", "Ders", "Teorik", "Uygulama", "AKTS"],
+            [[c.code, c.name, c.theory, c.practice, f"{c.akts:g}"] for c in courses],
+        )
+    return markdown_table(["Kod", "Ders", "AKTS"], [[c.code, c.name, f"{c.akts:g}"] for c in courses])
 
 
 def _total_line(sem: _Semester) -> str:
