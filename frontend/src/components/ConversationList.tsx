@@ -28,7 +28,6 @@ export function ConversationList({
                 className="history-open"
                 title={title}
                 onClick={() => onOpen(id)}
-                onTouchEnd={(e) => { e.preventDefault(); onOpen(id) }}
               >
                 <MessageSquare size={15} />
                 <span>{title}</span>
@@ -37,7 +36,6 @@ export function ConversationList({
                 className="history-delete"
                 aria-label={`${title} sohbetini sil`}
                 onClick={() => onDelete(id)}
-                onTouchEnd={(e) => { e.preventDefault(); onDelete(id) }}
               >
                 <Trash2 size={14} />
               </button>
