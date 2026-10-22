@@ -7,6 +7,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     dersler,
 )
 from atilim_assistant.ingestion.parsers.departments.software_engineering.ders_programi import (
+    Meeting,
     Section,
     Timetable,
 )
@@ -41,12 +42,38 @@ def _response() -> dict:
                     "lessons",
                     [
                         # Aynı şube haftada iki kez geçer.
-                        {"id": "l1", "subjectid": "s1", "teacherids": ["t1"]},
-                        {"id": "l2", "subjectid": "s1", "teacherids": ["t1"]},
-                        {"id": "l3", "subjectid": "s2", "teacherids": ["t2", "t3"]},
-                        {"id": "l4", "subjectid": "s3", "teacherids": ["t1"]},
+                        {"id": "l1", "subjectid": "s1", "teacherids": ["t1"], "durationperiods": 3},
+                        {"id": "l2", "subjectid": "s1", "teacherids": ["t1"], "durationperiods": 1},
+                        {"id": "l3", "subjectid": "s2", "teacherids": ["t2", "t3"], "durationperiods": 2},
+                        {"id": "l4", "subjectid": "s3", "teacherids": ["t1"], "durationperiods": 1},
                     ],
                 ),
+                _table(
+                    "cards",
+                    [
+                        # Perşembe oturumu Salı'dan önce gelse de çıktıda güne göre dizilir.
+                        {"id": "c1", "lessonid": "l2", "days": "000100", "period": "2", "classroomids": []},
+                        {"id": "c2", "lessonid": "l1", "days": "010000", "period": "1", "classroomids": ["r1"]},
+                        {"id": "c3", "lessonid": "l3", "days": "100000", "period": "2", "classroomids": ["r2"]},
+                        # Programa yerleştirilmemiş kart.
+                        {"id": "c4", "lessonid": "l3", "days": "", "period": "", "classroomids": []},
+                    ],
+                ),
+                _table(
+                    "periods",
+                    [
+                        {"id": str(n), "period": str(n), "starttime": f"{8 + n}:30", "endtime": f"{9 + n}:20"}
+                        for n in range(1, 4)
+                    ],
+                ),
+                _table(
+                    "days",
+                    [
+                        {"id": str(i), "name": name}
+                        for i, name in enumerate(["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"])
+                    ],
+                ),
+                _table("classrooms", [{"id": "r1", "name": "Müh. 1025H"}, {"id": "r2", "name": " C001"}]),
             ]
         }
     }
@@ -55,9 +82,26 @@ def _response() -> dict:
 def test_parse_links_course_codes_to_teachers_and_skips_placeholders():
     timetable = ders_programi.parse("2026-2027 Güz Dönemi", _response())
     assert timetable.sections == (
-        Section("MATH151", "02", "Calculus I", ("Mehmet Deneme",)),
-        Section("SE221", "01", "Software Requirements Engineering", ("Ayşe Örnek",)),
+        Section(
+            "MATH151", "02", "Calculus I", ("Mehmet Deneme",),
+            (Meeting("Pazartesi", "10:30", "12:20", "C001"),),
+        ),
+        Section(
+            "SE221", "01", "Software Requirements Engineering", ("Ayşe Örnek",),
+            (
+                Meeting("Salı", "9:30", "12:20", "Müh. 1025H"),
+                Meeting("Perşembe", "10:30", "11:20", ""),
+            ),
+        ),
     )
+
+
+def test_schedule_lines_give_each_section_its_days_times_and_rooms():
+    sections = ders_programi.parse("2026-2027 Güz Dönemi", _response()).sections_of_course("SE221")
+    assert ders_programi.schedule_lines(sections) == [
+        "Şube 01 (Ayşe Örnek): Salı 9:30–12:20 (Müh. 1025H), Perşembe 10:30–11:20"
+    ]
+    assert ders_programi.meetings_line(()) == "programda gün/saat yok"
 
 
 @pytest.mark.parametrize(
@@ -86,7 +130,12 @@ def test_instructors_line_groups_sections_by_teacher():
 
 _TIMETABLE = Timetable(
     term="2026-2027 Güz Dönemi",
-    sections=(Section("SE221", "01", "Software Requirements Engineering", ("Ayşe Örnek",)),),
+    sections=(
+        Section(
+            "SE221", "01", "Software Requirements Engineering", ("Ayşe Örnek",),
+            (Meeting("Salı", "09:30", "12:20", "Müh. 1025H"),),
+        ),
+    ),
 )
 
 
@@ -116,6 +165,8 @@ def test_course_documents_name_the_instructor(monkeypatch):
     course = next(a for a in content.prepared_answers if a.answer.startswith("SE221 —"))
     assert "Öğretim elemanı (2026-2027 Güz Dönemi): Ayşe Örnek" in course.answer
     assert "SE221 dersini kim veriyor, hocası kim?" in course.questions
+    assert "Şube 01 (Ayşe Örnek): Salı 09:30–12:20 (Müh. 1025H)" in course.answer
+    assert "SE221 dersi hangi gün, saat kaçta?" in course.questions
 
 
 def test_courses_sharing_a_name_get_patterns_of_their_own(monkeypatch):

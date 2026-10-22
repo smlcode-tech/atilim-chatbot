@@ -3,6 +3,7 @@ import pytest
 from atilim_assistant.chat.tools import _MAX_DOCUMENT_CHARS, Tools
 from atilim_assistant.domain import Citation, Document
 from atilim_assistant.ingestion.parsers.departments.software_engineering.ders_programi import (
+    Meeting,
     Section,
     Timetable,
 )
@@ -54,7 +55,10 @@ def tools(tmp_path, staff_documents) -> Tools:
                 Section("CMPE113", "01", "Computer Programming I", ("Ali Yazıcı",)),
                 Section("MATH151", "01", "Calculus I", ("Fatma Eroğlu",)),
                 Section("MATH151", "02", "Calculus I", ("Serdar Ay",)),
-                Section("MATH276", "01", "Differential Equations", ("Emel Kavgacı",)),
+                Section(
+                    "MATH276", "01", "Differential Equations", ("Emel Kavgacı",),
+                    (Meeting("Salı", "09:30", "12:20", "Müh. 1025H"),),
+                ),
             ),
         ),
         Citation(f"Ders Programı — {TERM}", "https://example.edu/program"),
@@ -67,6 +71,8 @@ def test_catalog_store_keeps_each_record_type_and_its_source(tools):
     result = tools.ders_detayi("MATH276")
     assert "Ön koşul: MATH152" in result.text
     assert "2026-2027 Güz Dönemi hocaları: Emel Kavgacı" in result.text
+    # Oturumlar katalog dosyasına yazılıp geri okunur.
+    assert "Şube 01 (Emel Kavgacı): Salı 09:30–12:20 (Müh. 1025H)" in result.text
     assert [c.title for c in result.citations] == ["Dersler", f"Ders Programı — {TERM}"]
 
 
@@ -99,6 +105,8 @@ def test_teacher_courses_are_found_by_surname_across_the_university(tools):
     assert "Ali Yazıcı: CMPE113 Computer Programming I (Şube 01)" in tools.hocanin_dersleri("Yazıcı").text
     assert "Fatma Eroğlu" in tools.hocanin_dersleri("fatma eroğlu").text
     assert "yok" in tools.hocanin_dersleri("Bilinmeyen Kişi").text
+    assert "MATH276 Şube 01: Salı 09:30–12:20 (Müh. 1025H)" in tools.hocanin_dersleri("Kavgacı").text
+    assert "CMPE113 Şube 01: programda gün/saat yok" in tools.hocanin_dersleri("Yazıcı").text
 
 
 def test_department_roster_lists_each_members_courses_this_term(tools):

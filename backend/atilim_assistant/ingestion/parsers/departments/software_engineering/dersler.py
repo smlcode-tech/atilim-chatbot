@@ -162,6 +162,8 @@ def parse(html: str, source: Source) -> SourceContent:
             if sections:
                 instructors = ders_programi.instructors_line(sections)
                 lines.append(f"Öğretim elemanı ({timetable.term}): {instructors}")
+                lines.append(f"Ders saatleri ({timetable.term}):")
+                lines += ders_programi.schedule_lines(sections)
             elif timetable:
                 # "Kim veriyor?" sorusu bu yanıta düşebilir; hocanın neden yazmadığı söylenir.
                 lines.append(
@@ -198,6 +200,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 questions += [
                     f"{c.code} dersini kim veriyor, hocası kim?",
                     f"{name} dersine hangi hoca giriyor?",
+                    f"{c.code} dersi hangi gün, saat kaçta?",
+                    f"{c.code} dersi hangi derslikte, hangi sınıfta?",
                 ]
             if c.precondition:
                 questions += [

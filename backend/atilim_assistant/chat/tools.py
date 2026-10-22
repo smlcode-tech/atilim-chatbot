@@ -17,8 +17,10 @@ from atilim_assistant.domain import Citation, Document
 from atilim_assistant.ingestion.parsers.departments.software_engineering.ders_programi import (
     Section,
     instructors_line,
+    meetings_line,
     name_tokens,
     same_person,
+    schedule_lines,
     teaching_line,
 )
 from atilim_assistant.retrieval.catalog import SECTIONS, Catalog
@@ -107,12 +109,14 @@ DEFINITIONS = [
     ),
     _function(
         "ders_detayi",
-        "Bir dersin kredi, AKTS, saat, ön koşul, içerik ve bu dönemki hocalarını getirir.",
+        "Bir dersin kredi, AKTS, haftalık saat, ön koşul, içerik ve bu dönemki şubelerini "
+        "getirir: her şubenin hocası, günü, saati ve dersliği.",
         kod="Ders kodu, ör. SE212",
     ),
     _function(
         "hocanin_dersleri",
-        "Bir öğretim elemanının bu dönem ders programında verdiği dersler (tüm üniversite).",
+        "Bir öğretim elemanının bu dönem ders programında verdiği dersler, gün, saat ve "
+        "derslikleriyle (tüm üniversite).",
         ad="Hocanın adı ya da soyadı",
     ),
     _function(
@@ -262,6 +266,8 @@ class Tools:
         else:
             lines.append("Yazılım Mühendisliği lisans programının ders listesinde yok.")
         lines.append(self._instructors(course))
+        if course.sections:
+            lines += [f"{self.term} ders saatleri:", *schedule_lines(course.sections)]
         return ToolResult("\n".join(lines), self._citations("courses", SECTIONS))
 
     def hocanin_dersleri(self, ad: str) -> ToolResult:
@@ -277,10 +283,12 @@ class Tools:
         )
         if not teachers:
             return ToolResult(f"{self.term} ders programında '{ad}' adlı öğretim elemanı yok.")
-        lines = [
-            f"{teacher}: {teaching_line(self._catalog.timetable.sections_of_teacher(teacher))}"
-            for teacher in teachers
-        ]
+        lines = []
+        for teacher in teachers:
+            sections = self._catalog.timetable.sections_of_teacher(teacher)
+            lines.append(f"{teacher}: {teaching_line(sections)}")
+            # "X hoca salı günü derste mi?" gibi sorular için her şubenin günü ve saati.
+            lines += [f"  {s.code} Şube {s.number}: {meetings_line(s.meetings)}" for s in sections]
         return ToolResult(f"{self.term} ders programı:\n" + "\n".join(lines), self._citations(SECTIONS))
 
     def bolum_kadrosu(self) -> ToolResult:
