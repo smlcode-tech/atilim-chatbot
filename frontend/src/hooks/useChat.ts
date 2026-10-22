@@ -23,6 +23,10 @@ type UseChatOptions = {
 const HISTORY_TURNS = 12
 const HISTORY_TURN_LENGTH = 4000
 
+/**
+ * Misafirin sunucuya göndereceği geçmiş: hata ve yalnızca arayüzde gösterilen mesajlar
+ * çıkarılır, son turlar alınır ve uzun yanıtlar kırpılır.
+ */
 function historyOf(messages: Message[]): HistoryTurn[] {
   return messages
     .filter((message) => !message.isError && !message.isLocal)
@@ -30,6 +34,13 @@ function historyOf(messages: Message[]): HistoryTurn[] {
     .map(({ role, content }) => ({ role, content: content.slice(0, HISTORY_TURN_LENGTH) }))
 }
 
+/**
+ * Ekrandaki konuşmanın durumu: mesajlar, açık konuşmanın kimliği, yükleniyor bilgisi ve
+ * bağlantı durumu. Soru gönderme, kayıtlı konuşmayı açma ve yeni sohbete geçme buradadır.
+ *
+ * Kullanıcı soru beklerken başka bir konuşmaya geçebilir; geç dönen yanıt yanlış konuşmaya
+ * yazılmasın diye her istek bir "bilet" (`view`) alır ve dönüşte karşılaştırılır.
+ */
 export function useChat({
   onConversationChanged,
   sendsHistory,
@@ -47,6 +58,7 @@ export function useChat({
   // kullanıcı başka bir konuşmaya geçmiştir; sonuç oraya yazılmaz.
   const view = useRef(0)
 
+  // İlk bağlantı durumu; sonrasında her istek durumu kendisi günceller.
   useEffect(() => {
     let isMounted = true
     void checkHealth().then(({ online }) => {
@@ -57,6 +69,7 @@ export function useChat({
     }
   }, [])
 
+  /** Mesajı listenin sonuna ekler; kimlik ve zaman burada verilir. */
   const append = useCallback((message: Omit<Message, 'id' | 'createdAt'>) => {
     setMessages((current) => [
       ...current,
@@ -64,6 +77,11 @@ export function useChat({
     ])
   }, [])
 
+  /**
+   * Soruyu gönderir. Soru hemen ekrana yazılır, yanıt gelince eklenir. Hata da bir mesaj olarak
+   * konuşmaya düşer: kullanıcı ne olduğunu sorusunun hemen altında görür. Her durumda kalan
+   * hak güncellenir.
+   */
   const sendMessage = useCallback(
     async (text: string) => {
       const question = text.trim()
@@ -119,6 +137,7 @@ export function useChat({
     })
   }, [append])
 
+  /** Boş bir sohbete geçer; bekleyen yanıt varsa bilet artar ve o yanıt yok sayılır. */
   const startNew = useCallback(() => {
     view.current += 1
     setMessages([])
@@ -126,6 +145,7 @@ export function useChat({
     setIsLoading(false)
   }, [])
 
+  /** Kayıtlı bir konuşmayı açar; yüklenemezse hata mesajıyla boş bir konuşma gösterir. */
   const open = useCallback(async (id: string) => {
     const ticket = ++view.current
     setIsLoading(true)
