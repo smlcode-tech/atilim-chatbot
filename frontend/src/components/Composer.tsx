@@ -57,7 +57,7 @@ export function Composer({ disabled, onSend, focusRequest = 0 }: ComposerProps) 
         <div className="composer-footer">
           <span className="composer-hint">
             <span className="hint-key">↵</span> gönder
-            <span className="hint-divider">·</span>
+            <span className="hint-divider" aria-hidden="true">·</span>
             <span className="hint-key">⇧ ↵</span> yeni satır
           </span>
           <button

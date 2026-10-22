@@ -22,7 +22,7 @@ export function Topbar({ status, theme, onToggleTheme, children }: TopbarProps) 
       {children}
       <div className="breadcrumbs">
         <span>{assistant.university.name}</span>
-        <span className="breadcrumb-divider">/</span>
+        <span className="breadcrumb-divider" aria-hidden="true">/</span>
         <strong>{assistant.name}</strong>
       </div>
       <div className="topbar-end">
