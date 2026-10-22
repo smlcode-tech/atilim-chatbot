@@ -52,9 +52,9 @@ def test_section_heading_marks_employment_type(staff_documents):
 def test_roster_lists_every_member(staff_documents):
     assert staff_documents[0].text == (
         "Test Bölümü akademik kadrosu (3 kişi):\n"
-        "- Prof. Dr. Ayşe ÖRNEK – Bölüm Başkanı\n"
-        "- Arş. Gör. Işıl ÇALIŞKAN\n"
-        "- Öğr. Gör. Mehmet DENEME – Yarı Zamanlı Öğretim Elemanları"
+        "- **Prof. Dr. Ayşe ÖRNEK** — Bölüm Başkanı\n"
+        "- **Arş. Gör. Işıl ÇALIŞKAN**\n"
+        "- **Öğr. Gör. Mehmet DENEME** — Yarı Zamanlı Öğretim Elemanları"
     )
 
 
@@ -107,9 +107,9 @@ def test_answers_mark_fields_missing_from_the_page(staff_answers):
 def test_unit_answers_cover_roster_officers_and_employment_groups(staff_answers):
     assert _answer_to(staff_answers, "Test Bölümü akademik kadrosunda kimler var?").answer == (
         "Test Bölümü akademik kadrosu (3 kişi):\n"
-        "- Prof. Dr. Ayşe ÖRNEK – Bölüm Başkanı\n"
-        "- Arş. Gör. Işıl ÇALIŞKAN\n"
-        "- Öğr. Gör. Mehmet DENEME – Yarı Zamanlı Öğretim Elemanları"
+        "- **Prof. Dr. Ayşe ÖRNEK** — Bölüm Başkanı\n"
+        "- **Arş. Gör. Işıl ÇALIŞKAN**\n"
+        "- **Öğr. Gör. Mehmet DENEME** — Yarı Zamanlı Öğretim Elemanları"
     )
     assert _answer_to(staff_answers, "Test Bölümü Bölüm Başkanı kim?").answer == (
         "Test Bölümü görevlileri:\n- Prof. Dr. Ayşe ÖRNEK (Bölüm Başkanı)"
@@ -129,9 +129,9 @@ def test_unit_contact_answer_lists_every_member(staff_answers):
 
 _CONTACTS = (
     "Test Bölümü akademik kadrosu iletişim bilgileri:\n"
-    "- Prof. Dr. Ayşe ÖRNEK – telefon: +90 (312) 586 8376\n"
-    "- Arş. Gör. Işıl ÇALIŞKAN – telefon: +90 (312) 586 80 00\n"
-    "- Öğr. Gör. Mehmet DENEME – telefon: +90 (312) 586 80 00\n"
+    "- **Prof. Dr. Ayşe ÖRNEK** — telefon: +90 (312) 586 8376\n"
+    "- **Arş. Gör. Işıl ÇALIŞKAN** — telefon: +90 (312) 586 80 00\n"
+    "- **Öğr. Gör. Mehmet DENEME** — telefon: +90 (312) 586 80 00\n"
     "E-postası yazılmayanlar için kaynak sayfaya bakabilirsin."
 )
 
@@ -151,7 +151,7 @@ def test_email_images_are_resolved_through_the_digest_map(known_email):
     documents = {document.id: document.text for document in known_email.documents}
     assert "E-posta: ayse.ornek@example.edu" in documents["test-akademik-personel:prof-dr-ayse-ornek"]
     assert (
-        "- Prof. Dr. Ayşe ÖRNEK – telefon: +90 (312) 586 8376, e-posta: ayse.ornek@example.edu"
+        "- **Prof. Dr. Ayşe ÖRNEK** — telefon: +90 (312) 586 8376, e-posta: ayse.ornek@example.edu"
         in documents["test-akademik-personel:kadro-iletisim"]
     )
     contact = _answer_to(known_email.prepared_answers, "Prof. Dr. Ayşe ÖRNEK e-posta, mail adresi nedir?")

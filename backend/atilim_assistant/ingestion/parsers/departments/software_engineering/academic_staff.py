@@ -175,14 +175,15 @@ def _roster_text(members: list[_StaffMember], source: Source) -> str:
     for member in members:
         # Önce görev unvanı (Bölüm Başkanı vb.), yoksa kadro türü (Yarı Zamanlı vb.) göster
         label = member.role or member.employment
-        entries.append(f"{member.name} – {label}" if label else member.name)
+        # Modelin yanıtlarıyla aynı biçim (prompts.py): "**Ad** — ayrıntılar".
+        entries.append(f"**{member.name}** — {label}" if label else f"**{member.name}**")
     return _bullets(f"{source.unit} akademik kadrosu ({len(members)} kişi):", entries)
 
 
 def _contacts_text(members: list[_StaffMember], source: Source) -> str:
     # Kişi kartları tek tek getirildiğinde bağlama ancak birkaçı sığar; toplu iletişim sorusu
     # kadronun tamamını tek belgede görmelidir.
-    entries = [f"{member.name} – {_contact(member)}" for member in members]
+    entries = [f"**{member.name}** — {_contact(member)}" for member in members]
     text = _bullets(f"{source.unit} akademik kadrosu iletişim bilgileri:", entries)
     if any(not member.email for member in members):
         text += "\nE-postası yazılmayanlar için kaynak sayfaya bakabilirsin."
@@ -302,11 +303,21 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
         "hocalara nasıl ulaşırım?",
         "hocalarla nasıl iletişime geçebilirim?",
     ]
+    # Arayüzün karşılama kartındaki soru ("Yazılım Mühendisliği bölümündeki akademik personeli
+    # tanıtır mısın?") birebir kalıp olmalı: yoksa kart her seferinde modele gider ve yanıtın
+    # biçimi (liste, tablo) sorudan soruya değişir.
+    department = _short_unit(unit)
+    roster_patterns = [
+        f"{department} bölümündeki akademik personeli tanıtır mısın?",
+        f"{department} bölümündeki hocalar kimler?",
+    ]
     answers = [
         _answer(
             source,
             # Birim adı anılmadan sorulan genel sorular da ("Hocalar kimler?") kadroyu getirir.
-            [f"{unit} {question}" for question in roster_questions] + roster_questions,
+            [f"{unit} {question}" for question in roster_questions]
+            + roster_patterns
+            + roster_questions,
             _roster_text(members, source),
         ),
         _answer(
@@ -374,6 +385,12 @@ def _topic_answers(members: list[_StaffMember], source: Source) -> list[Prepared
             )
         )
     return answers
+
+
+def _short_unit(unit: str) -> str:
+    """Birimin söyleyişteki adı: "Atılım Üniversitesi Yazılım Mühendisliği Bölümü" → "Yazılım
+    Mühendisliği"."""
+    return unit.removeprefix("Atılım Üniversitesi ").removesuffix(" Bölümü")
 
 
 def _bullets(heading: str, items: list[str]) -> str:

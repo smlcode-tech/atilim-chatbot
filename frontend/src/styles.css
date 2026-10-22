@@ -6,6 +6,10 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* iOS Safari geniş (yana kayan) bloklardaki metni kendi kararıyla büyütür; aynı tablonun
+     satırları farklı boyutta görünürdü. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 
   font-weight: 400;
   font-style: normal;
@@ -1234,6 +1238,19 @@ textarea:focus-visible {
   padding: 6px 9px;
   border: 1px solid #e8e8f0;
   text-align: left;
+}
+
+/* Model bazı hücreleri kalın ya da kod biçiminde (`CMPE113`) yazıp bazılarını yazmayabilir;
+   tablonun her hücresi aynı boyut ve kalınlıkta görünür, kalınlık yalnızca başlıkta. */
+.markdown-content td strong {
+  font-weight: inherit;
+}
+
+.markdown-content td code {
+  padding: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
 }
 
 .markdown-content th {

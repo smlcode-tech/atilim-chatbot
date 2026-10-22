@@ -65,6 +65,13 @@ def test_does_not_answer_questions_the_prepared_answers_do_not_cover(matcher, qu
     assert matcher.match(question) is None
 
 
+def test_welcome_card_roster_question_is_an_exact_pattern(matcher):
+    # Karşılama kartının sorusu modele gitmemeli: yanıtın biçimi her seferinde aynı olsun.
+    exact = matcher.exact("Test bölümündeki akademik personeli tanıtır mısın?")
+    assert exact is not None
+    assert exact.answer.startswith("Test Bölümü akademik kadrosu (3 kişi):")
+
+
 def test_matcher_without_answers_matches_nothing():
     assert PreparedAnswerMatcher([]).match("Bölüm başkanı kim?") is None
 
