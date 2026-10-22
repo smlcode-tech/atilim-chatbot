@@ -31,7 +31,6 @@ class _Course:
     theory: int
     practice: int
     akts: float
-    content: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,7 +207,6 @@ def _extract_semesters(container) -> list[_Semester]:
                                 theory=int(_number(texts[2]) or 0),
                                 practice=int(_number(texts[3]) or 0),
                                 akts=_number(texts[4]) or 0.0,
-                                content="",
                             )
                         )
                     continue
@@ -223,7 +221,6 @@ def _extract_semesters(container) -> list[_Semester]:
                         theory=int(data.get("theory", 0)),
                         practice=int(data.get("practice", 0)),
                         akts=float(data.get("akts", 0)),
-                        content=collapse_whitespace(data.get("content", "")),
                     )
                 )
         if courses:

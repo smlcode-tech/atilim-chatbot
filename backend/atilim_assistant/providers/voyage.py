@@ -13,7 +13,8 @@ import voyageai
 
 logger = logging.getLogger(__name__)
 
-# Voyage API tek istekte en fazla 128 metin kabul eder.
+# Tek istekte gönderilen metin sayısı. Voyage'ın liste sınırı 1000'dir; modelin istek başına
+# toplam token sınırı da olduğundan partiler bunun çok altında tutulur.
 _EMBED_BATCH_SIZE = 128
 # İstekler arası minimum bekleme (saniye); kota aşımına karşı koruma.
 _INTER_BATCH_DELAY = 0.2
