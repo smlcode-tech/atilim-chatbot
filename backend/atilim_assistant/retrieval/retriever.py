@@ -39,7 +39,7 @@ class HybridRetriever:
     """`belge_ara` aracının ve "bilmiyorum" yerine sunulan önerilerin arama motoru.
 
     `top_k`: her yöntemden alınan ve sonunda döndürülen belge sayısı (`retrieval_top_k`).
-    `max_chars`: döndürülen belgelerin toplam karakter bütçesi (`retrieval_max_chars`).
+    Belgelerin modele ne kadarının sığacağına arayan karar verir (bkz. `belge_ara`).
     `questions`: soru kalıbı koleksiyonu (`<collection>_questions`); hem aramaya üçüncü
     sıralama olarak katılır hem `similar_questions`'ın kaynağıdır.
     """
@@ -49,13 +49,11 @@ class HybridRetriever:
         store: DocumentStore,
         embedder: Embedder,
         top_k: int,
-        max_chars: int,
         questions: DocumentStore | None = None,
     ) -> None:
         self._store = store
         self._embedder = embedder
         self._top_k = top_k
-        self._max_chars = max_chars
         # Anahtar kelime indeksi açılışta bir kez kurulur; yeni indekslenen
         # belgelerin görünmesi için süreç yeniden başlatılmalıdır.
         self._lexical = LexicalIndex(store.all())
@@ -119,7 +117,7 @@ class HybridRetriever:
         return suggestions
 
     def retrieve(self, query: str) -> list[Document]:
-        """Sorguya en ilgili belgeler, karakter bütçesine sığacak kadarı.
+        """Sorguya en ilgili `top_k` belge, en ilgiliden başlayarak.
 
         Sorgu bir kez embedding'lenir ve hem sayfa hem kalıp aramasında kullanılır; Voyage
         çağrısı hem gecikme hem kota demektir. Soru kalıbı eşleşmesinde dönen belge kalıbın
@@ -144,20 +142,7 @@ class HybridRetriever:
                 scores[document.text] = scores.get(document.text, 0.0) + 1 / (_RRF_K + rank + 1)
 
         best = sorted(scores, key=scores.get, reverse=True)[: self._top_k]
-        return self._fit([documents[text] for text in best])
-
-    def _fit(self, ranked: list[Document]) -> list[Document]:
-        """Bağlamı karakter bütçesinde tutar: sığmayan belge atlanır, sıradakiler denenir.
-
-        Sağlayıcının istek başına token sınırı aşılırsa soru hiç yanıtlanamaz; birkaç belgeyi
-        bırakmak her zaman daha iyidir.
-        """
-        fitted, used = [], 0
-        for document in ranked:
-            if used + len(document.text) <= self._max_chars:
-                fitted.append(document)
-                used += len(document.text)
-        return fitted
+        return [documents[text] for text in best]
 
 
 def _shape(question: str) -> str:

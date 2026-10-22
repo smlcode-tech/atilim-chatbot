@@ -12,6 +12,7 @@ from pathlib import Path
 
 from atilim_assistant.domain import Citation
 from atilim_assistant.ingestion.parsers.departments.software_engineering.ders_programi import (
+    Meeting,
     Section,
     Timetable,
 )
@@ -82,7 +83,15 @@ class CatalogStore:
         timetable = Timetable(
             term=sections.get("term", ""),
             sections=tuple(
-                Section(row["code"], row["number"], row["name"], tuple(row["teachers"]))
+                Section(
+                    row["code"],
+                    row["number"],
+                    row["name"],
+                    tuple(row["teachers"]),
+                    # Gün/saat eklenmeden önce yazılmış katalogda alan yoktur; yeniden ingest
+                    # edilene kadar şubeler oturumsuz okunur.
+                    tuple(Meeting(**meeting) for meeting in row.get("meetings", [])),
+                )
                 for row in sections.get("rows", [])
             ),
         )

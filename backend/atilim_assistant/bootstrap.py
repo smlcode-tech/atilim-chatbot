@@ -99,7 +99,6 @@ def build_chat_service(settings: Settings) -> ChatService:
         store,
         embedder,
         settings.retrieval_top_k,
-        settings.retrieval_max_chars,
         build_question_store(settings),
     )
     catalog = build_catalog_store(settings).load()

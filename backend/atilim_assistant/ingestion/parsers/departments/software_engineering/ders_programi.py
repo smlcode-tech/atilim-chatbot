@@ -1,4 +1,5 @@
-"""Üniversitenin EduPage ders programından hangi dersi hangi hocanın verdiğini çıkarır.
+"""Üniversitenin EduPage ders programından hangi dersi hangi hocanın, hangi gün, saat ve
+derslikte verdiğini çıkarır.
 
 Bölüm sayfalarındaki ders kartlarında hoca alanı (`academician_id`) hep boştur, personel
 kartlarında da verilen dersler yazmaz. Bu eşleşmenin tek kaynağı ders programıdır:
@@ -6,6 +7,9 @@ https://atilim.edupage.org/timetable/ sayfası veriyi JavaScript ile şu uç nok
   - getTTViewerData: dönemlerin listesi ve öntanımlı (güncel) dönem
   - regularttGetData: dönemin tabloları; `lessons` satırı `subjectid` ile dersi, `teacherids`
     ile hocaları bağlar. Ders adı "SE221-SEC-01-Software Requirements Engineering" biçimindedir.
+    `cards` satırı bir `lesson`'ın haftadaki bir oturumudur: `days` gün bit dizisi ("010000" =
+    Salı), `period` başladığı ders saati (`periods` tablosu), `classroomids` derslik. Oturum
+    `lesson.durationperiods` ders saati sürer.
 
 Program yalnızca güncel dönemi gösterir; o dönem açılmayan dersin hocası bilinmez. Program
 alınamazsa ingest durmaz, dersler ve personel hoca bilgisi olmadan indekslenir.
@@ -13,7 +17,7 @@ alınamazsa ingest durmaz, dersler ve personel hoca bilgisi olmadan indekslenir.
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from functools import lru_cache
 
@@ -40,13 +44,26 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
+class Meeting:
+    """Bir şubenin haftadaki bir oturumu: "Salı", "09:30", "12:20", "Müh. 1025H".
+    Derslik atanmamışsa `room` boştur."""
+
+    day: str
+    start: str
+    end: str
+    room: str
+
+
+@dataclass(frozen=True, slots=True)
 class Section:
-    """Bir dersin bir şubesi ve onu veren hocalar (ders programındaki yazımla)."""
+    """Bir dersin bir şubesi, onu veren hocalar (ders programındaki yazımla) ve haftalık
+    oturumları (gün ve saat sırasıyla). Programa yerleştirilmemiş şubenin oturumu yoktur."""
 
     code: str
     number: str
     name: str
     teachers: tuple[str, ...]
+    meetings: tuple[Meeting, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +117,7 @@ def parse(term: str, data: dict) -> Timetable:
         for table in data["dbiAccessorRes"]["tables"]
     }
     subjects, teachers = tables["subjects"], tables["teachers"]
+    meetings = _meetings(tables)
 
     # Aynı şube haftada birkaç kez (birkaç `lesson` satırıyla) geçer; bir kez sayılır.
     sections: dict[tuple[str, str], Section] = {}
@@ -116,8 +134,47 @@ def parse(term: str, data: dict) -> Timetable:
         key = (f"{subject}{number}", section)
         previous = sections.get(key)
         merged = tuple(dict.fromkeys((previous.teachers if previous else ()) + names))
-        sections[key] = Section(key[0], section, name.strip(), merged)
-    return Timetable(term=term, sections=tuple(sorted(sections.values(), key=_order)))
+        sessions = (previous.meetings if previous else ()) + meetings.get(lesson["id"], ())
+        sections[key] = Section(key[0], section, name.strip(), merged, sessions)
+    # Bir şubenin oturumları birkaç `lesson` satırından gelir; tekrarlar atılıp güne göre dizilir.
+    day_order = {row["name"]: int(row["id"]) for row in tables["days"].values()}
+    return Timetable(
+        term=term,
+        sections=tuple(
+            replace(
+                section,
+                meetings=tuple(
+                    sorted(dict.fromkeys(section.meetings), key=lambda m: (day_order[m.day], m.start))
+                ),
+            )
+            for section in sorted(sections.values(), key=_order)
+        ),
+    )
+
+
+def _meetings(tables: dict[str, dict]) -> dict[str, tuple[Meeting, ...]]:
+    """`lesson` kimliği → haftalık oturumları. Programa yerleştirilmemiş kartlar (günü ya da
+    saati boş) atlanır: olmayan bir saat yazılmamalıdır."""
+    days = [row["name"] for row in sorted(tables["days"].values(), key=lambda row: int(row["id"]))]
+    periods = {row["period"]: row for row in tables["periods"].values()}
+    numbers = sorted(periods, key=int)
+    lessons, rooms = tables["lessons"], tables["classrooms"]
+
+    found: dict[str, tuple[Meeting, ...]] = {}
+    for card in tables["cards"].values():
+        lesson = lessons.get(card["lessonid"])
+        if not lesson or card["period"] not in periods:
+            continue
+        # Oturum başladığı saatten `durationperiods` ders saati sürer; bitiş son saatin bitişidir.
+        first = numbers.index(card["period"])
+        last = numbers[min(first + int(lesson.get("durationperiods") or 1), len(numbers)) - 1]
+        room = ", ".join(rooms[r]["name"].strip() for r in card["classroomids"] if r in rooms)
+        found[lesson["id"]] = found.get(lesson["id"], ()) + tuple(
+            Meeting(days[index], periods[card["period"]]["starttime"], periods[last]["endtime"], room)
+            for index, flag in enumerate(card["days"])
+            if flag == "1" and index < len(days)
+        )
+    return found
 
 
 def same_person(teacher: str, staff_name: str) -> bool:
@@ -141,6 +198,41 @@ def instructors_line(sections: list[Section]) -> str:
         return next(iter(by_teacher))
     return "; ".join(
         f"{teacher} (Şube {', '.join(numbers)})" for teacher, numbers in by_teacher.items()
+    )
+
+
+def meetings_line(meetings: tuple[Meeting, ...]) -> str:
+    """Bir şubenin oturumları: "Salı 09:30–12:20 (Müh. 1025H), Perşembe 13:30–14:20"."""
+    if not meetings:
+        return "programda gün/saat yok"
+    return ", ".join(
+        f"{m.day} {m.start}–{m.end}" + (f" ({m.room})" if m.room else "") for m in meetings
+    )
+
+
+def schedule_lines(sections: list[Section]) -> list[str]:
+    """Şube başına bir satır: "Şube 01 (Fatma Eroğlu): Salı 09:30–12:20 (Müh. 1025H)".
+
+    "SE221 ne zaman, hangi derslikte?" sorusunun yanıtıdır. Şubeler farklı gün, saat ve hocayla
+    açılabildiği için her şube ayrı yazılır.
+    """
+    return [
+        f"Şube {s.number} ({', '.join(s.teachers)}): {meetings_line(s.meetings)}" for s in sections
+    ]
+
+
+def teaching_line(sections: list[Section]) -> str:
+    """Bir hocanın verdiği dersler, ders başına şubeleriyle:
+    "CMPE113 Computer Programming I (Şube 01, 02); FE302 … (Şube 06)".
+
+    `instructors_line`'ın tersi (ders → hocalar yerine hoca → dersler). Hem ingest (personel
+    belgeleri) hem sohbet araçları kullanır; ikisinin aynı biçimi vermesi için tek yerdedir.
+    """
+    by_course: dict[tuple[str, str], list[str]] = {}
+    for section in sections:
+        by_course.setdefault((section.code, section.name), []).append(section.number)
+    return "; ".join(
+        f"{code} {name} (Şube {', '.join(numbers)})" for (code, name), numbers in by_course.items()
     )
 
 

@@ -7,7 +7,8 @@ Sayfa yapısı:
 
 from bs4 import BeautifulSoup
 
-from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.domain import PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.text import collapse_whitespace
 
 
@@ -24,8 +25,8 @@ def parse(html: str, source: Source) -> SourceContent:
         raise ValueError(f"{source.url} sayfasında bölüm tanıtım metni bulunamadı.")
 
     documents = [
-        _doc(source, "tanitim", "Yazılım Mühendisliği Bölümü — Tanıtım", intro),
-        _doc(source, "misyon-vizyon", "Yazılım Mühendisliği Bölümü — Misyon ve Vizyon",
+        doc_for(source, "tanitim", "Yazılım Mühendisliği Bölümü — Tanıtım", intro),
+        doc_for(source, "misyon-vizyon", "Yazılım Mühendisliği Bölümü — Misyon ve Vizyon",
              f"Misyon: {mission}\n\nVizyon: {vision}"),
     ]
 
@@ -73,36 +74,6 @@ def _section_text(soup: BeautifulSoup, heading: str) -> str:
     return ""
 
 
-# ---------------------------------------------------------------------------
-# Belge ve hazır yanıt fabrikaları
-# ---------------------------------------------------------------------------
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )
-
-
 def _prepared_answers(
     source: Source, intro: str, mission: str, vision: str
 ) -> list[PreparedAnswer]:
@@ -115,7 +86,7 @@ def _prepared_answers(
     """
     unit = source.unit
     answers = [
-        _answer(
+        answer_for(
             source,
             [
                 f"{unit} hakkında bilgi verir misin?",
@@ -129,7 +100,7 @@ def _prepared_answers(
             ],
             intro,
         ),
-        _answer(
+        answer_for(
             source,
             [
                 f"{unit} misyonu nedir?",
@@ -139,7 +110,7 @@ def _prepared_answers(
             ],
             f"**{unit} Misyonu:** {mission}",
         ),
-        _answer(
+        answer_for(
             source,
             [
                 f"{unit} vizyonu nedir?",
@@ -190,5 +161,5 @@ def _prepared_answers(
     for questions, phrases in topics:
         text = _sentences(intro, *phrases)
         if text:
-            answers.append(_answer(source, questions, text))
+            answers.append(answer_for(source, questions, text))
     return answers

@@ -8,6 +8,7 @@ Sayfa yapısı (div.detail-container > div.col-md-12):
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.text import collapse_whitespace, normalize
 
 # Sayfadaki her soru tek bir söylenişle yazılmış; kullanıcılar aynı şeyi başka sözcüklerle sorar.
@@ -86,10 +87,10 @@ def parse(html: str, source: Source) -> SourceContent:
     # Her soru-cevap çifti kendi belgesi olur; hazır yanıt da üretilir.
     for i, (question, answer_text) in enumerate(qa_pairs):
         doc_text = f"S: {question}\nC: {answer_text}"
-        documents.append(_doc(source, f"sss-{i + 1}", question[:80], doc_text))
+        documents.append(doc_for(source, f"sss-{i + 1}", question[:80], doc_text))
         key = normalize(question)
         extras = [q for part, qs in _EXTRA_QUESTIONS.items() if part in key for q in qs]
-        answers.append(_answer(source, [question, *extras], answer_text))
+        answers.append(answer_for(source, [question, *extras], answer_text))
 
     # Erasmus tablosu
     if erasmus:
@@ -97,9 +98,9 @@ def parse(html: str, source: Source) -> SourceContent:
         for uni, country in erasmus:
             lines.append(f"- {uni} ({country})")
         erasmus_text = "\n".join(lines)
-        documents.append(_doc(source, "erasmus", "Erasmus Ortağı Üniversiteler", erasmus_text))
+        documents.append(doc_for(source, "erasmus", "Erasmus Ortağı Üniversiteler", erasmus_text))
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{source.unit} Erasmus ortağı üniversiteler hangileri?",
@@ -176,29 +177,3 @@ def _extract_erasmus(col: Tag) -> list[tuple[str, str]]:
         if rows:
             break
     return rows
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )

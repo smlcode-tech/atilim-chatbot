@@ -8,6 +8,7 @@ Sayfa yapısı (div.detail-container):
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.text import collapse_whitespace, normalize
 
 # Sayfadaki sorular tek bir söylenişle yazılmış; kullanıcılar aynı şeyi başka sözcüklerle sorar.
@@ -73,9 +74,9 @@ def parse(html: str, source: Source) -> SourceContent:
     if table_text:
         all_parts.append(table_text)
     summary = "\n\n".join(all_parts)
-    documents.append(_doc(source, "ozet", source.title, summary))
+    documents.append(doc_for(source, "ozet", source.title, summary))
     answers.append(
-        _answer(
+        answer_for(
             source,
             [
                 "Ortak eğitim nedir?",
@@ -93,12 +94,12 @@ def parse(html: str, source: Source) -> SourceContent:
     # Her S&C çifti için ayrı belge ve hazır yanıt
     for i, (q, a) in enumerate(qa_pairs):
         doc_text = f"{q}\n\n{a}"
-        documents.append(_doc(source, f"soru-{i + 1}", q, doc_text))
-        answers.append(_answer(source, _questions(q), doc_text))
+        documents.append(doc_for(source, f"soru-{i + 1}", q, doc_text))
+        answers.append(answer_for(source, _questions(q), doc_text))
 
     # Tablo ayrı belge
     if table_text:
-        documents.append(_doc(source, "tablo", "Ortak Eğitim Müfredat Tablosu", table_text))
+        documents.append(doc_for(source, "tablo", "Ortak Eğitim Müfredat Tablosu", table_text))
 
     return SourceContent(documents=documents, prepared_answers=answers)
 
@@ -171,29 +172,3 @@ def _extract_table(container: Tag) -> str:
         if cells:
             lines.append(" | ".join(cells))
     return "\n".join(lines)
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )

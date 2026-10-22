@@ -9,6 +9,7 @@ Sayfa yapısı (div.detail-container > div.col-md-12):
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.text import collapse_whitespace
 
 # Görsel olarak sunulan prosedür adımları sayfa metninden türetilmiştir.
@@ -150,13 +151,13 @@ def parse(html: str, source: Source) -> SourceContent:
     for heading, items in sections:
         slug, title, questions = _SECTIONS_META[heading]
         section_text = f"{title}\n\n" + "\n".join(f"- {item}" for item in items)
-        documents.append(_doc(source, slug, title, section_text))
-        answers.append(_answer(source, questions, section_text))
+        documents.append(doc_for(source, slug, title, section_text))
+        answers.append(answer_for(source, questions, section_text))
 
     # Prosedür adımları belgesi (görselden türetilmiş)
-    documents.append(_doc(source, "prosedur", "Yaz Stajı Prosedür Adımları", _PROSEDUR_ADIMLARI))
+    documents.append(doc_for(source, "prosedur", "Yaz Stajı Prosedür Adımları", _PROSEDUR_ADIMLARI))
     answers.append(
-        _answer(
+        answer_for(
             source,
             [
                 "Yaz stajı prosedürü nasıl işler?",
@@ -171,29 +172,3 @@ def parse(html: str, source: Source) -> SourceContent:
     )
 
     return SourceContent(documents=documents, prepared_answers=answers)
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )

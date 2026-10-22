@@ -17,8 +17,11 @@ from atilim_assistant.domain import Citation, Document
 from atilim_assistant.ingestion.parsers.departments.software_engineering.ders_programi import (
     Section,
     instructors_line,
+    meetings_line,
     name_tokens,
     same_person,
+    schedule_lines,
+    teaching_line,
 )
 from atilim_assistant.retrieval.catalog import SECTIONS, Catalog
 from atilim_assistant.text import FILLER_WORDS, correct_course_codes, normalize, stem
@@ -27,6 +30,8 @@ from atilim_assistant.text import FILLER_WORDS, correct_course_codes, normalize,
 # "MATH" gibi geniş bir önek yüzlerce ders döndürür; ilk 30'u ve kalan sayısı yeter.
 _MAX_COURSES = 30
 # belge_ara'nın modele verdiği toplam metin; birkaç ilgili parça sığar, sayfanın tamamı sığmaz.
+# Groq ücretsiz katmanı dakikada 8000 token kabul eder; bir soru birkaç model turu sürdüğü için
+# tek bir araç sonucu bunun küçük bir parçası olmalıdır. Bağlam sınırı yalnızca burada tutulur.
 _MAX_DOCUMENT_CHARS = 6000
 # bolum_kadrosu tüm kadroyu tek sonuçta verir; araştırma konusu kişi başına kırpılmazsa liste
 # kotayı tek başına bitirir. Ayrıntı gerekirse model personel_bilgisi'ni çağırır.
@@ -104,12 +109,14 @@ DEFINITIONS = [
     ),
     _function(
         "ders_detayi",
-        "Bir dersin kredi, AKTS, saat, ön koşul, içerik ve bu dönemki hocalarını getirir.",
+        "Bir dersin kredi, AKTS, haftalık saat, ön koşul, içerik ve bu dönemki şubelerini "
+        "getirir: her şubenin hocası, günü, saati ve dersliği.",
         kod="Ders kodu, ör. SE212",
     ),
     _function(
         "hocanin_dersleri",
-        "Bir öğretim elemanının bu dönem ders programında verdiği dersler (tüm üniversite).",
+        "Bir öğretim elemanının bu dönem ders programında verdiği dersler, gün, saat ve "
+        "derslikleriyle (tüm üniversite).",
         ad="Hocanın adı ya da soyadı",
     ),
     _function(
@@ -259,6 +266,8 @@ class Tools:
         else:
             lines.append("Yazılım Mühendisliği lisans programının ders listesinde yok.")
         lines.append(self._instructors(course))
+        if course.sections:
+            lines += [f"{self.term} ders saatleri:", *schedule_lines(course.sections)]
         return ToolResult("\n".join(lines), self._citations("courses", SECTIONS))
 
     def hocanin_dersleri(self, ad: str) -> ToolResult:
@@ -274,10 +283,12 @@ class Tools:
         )
         if not teachers:
             return ToolResult(f"{self.term} ders programında '{ad}' adlı öğretim elemanı yok.")
-        lines = [
-            f"{teacher}: {_teaching(self._catalog.timetable.sections_of_teacher(teacher))}"
-            for teacher in teachers
-        ]
+        lines = []
+        for teacher in teachers:
+            sections = self._catalog.timetable.sections_of_teacher(teacher)
+            lines.append(f"{teacher}: {teaching_line(sections)}")
+            # "X hoca salı günü derste mi?" gibi sorular için her şubenin günü ve saati.
+            lines += [f"  {s.code} Şube {s.number}: {meetings_line(s.meetings)}" for s in sections]
         return ToolResult(f"{self.term} ders programı:\n" + "\n".join(lines), self._citations(SECTIONS))
 
     def bolum_kadrosu(self) -> ToolResult:
@@ -371,7 +382,7 @@ class Tools:
     def _courses_of(self, staff_name: str) -> str:
         """Personel sayfasındaki adla ders programındaki dersler; adların iki kaynakta farklı
         yazılışını `sections_of_teacher` eşleştirir."""
-        return _teaching(self._catalog.timetable.sections_of_teacher(staff_name))
+        return teaching_line(self._catalog.timetable.sections_of_teacher(staff_name))
 
     def _citations(self, *keys: str) -> list[Citation]:
         """Katalog bölümlerinin kaynak sayfaları. Ingest'te alınamayan bölümün kaynağı yoktur;
@@ -413,13 +424,3 @@ def _same(query: str, name: str) -> bool:
     """Sorulan ad ("Yazıcı", "ali yazıcı") kayıttaki adla ("Prof. Dr. Ali YAZICI") uyuşuyor mu."""
     asked = name_tokens(query)
     return bool(asked) and (set(asked) <= set(name_tokens(name)) or same_person(query, name))
-
-
-def _teaching(sections: list[Section]) -> str:
-    """"CMPE113 Computer Programming I (Şube 01, 02); FE302 … (Şube 06)"."""
-    by_course: dict[tuple[str, str], list[str]] = {}
-    for section in sections:
-        by_course.setdefault((section.code, section.name), []).append(section.number)
-    return "; ".join(
-        f"{code} {name} (Şube {', '.join(numbers)})" for (code, name), numbers in by_course.items()
-    )

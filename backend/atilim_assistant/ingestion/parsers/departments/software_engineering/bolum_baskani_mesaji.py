@@ -7,7 +7,8 @@ Sayfa yapısı (div.detail-container):
 
 from bs4 import BeautifulSoup
 
-from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.domain import Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.text import collapse_whitespace
 
 
@@ -37,10 +38,10 @@ def parse(html: str, source: Source) -> SourceContent:
     heading = f"{chair_name} — {source.unit} Bölüm Başkanı" if chair_name else source.title
     full_text = "\n\n".join([heading, *paragraphs])
 
-    doc = _doc(source, "mesaj", source.title, full_text)
+    doc = doc_for(source, "mesaj", source.title, full_text)
 
     answers = [
-        _answer(
+        answer_for(
             source,
             [
                 f"{source.unit} bölüm başkanının mesajı nedir?",
@@ -54,7 +55,7 @@ def parse(html: str, source: Source) -> SourceContent:
     ]
     if chair_name:
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{source.unit} bölüm başkanı kim?",
@@ -70,29 +71,3 @@ def parse(html: str, source: Source) -> SourceContent:
         )
 
     return SourceContent(documents=[doc], prepared_answers=answers)
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )
