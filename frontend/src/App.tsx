@@ -18,6 +18,14 @@ import { useTheme } from './hooks/useTheme'
 // Splash screen en az bu kadar görünür (ms), auth ne kadar hızlı biterse bitsin.
 const SPLASH_MIN_MS = 2200
 
+/**
+ * Kök bileşen: hook'ları birbirine bağlar ve hangi ekranın görüneceğine karar verir
+ * (splash → giriş ya da sohbet).
+ *
+ * Durum hook'larda, görünüm bileşenlerde durur; App ikisini birleştirir. Hook'lar birbirini
+ * tanımaz, birbirlerine buradaki geri çağrılarla haber verir (ör. yanıt gelince yan bar
+ * tazelenir, kalan hak güncellenir).
+ */
 function App() {
   const { theme, toggle: toggleTheme } = useTheme()
   const {
@@ -47,10 +55,15 @@ function App() {
     if (user === null) startNew()
   }, [user, startNew])
 
+  // Composer'ın `key`'i: konuşma değişince artar ve yazma alanı yarım kalmış metinle birlikte
+  // sıfırlanır.
   const [chatKey, setChatKey] = useState(0)
+  // Composer'a "odaklan" isteği; her artış bir istek ("Diğer" seçildiğinde).
   const [composerFocus, setComposerFocus] = useState(0)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [showSplash, setShowSplash] = useState(true)
+  // Splash iki koşul birlikte sağlanınca kalkar: en kısa süre doldu ve oturum denetimi bitti.
+  // İkisi farklı anlarda biter; ref'ler hangisinin önce bittiğini öbür effect'e taşır.
   const minElapsed = useRef(false)
   const isCheckingRef = useRef(isChecking)
 
@@ -84,6 +97,7 @@ function App() {
     [open],
   )
 
+  // Açık konuşma silinirse ekranda silinmiş bir konuşma kalmasın diye yeni sohbete geçilir.
   const deleteConversation = useCallback(
     (id: string) => {
       void remove(id)
@@ -92,6 +106,7 @@ function App() {
     [conversationId, remove, startNewChat],
   )
 
+  // ⌘K (macOS) / Ctrl+K: yeni sohbet. Tarayıcının kendi kısayolu engellenir.
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -104,6 +119,7 @@ function App() {
   }, [startNewChat])
 
   const send = (text: string) => void sendMessage(text)
+  // "Diğer": soru sunucuya gitmez; kullanıcıdan yeniden yazması istenir ve yazma alanı odaklanır.
   const chooseOther = () => {
     askAgain()
     setComposerFocus((count) => count + 1)
