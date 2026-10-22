@@ -1,4 +1,10 @@
-"""Modele verilen sistem talimatı."""
+"""Modele verilen sistem talimatı ve akışın tanıdığı sabit yanıt metinleri.
+
+Talimat ayrı dosyada durur çünkü modelin davranışı en çok buradan ayarlanır: söyleyişi
+yorumlamak, hangi aracın ne zaman çağrılacağı ve veri yetmediğinde ne söyleneceği kod yerine
+talimatla belirlenir. `NO_ANSWER` hem talimatta hem `chat/service.py`'de kullanılır; ikisi aynı
+sabitten okunduğu için cümle değişirse "bilmiyorum" yanıtının tanınması bozulmaz.
+"""
 
 # Modelin veri yetmediğinde verdiği yanıtın başı; yanıt buna göre kaynaksız gösterilir.
 NO_ANSWER = "Bu bilgi elimdeki verilerde yok."
@@ -11,7 +17,18 @@ SUGGESTIONS_INTRO = (
 
 
 def system_prompt(term: str) -> str:
-    """`term`: katalogdaki ders programının dönemi; programın kapsamını modele bildirir."""
+    """Her soruda modele verilen sistem talimatı.
+
+    `term`: katalogdaki ders programının dönemi. Program yalnızca güncel dönemi kapsar; dönem
+    bildirilmezse model "bu ders kimde?" sorusunu her dönem için geçerliymiş gibi yanıtlardı.
+    Dönem ingest'te değiştiği için talimat sabit değil, her çağrıda üretilir.
+
+    Kurallar şu hataları önlemek içindir: araç sonucunda olmayanı uydurmak,
+    takip sorusundaki "bu hocalar"ı çözememek, kısaltılmış geçmiş listesine güvenip eksik
+    yanıtlamak, hocaları tek tek sorgulayıp dakikalık token kotasını bitirmek. Son kural, belge
+    ya da kullanıcı metnine gömülü talimatlarla (prompt injection) davranışın değiştirilmesini
+    önler.
+    """
     timetable = f"Ders programı yalnızca {term} dönemini kapsar." if term else (
         "Ders programı bilgisi yok."
     )
