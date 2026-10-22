@@ -1,4 +1,14 @@
-"""Vektör, anahtar kelime ve soru kalıbı aramalarını birleştiren hibrit getirici."""
+"""Vektör, anahtar kelime ve soru kalıbı aramalarını birleştiren hibrit getirici.
+
+Her arama yöntemi farklı bir zayıflığı kapatır:
+- Vektör araması anlamı yakalar ("ulaşmak" ↔ "iletişim") ama özel adları ve kodları kaçırabilir.
+- BM25 özel adları ve ders kodlarını kesin bulur ama eş anlamlıları bilmez.
+- Soru kalıbı araması, kullanıcının soru diliyle sitenin kayıt dili ("Telefon: +90…")
+  arasındaki farkı kapatır.
+
+Sıralamalar Reciprocal Rank Fusion ile birleştirilir: kosinüs benzerliği ile BM25 puanı farklı
+ölçeklerdedir ve doğrudan toplanamaz; RRF yalnızca sıraya baktığı için ayar gerektirmez.
+"""
 
 import re
 from dataclasses import replace
@@ -26,6 +36,14 @@ _CODE_LIKE = re.compile(r"[^\W\d_]\d|\d{2,}")
 
 
 class HybridRetriever:
+    """`belge_ara` aracının ve "bilmiyorum" yerine sunulan önerilerin arama motoru.
+
+    `top_k`: her yöntemden alınan ve sonunda döndürülen belge sayısı (`retrieval_top_k`).
+    `max_chars`: döndürülen belgelerin toplam karakter bütçesi (`retrieval_max_chars`).
+    `questions`: soru kalıbı koleksiyonu (`<collection>_questions`); hem aramaya üçüncü
+    sıralama olarak katılır hem `similar_questions`'ın kaynağıdır.
+    """
+
     def __init__(
         self,
         store: DocumentStore,
@@ -75,6 +93,8 @@ class HybridRetriever:
 
         by_id = {document.id: document for document, _ in scored}
         by_id.update({document.id: document for document in lexical})
+        # Süzgeç (ortak sözcük ya da güçlü benzerlik) kalıbın önerilip önerilmeyeceğine, RRF
+        # sırası önerilerin sırasına karar verir.
         scores: dict[str, float] = {}
         for ranking in ([document for document, _ in scored], lexical):
             for rank, document in enumerate(ranking):
@@ -99,6 +119,12 @@ class HybridRetriever:
         return suggestions
 
     def retrieve(self, query: str) -> list[Document]:
+        """Sorguya en ilgili belgeler, karakter bütçesine sığacak kadarı.
+
+        Sorgu bir kez embedding'lenir ve hem sayfa hem kalıp aramasında kullanılır; Voyage
+        çağrısı hem gecikme hem kota demektir. Soru kalıbı eşleşmesinde dönen belge kalıbın
+        yanıtıdır: kalıp yalnızca doğru yanıtı bulmaya yarar, modele yanıtın kendisi gider.
+        """
         embedding = self._embedder.embed_query(query)
         rankings = [
             self._store.search(embedding, self._top_k),
