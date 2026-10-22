@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 
 export type Theme = 'light' | 'dark'
 
+/** Tarayıcı çubuğunun rengi; temanın zemin rengiyle (`--bg`) aynı. */
+const THEME_COLORS: Record<Theme, string> = { light: '#f5f7fc', dark: '#0f111a' }
+
 function getInitialTheme(): Theme {
+  // index.html'deki betik temayı ilk çizimden önce ayarlar; React aynı değerle başlar.
+  const applied = document.documentElement.getAttribute('data-theme')
+  if (applied === 'light' || applied === 'dark') return applied
   try {
     const stored = localStorage.getItem('theme')
     if (stored === 'light' || stored === 'dark') return stored
@@ -15,6 +21,7 @@ export function useTheme() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[theme])
     try {
       localStorage.setItem('theme', theme)
     } catch {}
