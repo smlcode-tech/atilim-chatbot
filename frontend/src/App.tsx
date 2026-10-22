@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PanelLeft } from 'lucide-react'
 import { Composer } from './components/Composer'
@@ -14,8 +14,10 @@ import { useChat } from './hooks/useChat'
 import { useConversations } from './hooks/useConversations'
 import { useTheme } from './hooks/useTheme'
 
-// Oturum kontrolü bu süreden (ms) uzun sürerse splash görünür; hızlı açılışta hiç gösterilmez.
-const SPLASH_DELAY_MS = 300
+// Splash en az bu kadar görünür (ms): logo 650 ms gecikmeyle başlayıp 500 ms'de yerine oturur,
+// ardından ~450 ms tam görünür kalır. Daha kısası animasyonu kırpar; daha uzunu her açılışa
+// boş bekleme ekler.
+const SPLASH_MIN_MS = 1600
 
 function App() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -47,16 +49,24 @@ function App() {
   const [chatKey, setChatKey] = useState(0)
   const [composerFocus, setComposerFocus] = useState(0)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const [showSplash, setShowSplash] = useState(false)
+  const [showSplash, setShowSplash] = useState(true)
+  const minElapsed = useRef(false)
+  const isCheckingRef = useRef(isChecking)
 
   useEffect(() => {
-    if (!isChecking) {
-      setShowSplash(false)
-      return
-    }
-    const t = setTimeout(() => setShowSplash(true), SPLASH_DELAY_MS)
-    return () => clearTimeout(t)
+    isCheckingRef.current = isChecking
+    // Minimum süre geçtikten sonra auth da bittiyse splash'i kapat.
+    if (!isChecking && minElapsed.current) setShowSplash(false)
   }, [isChecking])
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      minElapsed.current = true
+      // Auth zaten bitmişse hemen kapat; yoksa yukarıdaki effect kapatır.
+      if (!isCheckingRef.current) setShowSplash(false)
+    }, SPLASH_MIN_MS)
+    return () => clearTimeout(t)
+  }, [])
 
   const startNewChat = useCallback(() => {
     startNew()
@@ -111,7 +121,7 @@ function App() {
         {showSplash && <SplashScreen key="splash" />}
       </AnimatePresence>
 
-      {!isChecking && (
+      {!showSplash && (
         <motion.div
           style={{ flex: 1, display: 'contents' }}
           initial={{ opacity: 0 }}
