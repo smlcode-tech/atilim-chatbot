@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { PanelLeft } from 'lucide-react'
 import { Composer } from './components/Composer'
@@ -14,8 +14,8 @@ import { useChat } from './hooks/useChat'
 import { useConversations } from './hooks/useConversations'
 import { useTheme } from './hooks/useTheme'
 
-// Splash screen en az bu kadar görünür (ms), auth ne kadar hızlı biterse bitsin.
-const SPLASH_MIN_MS = 2200
+// Oturum kontrolü bu süreden (ms) uzun sürerse splash görünür; hızlı açılışta hiç gösterilmez.
+const SPLASH_DELAY_MS = 300
 
 function App() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -30,7 +30,9 @@ function App() {
     continueAsGuest,
     signOut,
   } = useAuth()
-  const { conversations, refresh, remove } = useConversations(user !== null && !isGuest)
+  const { conversations, refresh, remove, pendingDelete, undoDelete, flushDelete } = useConversations(
+    user !== null && !isGuest,
+  )
   const { messages, conversationId, isLoading, apiStatus, sendMessage, askAgain, startNew, open } = useChat({
     onConversationChanged: refresh,
     sendsHistory: isGuest,
@@ -45,24 +47,16 @@ function App() {
   const [chatKey, setChatKey] = useState(0)
   const [composerFocus, setComposerFocus] = useState(0)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const [showSplash, setShowSplash] = useState(true)
-  const minElapsed = useRef(false)
-  const isCheckingRef = useRef(isChecking)
+  const [showSplash, setShowSplash] = useState(false)
 
   useEffect(() => {
-    isCheckingRef.current = isChecking
-    // Minimum süre geçtikten sonra auth da bittiyse splash'i kapat.
-    if (!isChecking && minElapsed.current) setShowSplash(false)
-  }, [isChecking])
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      minElapsed.current = true
-      // Auth zaten bitmişse hemen kapat; yoksa yukarıdaki effect kapatır.
-      if (!isCheckingRef.current) setShowSplash(false)
-    }, SPLASH_MIN_MS)
+    if (!isChecking) {
+      setShowSplash(false)
+      return
+    }
+    const t = setTimeout(() => setShowSplash(true), SPLASH_DELAY_MS)
     return () => clearTimeout(t)
-  }, [])
+  }, [isChecking])
 
   const startNewChat = useCallback(() => {
     startNew()
@@ -81,11 +75,17 @@ function App() {
 
   const deleteConversation = useCallback(
     (id: string) => {
-      void remove(id)
+      remove(id)
       if (id === conversationId) startNewChat()
     },
     [conversationId, remove, startNewChat],
   )
+
+  // Geri alma süresi dolmamış silme, oturum jetonu silinmeden önce sunucuya gönderilir.
+  const leave = useCallback(() => {
+    flushDelete()
+    signOut()
+  }, [flushDelete, signOut])
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -111,7 +111,7 @@ function App() {
         {showSplash && <SplashScreen key="splash" />}
       </AnimatePresence>
 
-      {!showSplash && (
+      {!isChecking && (
         <motion.div
           style={{ flex: 1, display: 'contents' }}
           initial={{ opacity: 0 }}
@@ -135,7 +135,7 @@ function App() {
               onOpenConversation={openConversation}
               onDeleteConversation={deleteConversation}
               // Giriş yapılandırılmamışsa misafirin gidebileceği bir giriş ekranı yoktur.
-              onSignOut={isGuest && !canSignIn ? undefined : signOut}
+              onSignOut={isGuest && !canSignIn ? undefined : leave}
               isGuest={isGuest}
             />
 
@@ -178,6 +178,17 @@ function App() {
                 focusRequest={composerFocus}
               />
             </section>
+
+            {pendingDelete && (
+              <div className="undo-toast" role="status">
+                <span className="undo-toast-text">
+                  <strong>{pendingDelete.title}</strong> silindi.
+                </span>
+                <button type="button" onClick={undoDelete}>
+                  Geri al
+                </button>
+              </div>
+            )}
           </main>
         )}
         </motion.div>

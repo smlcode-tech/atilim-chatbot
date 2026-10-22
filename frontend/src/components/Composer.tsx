@@ -4,6 +4,9 @@ import { assistant } from '../config/assistant'
 
 const MAX_TEXTAREA_HEIGHT = 160
 
+/** Dokunmatik ekranda odak klavyeyi açıp yeni yanıtı örter; kendiliğinden yalnızca fareli cihazda odaklanılır. */
+const autoFocuses = () => window.matchMedia('(pointer: fine)').matches
+
 type ComposerProps = {
   disabled: boolean
   onSend: (text: string) => void
@@ -14,10 +17,18 @@ type ComposerProps = {
 export function Composer({ disabled, onSend, focusRequest = 0 }: ComposerProps) {
   const [question, setQuestion] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lastFocusRequest = useRef(focusRequest)
 
   useEffect(() => {
-    if (!disabled) textareaRef.current?.focus()
-  }, [disabled, focusRequest])
+    if (!disabled && autoFocuses()) textareaRef.current?.focus()
+  }, [disabled])
+
+  // Açık istekte ("Diğer") kullanıcı yazmak istiyordur; dokunmatik ekranda da odaklanılır.
+  useEffect(() => {
+    if (focusRequest === lastFocusRequest.current) return
+    lastFocusRequest.current = focusRequest
+    textareaRef.current?.focus()
+  }, [focusRequest])
 
   function submit() {
     if (!question.trim() || disabled) return
