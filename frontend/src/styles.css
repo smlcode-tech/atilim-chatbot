@@ -559,6 +559,14 @@ textarea:focus-visible {
   opacity: 1;
 }
 
+/* Dokunmatik ekranda üstüne gelme yok: düğme hep görünür. Görünmez ama dokunulabilir bir düğme
+   kazara silmeye yol açar; üstüne gelince beliren düğmede iOS ilk dokunuşu tıklama saymaz. */
+@media (hover: none) {
+  .history-delete {
+    opacity: 1;
+  }
+}
+
 .history-delete:hover {
   color: var(--accent);
 }
