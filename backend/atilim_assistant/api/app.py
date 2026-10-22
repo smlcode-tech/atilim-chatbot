@@ -1,4 +1,9 @@
-"""FastAPI uygulaması: /api/health ve /api/chat uç noktaları."""
+"""FastAPI uygulaması: sağlık, giriş, soru ve konuşma geçmişi uç noktaları.
+
+Bu katman yalnızca HTTP'yi bilir: kimlik, günlük sınır, geçmişin okunup yazılması ve hata
+kodları burada; soru yanıtlama `ChatService`'te. Her yan servis (MongoDB, Google girişi)
+isteğe bağlıdır: biri çalışmazsa uç nokta o özelliği atlar, soru yine yanıtlanır.
+"""
 
 import hashlib
 import hmac
@@ -46,8 +51,10 @@ T = TypeVar("T")
 # HS256 için önerilen en kısa anahtar (RFC 7518, 3.2).
 MIN_JWT_SECRET_BYTES = 32
 
+# Geçmiş deposu kapalıyken konuşma uç noktalarının (503) mesajı.
 HISTORY_UNAVAILABLE_DETAIL = "Konuşma geçmişi şu anda kullanılamıyor."
 
+# Ne model ne hazır yanıt soruyu karşılayabildiğinde (502) kullanıcıya gösterilen mesaj.
 UNAVAILABLE_DETAIL = (
     "Asistan şu anda yanıt üretemiyor ve bu soru için hazır bir yanıt yok. "
     "Lütfen daha sonra tekrar deneyin."
@@ -55,6 +62,7 @@ UNAVAILABLE_DETAIL = (
 
 
 def _user_response(user: User) -> UserResponse:
+    """Alan modelinden API gövdesine; iç `User` değişse de API sözleşmesi korunur."""
     return UserResponse(id=user.id, email=user.email, name=user.name)
 
 
@@ -64,11 +72,18 @@ def create_app(
     settings: Settings | None = None,
     conversations: ConversationRepository | None = None,
 ) -> FastAPI:
-    """Verilmeyen bileşenler ayarlardan kurulur; testler kendi sahte nesnelerini verir."""
+    """Verilmeyen bileşenler ayarlardan kurulur; testler kendi sahte nesnelerini verir.
+
+    Uygulama fabrikası (`--factory`) kullanılır, modül düzeyinde hazır bir `app` yoktur:
+    içe aktarmak ayar okumaz ve servislere bağlanmaz, testler her seferinde temiz bir uygulama
+    kurabilir.
+    """
     injected = users is not None or conversations is not None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Bileşenler istek anında değil açılışta kurulur: indeks ve katalog bir kez belleğe
+        # okunur, tüm istekler `app.state` üzerinden aynı nesneleri paylaşır.
         app.state.settings = settings or get_settings()
         app.state.chat_service = chat_service or build_chat_service(app.state.settings)
         app.state.users = users
@@ -103,6 +118,8 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(_: Request, error: RequestValidationError) -> JSONResponse:
+        """FastAPI'nin varsayılan `detail`'i İngilizce bir hata listesidir; arayüz yalnızca metin
+        `detail`'i gösterir ve liste gelince genel bir hata yazardı. Yerine Türkçe tek mesaj."""
         if any("question" in failure["loc"] for failure in error.errors()):
             detail = f"Soru 1-{MAX_QUESTION_LENGTH} karakter uzunluğunda bir metin olmalıdır."
         else:
@@ -111,6 +128,9 @@ def create_app(
 
     @app.get("/api/health")
     def health(request: Request) -> HealthResponse:
+        """İki işi var: Render'ın sağlık kontrolü (`render.yaml`) ve arayüzün açılışta giriş
+        ekranını gösterip göstermeyeceğine karar vermesi. Dış servislere dokunmaz; Mongo ya da
+        Groq kesintisi sağlık kontrolünü düşürüp çalışan asistanı yeniden başlatmamalı."""
         return HealthResponse(
             status="ok",
             auth_required=request.app.state.auth_enabled,
@@ -119,6 +139,12 @@ def create_app(
 
     @app.post("/api/auth/google")
     def sign_in(body: GoogleSignInRequest, request: Request) -> SignInResponse:
+        """Google kimlik jetonunu doğrular, kullanıcıyı kaydeder ve kendi oturum jetonumuzu verir.
+
+        Google jetonu her istekte doğrulanmaz: bir saatte dolar ve her doğrulama Google'ın
+        anahtarlarına bağlıdır. Kendi jetonumuz (`jwt_ttl_hours`) yalnızca yerel imzayla
+        doğrulanır. Hata kodları ayrıdır: 401 jeton geçersiz, 503 giriş altyapısı çalışmıyor.
+        """
         settings: Settings = request.app.state.settings
         users: UserRepository | None = request.app.state.users
         if not request.app.state.auth_enabled or users is None:
@@ -143,12 +169,20 @@ def create_app(
 
     @app.get("/api/auth/me")
     def me(user: User = Depends(current_user)) -> UserResponse:
+        """Saklanan oturum jetonunun hâlâ geçerli olduğunu doğrular; arayüz açılışta çağırır
+        ve süresi dolmuşsa kullanıcıyı çıkış yapmış sayar."""
         return _user_response(user)
 
     @app.post("/api/chat")
     def chat(
         body: ChatRequest, request: Request, user: User | None = Depends(chat_user)
     ) -> ChatResponse:
+        """Bir soruyu yanıtlar; sıra: günlük sınır → geçmiş → yanıt → kayıt.
+
+        Sınır yanıttan önce düşülür ki aynı anda gönderilen istekler sınırı aşamasın; yanıt
+        üretilemezse geri alınır. Geçmiş girişli kullanıcıda depodan, misafirde istekten
+        (`body.history`) gelir.
+        """
         service: ChatService = request.app.state.chat_service
         settings: Settings = request.app.state.settings
         # Misafirin geçmişi tutulmaz; konuşma kimliği de yalnızca giriş yapan kullanıcıya aittir.
@@ -211,6 +245,7 @@ def create_app(
                         users.uncount_guest_question(guest, counted_day)
                 except Exception:
                     logger.exception("Günlük soru sayacı geri alınamadı")
+            # 502: hata bu sunucunun değil, arkasındaki model servisinin.
             raise HTTPException(status_code=502, detail=UNAVAILABLE_DETAIL)
 
         title = None
@@ -273,6 +308,7 @@ def create_app(
     def list_conversations(
         request: Request, user: User = Depends(current_user)
     ) -> list[ConversationSummaryResponse]:
+        """Yan bardaki konuşma listesi, en son güncellenen önce; turlar ayrıca istenir."""
         summaries = _from_history(request, lambda store: store.list_for(user.id))
         return [
             ConversationSummaryResponse(
@@ -285,6 +321,8 @@ def create_app(
     def read_conversation(
         conversation_id: str, request: Request, user: User = Depends(current_user)
     ) -> ConversationResponse:
+        """Bir konuşmanın tüm turları. Başkasının konuşması da 404 döner (403 değil): kimliğin
+        var olup olmadığı dışarıya sızdırılmaz."""
         turns = _from_history(request, lambda store: store.turns(conversation_id, user.id))
         if turns is None:
             raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
@@ -306,6 +344,7 @@ def create_app(
     def delete_conversation(
         conversation_id: str, request: Request, user: User = Depends(current_user)
     ) -> None:
+        """Konuşmayı kalıcı olarak siler; yalnızca sahibi silebilir."""
         if not _from_history(request, lambda store: store.delete(conversation_id, user.id)):
             raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
 
@@ -313,6 +352,8 @@ def create_app(
 
 
 def _daily_limit(settings: Settings, user: User | None) -> int:
+    """Kişiye uygulanan günlük sınır: girişli kullanıcıya ve misafire farklı sınır uygulanır
+    (bkz. `config.py`). Soru ucu ve `/api/quota` aynı kuralı kullansın diye tek yerde."""
     if user is not None:
         return settings.daily_question_limit
     return settings.guest_daily_question_limit
@@ -402,4 +443,6 @@ def _resume(
 
 
 def _title_from(question: str) -> str:
+    """Yeni konuşmanın başlığı: ilk soru, yan bara sığacak kadar kısaltılmış. Başlık için
+    modele ayrı çağrı yapılmaz; dakikalık token kotasını sorulardan yemesin."""
     return question if len(question) <= 60 else f"{question[:57].rstrip()}…"
