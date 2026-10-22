@@ -111,12 +111,17 @@ function App() {
         {showSplash && <SplashScreen key="splash" />}
       </AnimatePresence>
 
-      {!showSplash && (
+      {/* Sayfa, oturum kontrolü biter bitmez splash'in altında kurulur: Google düğmesi splash
+          kalkmadan yüklenir, splash kalkınca hazır sayfa görünür. Giriş ve uygulama ekranları
+          arasında kısa bir geçiş vardır; ilk açılışta geçişi splash yapar (initial={false}). */}
+      <AnimatePresence mode="wait" initial={false}>
+        {!isChecking && (
         <motion.div
-          style={{ flex: 1, display: 'contents' }}
+          key={user === null ? 'signin' : 'app'}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
         >
         {user === null ? (
           <SignIn
@@ -181,7 +186,8 @@ function App() {
           </main>
         )}
         </motion.div>
-      )}
+        )}
+      </AnimatePresence>
     </>
   )
 }
