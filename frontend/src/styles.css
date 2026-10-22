@@ -35,6 +35,10 @@
   --blue-tint-2: #e8eef8;
   --blue-tint-border: #dde5f2;
   --accent: #ED1C24;
+  /* Marka kırmızısı beyaz yazıyla 4.38:1 verir (AA: 4.5). Üstünde yazı olan zemin ve kırmızı
+     yazı biraz koyu tonu kullanır; kenarlık, nokta ve simgeler marka tonunda kalır. */
+  --accent-fill: #DC1820;
+  --accent-text: #DC1820;
   --accent-dark: #C8101A;
 }
 
@@ -60,6 +64,8 @@
   --blue-tint: #1a2245;
   --blue-tint-2: #182040;
   --blue-tint-border: #2a3668;
+  /* Koyu zeminde kırmızı yazı açık tonla okunur. */
+  --accent-text: #FF4A50;
 }
 
 * {
@@ -450,7 +456,7 @@ textarea:focus-visible {
   margin-top: 36px;
   padding: 0 12px;
   color: #fff;
-  background: var(--accent);
+  background: var(--accent-fill);
   border: 0;
   border-radius: 5px;
   box-shadow: 0 5px 12px rgba(237, 28, 36, 0.2);
@@ -467,7 +473,7 @@ textarea:focus-visible {
 
 .shortcut {
   margin-left: auto;
-  color: rgba(255, 255, 255, 0.65);
+  color: #fff;
   font-size: 11px;
   font-weight: 500;
 }
@@ -500,7 +506,7 @@ textarea:focus-visible {
 
 .nav-item:hover,
 .nav-item-active {
-  color: var(--accent);
+  color: var(--accent-text);
   background: #fff4f4;
 }
 
@@ -532,7 +538,7 @@ textarea:focus-visible {
 
 .history-empty {
   margin: 0 10px;
-  color: #a1a4b2;
+  color: var(--muted-2);
   font-size: 13px;
 }
 
@@ -586,7 +592,7 @@ textarea:focus-visible {
 
 .history-item:hover .history-open,
 .history-item-active .history-open {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .history-item-active .history-open {
@@ -601,7 +607,7 @@ textarea:focus-visible {
   height: 28px;
   margin-right: 4px;
   padding: 0;
-  color: #b4b7c4;
+  color: var(--muted-2);
   background: none;
   border: none;
   border-radius: 5px;
@@ -680,7 +686,7 @@ textarea:focus-visible {
   height: 28px;
   margin-left: auto;
   padding: 0;
-  color: #a1a4b2;
+  color: var(--muted-2);
   background: none;
   border: none;
   border-radius: 5px;
@@ -1050,7 +1056,7 @@ textarea:focus-visible {
 
 .message-user .message-bubble {
   color: #fff;
-  background: var(--accent);
+  background: var(--accent-fill);
   border: 0;
   border-radius: 13px 4px 13px 13px;
   box-shadow: 0 4px 10px rgba(237, 28, 36, 0.18);
@@ -1328,7 +1334,7 @@ textarea:focus-visible {
 }
 
 .composer textarea::placeholder {
-  color: #aaadba;
+  color: var(--muted-2);
 }
 
 .composer-footer {
@@ -1361,7 +1367,7 @@ textarea:focus-visible {
   height: 36px;
   place-items: center;
   color: #fff;
-  background: var(--accent);
+  background: var(--accent-fill);
   border: 0;
   border-radius: 5px;
   cursor: pointer;
@@ -1700,7 +1706,7 @@ textarea:focus-visible {
 
 [data-theme="dark"] .nav-item:hover,
 [data-theme="dark"] .nav-item-active {
-  color: var(--accent);
+  color: var(--accent-text);
   background: rgba(237, 28, 36, 0.08);
 }
 
@@ -1715,7 +1721,7 @@ textarea:focus-visible {
 
 [data-theme="dark"] .history-item:hover .history-open,
 [data-theme="dark"] .history-item-active .history-open {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 [data-theme="dark"] .history-delete {
