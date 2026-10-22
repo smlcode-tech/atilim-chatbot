@@ -58,8 +58,6 @@ export function userFromToken(token: string): User | null {
 type RequestOptions = {
   method?: string
   body?: unknown
-  /** Sayfa kapanırken de tamamlanması gereken istekler için. */
-  keepalive?: boolean
 }
 
 /** Tüm uç noktaların ortak yolu: oturum başlığı, JSON ayrıştırma, Türkçe hata mesajları. */
@@ -74,7 +72,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      keepalive: options.keepalive,
     })
   } catch {
     throw new ApiUnreachableError(UNREACHABLE)
@@ -214,9 +211,5 @@ export async function fetchConversation(id: string): Promise<Message[]> {
 }
 
 export function deleteConversation(id: string): Promise<void> {
-  // Geri alma süresi içinde sayfa kapanırsa silme yine de sunucuya ulaşmalı.
-  return request<void>(`/api/conversations/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    keepalive: true,
-  })
+  return request<void>(`/api/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
