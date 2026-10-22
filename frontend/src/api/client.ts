@@ -1,5 +1,14 @@
+/**
+ * API istemcisi: arayüzün sunucuyla konuştuğu tek yer.
+ *
+ * Sunucunun snake_case gövdeleri burada arayüzün camelCase tiplerine çevrilir; bileşenler
+ * API'nin biçimini bilmez. İstekler göreli yola (`/api/...`) gider: geliştirmede Vite
+ * (`vite.config.ts`), yayında Vercel (`vercel.json`) bunları Render'daki API'ye iletir. Böylece
+ * tarayıcı tek bir kaynakla konuşur, CORS ayarı gerekmez.
+ */
 import type { ConversationSummary, Message, SourceLink, User } from '../types'
 
+/** `POST /api/chat` yanıtı, arayüzün kullandığı biçimde. */
 export type ChatAnswer = {
   answer: string
   sources: SourceLink[]
@@ -17,9 +26,11 @@ export class ApiUnreachableError extends Error {}
 /** Oturum geçersiz ya da süresi dolmuş; arayüz giriş ekranına döner. */
 export class UnauthorizedError extends Error {}
 
+/** Oturum jetonu `localStorage`'da tutulur: sekme kapanıp açılınca kullanıcı yeniden giriş yapmaz. */
 const TOKEN_KEY = 'atilim-assistant-token'
 const UNREACHABLE = 'Sunucuya bağlanılamadı. API sunucusunun çalıştığını kontrol edin.'
 
+/** Saklanan oturum jetonu; yoksa ya da depolama kapalıysa null. */
 export function readToken(): string | null {
   try {
     return localStorage.getItem(TOKEN_KEY)
@@ -28,6 +39,7 @@ export function readToken(): string | null {
   }
 }
 
+/** Jetonu saklar; `null` siler (çıkış ya da süresi dolmuş oturum). */
 export function writeToken(token: string | null) {
   try {
     if (token === null) localStorage.removeItem(TOKEN_KEY)
@@ -57,12 +69,20 @@ export function userFromToken(token: string): User | null {
   }
 }
 
+/** `body` verilirse JSON'a çevrilip gönderilir. */
 type RequestOptions = {
   method?: string
   body?: unknown
 }
 
-/** Tüm uç noktaların ortak yolu: oturum başlığı, JSON ayrıştırma, Türkçe hata mesajları. */
+/**
+ * Tüm uç noktaların ortak yolu: oturum başlığı, JSON ayrıştırma, Türkçe hata mesajları.
+ *
+ * Hatalar üç türe ayrılır, çünkü arayüz her birine farklı davranır: `UnauthorizedError`
+ * giriş ekranına döndürür, `ApiUnreachableError` "sunucuya ulaşılamıyor" durumunu gösterir,
+ * düz `Error` ise sunucunun mesajını (`detail`) olduğu gibi kullanıcıya yazar. 401'de
+ * `atilim:unauthorized` olayı da yayılır: hangi istek düşürürse düşürsün `useAuth` oturumu kapatır.
+ */
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const token = readToken()
   let response: Response
@@ -113,6 +133,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return payload as T
 }
 
+/** `GET /api/health` sonucu; arayüz açılışta giriş ekranını buna göre kurar. */
 export type Health = {
   online: boolean
   /** false ise sunucuda giriş yapılandırılmamıştır; sorular misafir olarak sorulur. */
@@ -121,6 +142,11 @@ export type Health = {
   guestQuestionLimit: number | null
 }
 
+/**
+ * Sunucu ayakta mı, giriş açık mı. Hiçbir zaman hata fırlatmaz: sunucuya ulaşılamazsa
+ * `online: false` döner ve giriş açık varsayılır (en güvenli varsayım). `request` kullanılmaz,
+ * çünkü bu çağrı oturum jetonundan bağımsızdır ve 401 olayı yaymamalıdır.
+ */
 export async function checkHealth(): Promise<Health> {
   try {
     const response = await fetch('/api/health')
@@ -138,6 +164,7 @@ export async function checkHealth(): Promise<Health> {
   }
 }
 
+/** Google'ın verdiği kimlik jetonunu sunucunun oturum jetonuyla değiştirir ve onu saklar. */
 export async function signInWithGoogle(idToken: string): Promise<{ token: string; user: User }> {
   const body = await request<{ token: string; user: User }>('/api/auth/google', {
     method: 'POST',
@@ -147,6 +174,7 @@ export async function signInWithGoogle(idToken: string): Promise<{ token: string
   return body
 }
 
+/** Saklanan oturumun hâlâ geçerli olduğunu doğrular; açılışta çağrılır. */
 export function fetchMe(): Promise<User> {
   return request<User>('/api/auth/me')
 }
@@ -154,6 +182,11 @@ export function fetchMe(): Promise<User> {
 /** Misafirin sunucuda saklanmayan geçmişi; takip soruları için her soruyla gönderilir. */
 export type HistoryTurn = { role: 'user' | 'assistant'; content: string }
 
+/**
+ * Soruyu sorar. `conversationId` boşsa (girişli kullanıcıda) sunucu yeni konuşma açar ve
+ * kimliğini döndürür. Eksik alanlar güvenli varsayılanlara çevrilir; boş yanıt hata sayılır,
+ * ekrana boş bir balon düşmez.
+ */
 export async function askQuestion(
   question: string,
   conversationId: string | null,
@@ -193,10 +226,12 @@ export type Quota = {
   remaining: number | null
 }
 
+/** Bugünkü soru hakkı; sayacı değiştirmez. */
 export function fetchQuota(): Promise<Quota> {
   return request<Quota>('/api/quota')
 }
 
+/** Yan bardaki konuşma listesi (yalnızca girişli kullanıcı). */
 export async function fetchConversations(): Promise<ConversationSummary[]> {
   const rows = await request<{ id: string; title: string; updated_at: string }[]>(
     '/api/conversations',
@@ -204,6 +239,10 @@ export async function fetchConversations(): Promise<ConversationSummary[]> {
   return rows.map(({ id, title, updated_at }) => ({ id, title, updatedAt: updated_at }))
 }
 
+/**
+ * Bir konuşmanın turları, ekrandaki mesaj biçiminde. Sunucu turlara kimlik vermez; React
+ * listesi için rol, zaman ve sıradan kararlı bir kimlik üretilir.
+ */
 export async function fetchConversation(id: string): Promise<Message[]> {
   const body = await request<{
     turns: {
@@ -225,6 +264,7 @@ export async function fetchConversation(id: string): Promise<Message[]> {
   }))
 }
 
+/** Konuşmayı sunucudan kalıcı olarak siler. */
 export function deleteConversation(id: string): Promise<void> {
   return request<void>(`/api/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
