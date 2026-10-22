@@ -1,6 +1,10 @@
 """Bellek içi BM25 anahtar kelime araması.
 
 Vektör aramasının kaçırabildiği özel adlar (kişi, birim, ders kodu) için kullanılır.
+
+Bellekte hesaplanır, ayrı bir arama servisi gerekmez. Her sorgu tüm belgeleri tarar; bu,
+bugünkü boyutta (birkaç yüz sayfa parçası, birkaç bin soru kalıbı) yeterince hızlıdır. Kapsam
+tüm siteye genişlediğinde yeniden değerlendirilmelidir.
 """
 
 import math
@@ -10,15 +14,25 @@ from collections import Counter
 from atilim_assistant.domain import Document
 from atilim_assistant.text import FILLER_WORDS, canonicalize, tokenize
 
+# BM25'in standart parametreleri: `_K1` aynı terimin tekrarının puana katkısını doyurur,
+# `_B` uzun belgelerin yalnızca uzun oldukları için öne çıkmasını engeller.
 _K1 = 1.5
 _B = 0.75
 
+# Boşluklu yazılmış ders kodunun parçaları ("se 212"): harf öneki ve üç haneli numara.
 _SUBJECT = re.compile(r"[a-z]{2,4}")
 _COURSE_NUMBER = re.compile(r"\d{3}")
+# Birleşik ders kodu terimi ("se212", "math151a").
 _COURSE_CODE = re.compile(r"[a-z]{2,5}\d{3}[a-z]?")
 
 
 class LexicalIndex:
+    """Belgelerin terim sayıları ve terim ağırlıkları (IDF), kurulurken bir kez hesaplanır.
+
+    İndeks değişmez; yeni belgeler için yeniden kurulur. `HybridRetriever` iki tane kurar:
+    sayfa belgeleri için ve yalnızca soru kalıplarının sözcükleri için.
+    """
+
     def __init__(self, documents: list[Document]) -> None:
         self._documents = documents
         self._term_counts = [Counter(_terms(f"{d.title} {d.text}")) for d in documents]
@@ -31,6 +45,8 @@ class LexicalIndex:
             term for term in document_frequency if _COURSE_CODE.fullmatch(term)
         )
         total = len(documents)
+        # Az belgede geçen terim ayırt edicidir, çok belgede geçen terim (ör. "bölüm") değildir.
+        # `1 +` ile her belgede geçen terimin ağırlığı negatife düşmez.
         self._idf = {
             term: math.log(1 + (total - frequency + 0.5) / (frequency + 0.5))
             for term, frequency in document_frequency.items()
@@ -48,6 +64,7 @@ class LexicalIndex:
         return [self._documents[index] for _, index in scored[:limit]]
 
     def _term_score(self, term: str, counts: Counter, length: int) -> float:
+        """Tek bir terimin bir belgedeki BM25 katkısı (standart formül)."""
         frequency = counts[term]
         if not frequency:
             return 0.0

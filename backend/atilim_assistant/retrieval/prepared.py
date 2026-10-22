@@ -28,12 +28,18 @@ _QUALIFIER_PREFIX = 7
 
 
 class PreparedAnswerStore:
-    """Hazır yanıtları tek bir JSON dosyasında tutar."""
+    """Hazır yanıtları tek bir JSON dosyasında tutar.
+
+    Dosyada durur, Chroma ya da MongoDB'de değil: yedek yol başka bir servisin ayakta olmasına
+    bağlı olmamalıdır.
+    """
 
     def __init__(self, path: Path) -> None:
         self._path = path
 
     def replace_source(self, source_id: str, answers: list[PreparedAnswer]) -> None:
+        """Bir kaynağın hazır yanıtlarını yenileriyle değiştirir; diğer kaynaklarınkini korur.
+        `DocumentStore.replace_source` ile aynı mantık: sayfadan kalkan bilginin yanıtı da kalkar."""
         kept = [answer for answer in self.all() if answer.source_id != source_id]
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._path.write_text(
@@ -42,6 +48,7 @@ class PreparedAnswerStore:
         )
 
     def all(self) -> list[PreparedAnswer]:
+        """Tüm hazır yanıtlar; ilk ingest'ten önce dosya yoktur ve liste boştur."""
         if not self._path.exists():
             return []
         return [
@@ -50,9 +57,17 @@ class PreparedAnswerStore:
 
 
 class PreparedAnswerMatcher:
+    """Kullanıcı sorusunu hazır yanıtların soru kalıplarıyla sözcük düzeyinde eşleştirir.
+
+    Embedding kullanılmaz: eşleştirici model kesintisinde çalışır ve aynı kesinti (ağ, kota)
+    Voyage'ı da etkileyebilir. Kalıp terimleri ve ağırlıkları açılışta bir kez hesaplanır.
+    """
+
     def __init__(self, answers: list[PreparedAnswer]) -> None:
         self._answers = answers
         self._patterns = [[_terms(question) for question in a.questions] for a in answers]
+        # Yanıtın kapsadığı birimler: kaynak sayfa adı ve kalıplarda geçen sözcükler. Soru bir
+        # birimi adıyla anıyorsa yalnızca o birimi kapsayan yanıtlar aday olur.
         self._scopes = [_prefixes(" ".join([a.source_title, *a.questions])) for a in answers]
 
         # Az sayıda yanıtta geçen terimler (kişi adı, konu) ayırt edicidir ve daha ağır sayılır.
@@ -98,16 +113,22 @@ class PreparedAnswerMatcher:
         return best_answer if best_score[0] >= _MIN_COVERAGE else None
 
     def _weight(self, terms: frozenset[str]) -> float:
+        """Terimlerin toplam ağırlığı. Hiçbir kalıpta geçmeyen terim en ağır sayılır: soru
+        hazır yanıtların bilmediği bir şey soruyorsa kapsam düşer ve yanlış yanıt verilmez."""
         return sum(self._weights.get(term, self._unknown_weight) for term in terms)
 
 
 def _terms(text: str) -> frozenset[str]:
+    """Karşılaştırılacak terimler: eş anlamlılar birleştirilir, dolgu sözcükleri atılır,
+    çekim ekleri `stem` ile kırpılır ("dersleri" ile "derslerin" aynı terim olur)."""
     return frozenset(
         stem(token) for token in tokenize(canonicalize(text)) if token not in FILLER_WORDS
     )
 
 
 def _prefixes(text: str) -> frozenset[str]:
+    """Metindeki sözcüklerin `_QUALIFIER_PREFIX` uzunluğundaki önekleri; `_unit_qualifiers`
+    ile aynı biçimde kırpılır ki ikisi karşılaştırılabilsin."""
     return frozenset(token[:_QUALIFIER_PREFIX] for token in tokenize(text))
 
 
@@ -121,4 +142,6 @@ def _unit_qualifiers(question: str) -> frozenset[str]:
 
 
 def _rarity(frequency: int, total: int) -> float:
+    """Terimin ayırt ediciliği; BM25'teki IDF ile aynı formül (bkz. `lexical.py`), burada
+    belge yerine yanıt sayısı üzerinden."""
     return math.log(1 + (total - frequency + 0.5) / (frequency + 0.5))
