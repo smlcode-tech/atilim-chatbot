@@ -17,14 +17,19 @@ from atilim_assistant.domain import Citation, Document
 from atilim_assistant.ingestion.parsers.departments.software_engineering.ders_programi import (
     Section,
     instructors_line,
-    meetings_line,
     name_tokens,
     same_person,
-    schedule_lines,
+    schedule_table,
     teaching_line,
 )
 from atilim_assistant.retrieval.catalog import SECTIONS, Catalog
-from atilim_assistant.text import FILLER_WORDS, correct_course_codes, normalize, stem
+from atilim_assistant.text import (
+    FILLER_WORDS,
+    correct_course_codes,
+    markdown_table,
+    normalize,
+    stem,
+)
 
 # Tek bir araç sonucunun sınırları: model bağlamı ve dakikalık token kotası sınırlıdır.
 # "MATH" gibi geniş bir önek yüzlerce ders döndürür; ilk 30'u ve kalan sayısı yeter.
@@ -235,10 +240,13 @@ class Tools:
         if not found:
             return ToolResult(f"'{sorgu}' ile eşleşen ders yok. Başka sözcük ya da kod öneki dene.")
 
-        lines = [self._summary(course) for course in found[:_MAX_COURSES]]
+        text = markdown_table(
+            ["Kod", "Ders", "Bölüm programında", f"{self.term} hocaları"],
+            [self._summary(course) for course in found[:_MAX_COURSES]],
+        )
         if len(found) > _MAX_COURSES:
-            lines.append(f"(+{len(found) - _MAX_COURSES} ders daha; aramayı daralt.)")
-        return ToolResult("\n".join(lines), self._citations("courses", SECTIONS))
+            text += f"\n\n(+{len(found) - _MAX_COURSES} ders daha; aramayı daralt.)"
+        return ToolResult(text, self._citations("courses", SECTIONS))
 
     def ders_detayi(self, kod: str) -> ToolResult:
         """Tek bir dersin müfredat ayrıntısı ve bu dönemki hocaları.
@@ -256,8 +264,10 @@ class Tools:
             record = course.record
             lines += [
                 f"Bölüm programında: {record['category']}",
-                f"Teorik: {record['theory']} | Uygulama: {record['practice']} | Lab: {record['lab']}"
-                f" | Kredi: {record['credit']} | AKTS: {record['akts']}",
+                markdown_table(
+                    ["Teorik", "Uygulama", "Lab", "Kredi", "AKTS"],
+                    [[record[key] for key in ("theory", "practice", "lab", "credit", "akts")]],
+                ),
             ]
             if record["precondition"]:
                 lines.append(f"Ön koşul: {record['precondition']}")
@@ -267,8 +277,9 @@ class Tools:
             lines.append("Yazılım Mühendisliği lisans programının ders listesinde yok.")
         lines.append(self._instructors(course))
         if course.sections:
-            lines += [f"{self.term} ders saatleri:", *schedule_lines(course.sections)]
-        return ToolResult("\n".join(lines), self._citations("courses", SECTIONS))
+            lines.append(f"{self.term} ders saatleri:\n{schedule_table(course.sections)}")
+        # Markdown'da tablodan sonra boş satır gelmezse sonraki satır tabloya katılır.
+        return ToolResult("\n\n".join(lines), self._citations("courses", SECTIONS))
 
     def hocanin_dersleri(self, ad: str) -> ToolResult:
         """Bir öğretim elemanının bu dönem verdiği dersler; ders programı üzerinden, tüm
@@ -287,9 +298,9 @@ class Tools:
         for teacher in teachers:
             sections = self._catalog.timetable.sections_of_teacher(teacher)
             lines.append(f"{teacher}: {teaching_line(sections)}")
-            # "X hoca salı günü derste mi?" gibi sorular için her şubenin günü ve saati.
-            lines += [f"  {s.code} Şube {s.number}: {meetings_line(s.meetings)}" for s in sections]
-        return ToolResult(f"{self.term} ders programı:\n" + "\n".join(lines), self._citations(SECTIONS))
+            # "X hoca salı günü derste mi?" gibi sorular için her oturumun günü, saati, dersliği.
+            lines.append(schedule_table(sections, by_teacher=True))
+        return ToolResult(f"{self.term} ders programı:\n" + "\n\n".join(lines), self._citations(SECTIONS))
 
     def bolum_kadrosu(self) -> ToolResult:
         """Bölüm kadrosunun tamamı, her hocanın bu dönemki dersleriyle birlikte, tek sonuçta.
@@ -298,21 +309,21 @@ class Tools:
         hocaları tek tek sorgulasaydı her biri ayrı bir tur olur ve tur sınırına ya da dakikalık
         kotaya takılırdı. Satırlar bu yüzden kısa tutulur (bkz. `_MAX_RESEARCH_CHARS`).
         """
-        lines = []
+        rows = []
         for member in self._catalog.staff:
-            parts = [member["name"]]
-            if member["role"] or member["employment"]:
-                parts.append(member["role"] or member["employment"])
             research = member["research"]
-            if research:
-                clipped = research[:_MAX_RESEARCH_CHARS]
-                parts.append(f"Araştırma: {clipped}{'…' if len(research) > len(clipped) else ''}")
-            parts.append(f"Bu dönem dersleri: {self._courses_of(member['name']) or 'yok'}")
-            lines.append(" | ".join(parts))
-        if not lines:
+            clipped = research[:_MAX_RESEARCH_CHARS]
+            rows.append([
+                member["name"],
+                member["role"] or member["employment"],
+                clipped + ("…" if len(research) > len(clipped) else ""),
+                self._courses_of(member["name"]) or "yok",
+            ])
+        if not rows:
             return ToolResult("Kadro bilgisi yok.")
-        heading = f"Yazılım Mühendisliği Bölümü akademik kadrosu ({len(lines)} kişi; dersler: {self.term}):"
-        return ToolResult("\n".join([heading, *lines]), self._citations("staff", SECTIONS))
+        heading = f"Yazılım Mühendisliği Bölümü akademik kadrosu ({len(rows)} kişi; dersler: {self.term}):"
+        table = markdown_table(["Ad", "Görev", "Araştırma", "Bu dönem dersleri"], rows)
+        return ToolResult(f"{heading}\n{table}", self._citations("staff", SECTIONS))
 
     def personel_bilgisi(self, ad: str) -> ToolResult:
         """Bölümdeki bir kişinin tüm bilgileri: akademik kadro ya da idari personel.
@@ -367,17 +378,23 @@ class Tools:
         pages = {document.url: document.source_title for document in documents}
         return ToolResult(text, [Citation(title=title, url=url) for url, title in pages.items()])
 
-    def _summary(self, course: _Course) -> str:
-        """ders_ara sonucundaki tek satır: kod, ad, müfredattaki yeri, bu dönemki hocalar."""
+    def _summary(self, course: _Course) -> list[str]:
+        """ders_ara tablosundaki tek satır: kod, ad, müfredattaki yeri, bu dönemki hocalar."""
         where = course.record["category"] if course.record else "bölüm programı dışında"
-        return f"{course.code} — {course.name} | {where} | {self._instructors(course)}"
+        return [course.code, course.name, where, self._teachers(course)]
 
-    def _instructors(self, course: _Course) -> str:
+    def _teachers(self, course: _Course) -> str:
         """Dersin bu dönemki hocaları. Şubesi olmayan ders için "açılmamış" yazılır; boş
         bırakılsaydı model bunu "hoca bilgisi yok" sanabilirdi."""
         if not course.sections:
+            return "bu dönem açılmamış"
+        return instructors_line(course.sections)
+
+    def _instructors(self, course: _Course) -> str:
+        """ders_detayi'ndeki hoca satırı: dönemiyle birlikte."""
+        if not course.sections:
             return f"{self.term}: bu dönem açılmamış"
-        return f"{self.term} hocaları: {instructors_line(course.sections)}"
+        return f"{self.term} hocaları: {self._teachers(course)}"
 
     def _courses_of(self, staff_name: str) -> str:
         """Personel sayfasındaki adla ders programındaki dersler; adların iki kaynakta farklı

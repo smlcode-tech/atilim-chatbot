@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
 from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.ingestion.parsers.departments.software_engineering import ders_programi
-from atilim_assistant.text import collapse_whitespace, normalize
+from atilim_assistant.text import collapse_whitespace, markdown_table, normalize
 
 # Sayfadaki sekme kimliği → Türkçe adı; ad, dersin kategorisi olarak kataloğa da yazılır.
 _TABS = {
@@ -74,8 +74,7 @@ def parse(html: str, source: Source) -> SourceContent:
         if not tab.courses:
             continue
         all_lines.append(f"\n{tab.label} ({len(tab.courses)} ders):")
-        for c in tab.courses:
-            all_lines.append(f"  {c.code} — {c.name} (AKTS: {c.akts})")
+        all_lines.append(markdown_table(["Kod", "Ders", "AKTS"], [[c.code, c.name, c.akts] for c in tab.courses]))
     full_text = "\n".join(all_lines)
     # Tüm ders listesi belge olarak indekslenmez: model bağlamının tek başına sınırını aşar ve
     # aynı bilgi sekme özetlerinde zaten var. Yalnızca hazır yanıt olarak verilir.
@@ -97,12 +96,10 @@ def parse(html: str, source: Source) -> SourceContent:
     for tab in tabs:
         if not tab.courses:
             continue
-        lines = [f"{source.unit} {tab.label} ({len(tab.courses)} ders):"]
-        for c in tab.courses:
-            lines.append(
-                f"- {c.code} {c.name} | T:{c.theory} U:{c.practice} L:{c.lab} | AKTS:{c.akts}"
-            )
-        tab_text = "\n".join(lines)
+        tab_text = f"{source.unit} {tab.label} ({len(tab.courses)} ders):\n" + markdown_table(
+            ["Kod", "Ders", "Teorik", "Uygulama", "Lab", "AKTS"],
+            [[c.code, c.name, c.theory, c.practice, c.lab, c.akts] for c in tab.courses],
+        )
         slug = tab.id.replace("_", "-")
         documents.append(doc_for(source, slug, f"{tab.label}", tab_text))
         answers.append(
@@ -123,10 +120,8 @@ def parse(html: str, source: Source) -> SourceContent:
     electives = [tab for tab in tabs if tab.id != "required_les" and tab.courses]
     if electives:
         elective_text = "\n\n".join(
-            "\n".join(
-                [f"{tab.label} ({len(tab.courses)} ders):"]
-                + [f"- {c.code} {c.name} | AKTS:{c.akts}" for c in tab.courses]
-            )
+            f"{tab.label} ({len(tab.courses)} ders):\n"
+            + markdown_table(["Kod", "Ders", "AKTS"], [[c.code, c.name, c.akts] for c in tab.courses])
             for tab in electives
         )
         answers.append(
@@ -156,14 +151,16 @@ def parse(html: str, source: Source) -> SourceContent:
         for c in tab.courses:
             lines = [
                 f"{c.code} — {c.name} ({source.unit}, {tab.label})",
-                f"Teorik: {c.theory} | Uygulama: {c.practice} | Lab: {c.lab} | Kredi: {c.credit} | AKTS: {c.akts}",
+                markdown_table(
+                    ["Teorik", "Uygulama", "Lab", "Kredi", "AKTS"],
+                    [[c.theory, c.practice, c.lab, c.credit, c.akts]],
+                ),
             ]
             sections = timetable.sections_of_course(c.code) if timetable else []
             if sections:
                 instructors = ders_programi.instructors_line(sections)
                 lines.append(f"Öğretim elemanı ({timetable.term}): {instructors}")
-                lines.append(f"Ders saatleri ({timetable.term}):")
-                lines += ders_programi.schedule_lines(sections)
+                lines.append(f"Ders saatleri ({timetable.term}):\n{ders_programi.schedule_table(sections)}")
             elif timetable:
                 # "Kim veriyor?" sorusu bu yanıta düşebilir; hocanın neden yazmadığı söylenir.
                 lines.append(
@@ -173,7 +170,8 @@ def parse(html: str, source: Source) -> SourceContent:
                 lines.append(f"Ön koşul: {c.precondition}")
             if c.content:
                 lines.append(f"İçerik: {c.content}")
-            doc_text = "\n".join(lines)
+            # Markdown'da tablodan sonra boş satır gelmezse sonraki satır tabloya katılır.
+            doc_text = "\n\n".join(lines)
             # Aynı ders bir sekmede iki kez listelenebilir; belge kimliği tekil kalmalıdır.
             base = f"{tab.id}-{c.code.lower()}"
             local_id = base if base not in seen else f"{base}-2"

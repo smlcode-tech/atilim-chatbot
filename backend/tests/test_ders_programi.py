@@ -96,12 +96,29 @@ def test_parse_links_course_codes_to_teachers_and_skips_placeholders():
     )
 
 
-def test_schedule_lines_give_each_section_its_days_times_and_rooms():
+def test_schedule_table_gives_each_meeting_its_day_time_and_room():
     sections = ders_programi.parse("2026-2027 Güz Dönemi", _response()).sections_of_course("SE221")
-    assert ders_programi.schedule_lines(sections) == [
-        "Şube 01 (Ayşe Örnek): Salı 9:30–12:20 (Müh. 1025H), Perşembe 10:30–11:20"
+    assert ders_programi.schedule_table(sections) == (
+        "| Şube | Öğretim elemanı | Gün | Saat | Derslik |\n"
+        "|---|---|---|---|---|\n"
+        "| 01 | Ayşe Örnek | Salı | 9:30–12:20 | Müh. 1025H |\n"
+        "| 01 | Ayşe Örnek | Perşembe | 10:30–11:20 | — |"
+    )
+
+
+def test_schedule_table_merges_rooms_of_the_same_slot():
+    meetings = (Meeting("Salı", "09:30", "11:20", "Lab A"), Meeting("Salı", "09:30", "11:20", "Lab B"))
+    sections = [Section("CMPE113", "01", "Computer Programming I", ("Ali Yazıcı",), meetings)]
+    assert ders_programi.schedule_table(sections).splitlines()[2:] == [
+        "| 01 | Ali Yazıcı | Salı | 09:30–11:20 | Lab A, Lab B |"
     ]
-    assert ders_programi.meetings_line(()) == "programda gün/saat yok"
+
+
+def test_schedule_table_by_teacher_keeps_sections_without_meetings():
+    sections = [Section("CMPE113", "01", "Computer Programming I", ("Ali Yazıcı",))]
+    assert ders_programi.schedule_table(sections, by_teacher=True).splitlines()[-1] == (
+        "| CMPE113 Computer Programming I | 01 | programda yok | — | — |"
+    )
 
 
 @pytest.mark.parametrize(
@@ -165,7 +182,7 @@ def test_course_documents_name_the_instructor(monkeypatch):
     course = next(a for a in content.prepared_answers if a.answer.startswith("SE221 —"))
     assert "Öğretim elemanı (2026-2027 Güz Dönemi): Ayşe Örnek" in course.answer
     assert "SE221 dersini kim veriyor, hocası kim?" in course.questions
-    assert "Şube 01 (Ayşe Örnek): Salı 09:30–12:20 (Müh. 1025H)" in course.answer
+    assert "| 01 | Ayşe Örnek | Salı | 09:30–12:20 | Müh. 1025H |" in course.answer
     assert "SE221 dersi hangi gün, saat kaçta?" in course.questions
 
 

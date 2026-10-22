@@ -72,15 +72,15 @@ def test_catalog_store_keeps_each_record_type_and_its_source(tools):
     assert "Ön koşul: MATH152" in result.text
     assert "2026-2027 Güz Dönemi hocaları: Emel Kavgacı" in result.text
     # Oturumlar katalog dosyasına yazılıp geri okunur.
-    assert "Şube 01 (Emel Kavgacı): Salı 09:30–12:20 (Müh. 1025H)" in result.text
+    assert "| 01 | Emel Kavgacı | Salı | 09:30–12:20 | Müh. 1025H |" in result.text
+    assert "| 3 | 0 | 0 | 3.0 | 6.0 |" in result.text
     assert [c.title for c in result.citations] == ["Dersler", f"Ders Programı — {TERM}"]
 
 
 def test_course_search_by_prefix_lists_every_course_with_its_teachers(tools):
     text = tools.ders_ara("MATH").text
-    assert "MATH151 — Calculus I | bölüm programı dışında" in text
-    assert "Fatma Eroğlu (Şube 01); Serdar Ay (Şube 02)" in text
-    assert "MATH276 — Diferansiyel Denklemler | Zorunlu Dersler" in text
+    assert "| MATH151 | Calculus I | bölüm programı dışında | Fatma Eroğlu (Şube 01); Serdar Ay (Şube 02) |" in text
+    assert "| MATH276 | Diferansiyel Denklemler | Zorunlu Dersler | Emel Kavgacı |" in text
     assert "SE212" not in text
 
 
@@ -94,7 +94,8 @@ def test_course_search_by_prefix_lists_every_course_with_its_teachers(tools):
     ],
 )
 def test_course_search_matches_codes_and_names_in_either_language(tools, query, expected):
-    assert tools.ders_ara(query).text.startswith(expected)
+    # İlk iki satır tablo başlığıdır; en iyi eşleşme ilk veri satırında.
+    assert tools.ders_ara(query).text.splitlines()[2].startswith(f"| {expected} |")
 
 
 def test_course_not_offered_this_term_says_so(tools):
@@ -105,15 +106,19 @@ def test_teacher_courses_are_found_by_surname_across_the_university(tools):
     assert "Ali Yazıcı: CMPE113 Computer Programming I (Şube 01)" in tools.hocanin_dersleri("Yazıcı").text
     assert "Fatma Eroğlu" in tools.hocanin_dersleri("fatma eroğlu").text
     assert "yok" in tools.hocanin_dersleri("Bilinmeyen Kişi").text
-    assert "MATH276 Şube 01: Salı 09:30–12:20 (Müh. 1025H)" in tools.hocanin_dersleri("Kavgacı").text
-    assert "CMPE113 Şube 01: programda gün/saat yok" in tools.hocanin_dersleri("Yazıcı").text
+    assert "| MATH276 Differential Equations | 01 | Salı | 09:30–12:20 | Müh. 1025H |" in (
+        tools.hocanin_dersleri("Kavgacı").text
+    )
+    assert "| CMPE113 Computer Programming I | 01 | programda yok | — | — |" in (
+        tools.hocanin_dersleri("Yazıcı").text
+    )
 
 
 def test_department_roster_lists_each_members_courses_this_term(tools):
     # "Bu hocalardan hangileri MATH dersi veriyor?" sorusu bu listeden süzülür.
     text = tools.bolum_kadrosu().text
-    assert "Prof. Dr. Ali YAZICI | Araştırma: Algoritmalar | Bu dönem dersleri: CMPE113" in text
-    assert "Doç. Dr. Erhan GÖKÇAY | Bu dönem dersleri: yok" in text
+    assert "| Prof. Dr. Ali YAZICI | — | Algoritmalar | CMPE113" in text
+    assert "| Doç. Dr. Erhan GÖKÇAY | — | — | yok |" in text
 
 
 def test_staff_details_include_this_terms_courses(tools):
