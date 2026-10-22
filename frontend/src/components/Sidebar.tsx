@@ -3,6 +3,9 @@ import { assistant } from '../config/assistant'
 import type { ConversationSummary, User } from '../types'
 import { ConversationList } from './ConversationList'
 
+/** Kısayol ipucu: App hem Cmd hem Ctrl ile çalışır; ipucu kullanıcının klavyesindeki tuşu gösterir. */
+const SHORTCUT_HINT = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘ K' : 'Ctrl K'
+
 type SidebarProps = {
   user: User
   conversations: ConversationSummary[]
@@ -52,7 +55,7 @@ export function Sidebar({
       <button className="new-chat-button" onClick={onNewChat}>
         <Plus size={18} />
         <span>Yeni sohbet</span>
-        <span className="shortcut">⌘ K</span>
+        <span className="shortcut">{SHORTCUT_HINT}</span>
       </button>
 
       <div className="sidebar-section">

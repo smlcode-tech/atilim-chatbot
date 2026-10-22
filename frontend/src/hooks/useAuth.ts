@@ -8,7 +8,7 @@ import {
   userFromToken,
   writeToken,
 } from '../api/client'
-import type { User } from '../types'
+import type { ApiStatus, User } from '../types'
 
 /**
  * Oturum durumu: kim giriş yapmış (girişli kullanıcı, misafir ya da kimse), giriş açık mı ve
@@ -81,7 +81,8 @@ function loadGoogleScript(): Promise<void> {
 /**
  * Açılışta oturumu çözer: önce sunucunun giriş açık olup olmadığına bakar (kapalıysa herkes
  * misafirdir), sonra saklanan jetonu doğrular, jeton yoksa sekmedeki misafir seçimini hatırlar.
- * `isChecking` bu süreç bitene kadar true kalır; App bu sırada splash gösterir.
+ * `isChecking` bu süreç bitene kadar true kalır; App bu sırada splash gösterir. Sağlık
+ * denetiminin sonucu `apiStatus` olarak sohbete de verilir; `/api/health` açılışta bir kez istenir.
  */
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
@@ -91,6 +92,7 @@ export function useAuth() {
   /** Sunucuda Google girişi var mı; yoksa herkes misafirdir ve giriş seçeneği gösterilmez. */
   const [canSignIn, setCanSignIn] = useState(true)
   const [guestQuestionLimit, setGuestQuestionLimit] = useState<number | null>(null)
+  const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
   // StrictMode etkileri iki kez çalıştırır; Google'ın düğmesi iki kez kurulmamalı.
   const isInitialized = useRef(false)
 
@@ -98,7 +100,10 @@ export function useAuth() {
     let isMounted = true
     const resolveUser = async () => {
       const health = await checkHealth()
-      if (isMounted) setGuestQuestionLimit(health.guestQuestionLimit)
+      if (isMounted) {
+        setGuestQuestionLimit(health.guestQuestionLimit)
+        setApiStatus(health.online ? 'online' : 'offline')
+      }
       if (health.online && !health.authRequired) {
         if (isMounted) {
           setCanSignIn(false)
@@ -212,6 +217,7 @@ export function useAuth() {
     isGuest,
     canSignIn,
     guestQuestionLimit,
+    apiStatus,
     isChecking,
     error,
     mountGoogleButton,

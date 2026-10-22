@@ -33,6 +33,7 @@ function App() {
     isGuest,
     canSignIn,
     guestQuestionLimit,
+    apiStatus: initialApiStatus,
     isChecking,
     error,
     mountGoogleButton,
@@ -47,6 +48,7 @@ function App() {
     sendsHistory: isGuest,
     onRemaining: setRemaining,
     onQuotaStale: refreshQuota,
+    initialApiStatus,
   })
 
   // Çıkışta ya da oturum düştüğünde sohbet ekranda kalmamalı: aynı tarayıcıda giriş yapan

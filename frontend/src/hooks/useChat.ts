@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ApiUnreachableError,
   askQuestion,
-  checkHealth,
   fetchConversation,
   type HistoryTurn,
 } from '../api/client'
@@ -17,10 +16,15 @@ type UseChatOptions = {
   onRemaining: (remaining: number | null) => void
   /** Soru yanıtlanamadı (sınır dolu ya da hata): kalan hak sunucudan yeniden alınır. */
   onQuotaStale: () => void
+  /** Açılıştaki sağlık denetiminin sonucu (`useAuth`); `/api/health` ikinci kez istenmez. */
+  initialApiStatus: ApiStatus
 }
 
-/** Sunucunun geçmiş sınırları (`MAX_HISTORY_TURNS`, `MAX_HISTORY_TURN_LENGTH`) içinde kalır. */
-const HISTORY_TURNS = 12
+/**
+ * Sunucu geçmişin yalnızca son `history_turns` (6) mesajını kullanır; fazlası boşa gönderilir.
+ * Uzunluk sunucunun `MAX_HISTORY_TURN_LENGTH` sınırı içinde kalır.
+ */
+const HISTORY_TURNS = 6
 const HISTORY_TURN_LENGTH = 4000
 
 /**
@@ -46,6 +50,7 @@ export function useChat({
   sendsHistory,
   onRemaining,
   onQuotaStale,
+  initialApiStatus,
 }: UseChatOptions) {
   const [messages, setMessages] = useState<Message[]>([])
   // Gönderim anındaki mesajlar; sendMessage her mesajda yeniden kurulmasın diye ref'te tutulur.
@@ -58,16 +63,11 @@ export function useChat({
   // kullanıcı başka bir konuşmaya geçmiştir; sonuç oraya yazılmaz.
   const view = useRef(0)
 
-  // İlk bağlantı durumu; sonrasında her istek durumu kendisi günceller.
+  // İlk bağlantı durumu açılıştaki sağlık denetiminden gelir; sonrasında her istek durumu
+  // kendisi günceller.
   useEffect(() => {
-    let isMounted = true
-    void checkHealth().then(({ online }) => {
-      if (isMounted) setApiStatus(online ? 'online' : 'offline')
-    })
-    return () => {
-      isMounted = false
-    }
-  }, [])
+    setApiStatus(initialApiStatus)
+  }, [initialApiStatus])
 
   /** Mesajı listenin sonuna ekler; kimlik ve zaman burada verilir. */
   const append = useCallback((message: Omit<Message, 'id' | 'createdAt'>) => {

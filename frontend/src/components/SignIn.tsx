@@ -43,7 +43,7 @@ export function SignIn({ error, guestLimit, onMountGoogleButton, onContinueAsGue
           <div className="signin-form-header">
             <h2 className="signin-form-title">Giriş yap</h2>
             <p className="signin-lead">
-              Sohbet geçmişine erişmek ve daha akıllı yanıtlar almak için Google hesabınla devam et.
+              Sohbet geçmişini kaydetmek ve günde daha çok soru sorabilmek için Google hesabınla devam et.
             </p>
           </div>
 
