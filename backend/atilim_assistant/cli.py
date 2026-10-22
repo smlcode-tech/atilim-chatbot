@@ -1,4 +1,8 @@
-"""Komut satırı arayüzü: ingest (indeksle), serve (API), chat (terminalde sohbet)."""
+"""Komut satırı arayüzü: ingest (indeksle), serve (API), chat (terminalde sohbet).
+
+Üç komut aynı bileşenleri (`bootstrap.py`) kullanır; terminaldeki sohbet API'yle aynı
+yanıtları verir ve arayüz olmadan hızlı deneme sağlar.
+"""
 
 import argparse
 import logging
@@ -22,6 +26,7 @@ from atilim_assistant.ingestion.sources import SOURCES, get_source
 
 
 def main() -> None:
+    """`python -m atilim_assistant <komut>` giriş noktası (`__main__.py`)."""
     parser = argparse.ArgumentParser(prog="python -m atilim_assistant", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -46,6 +51,13 @@ def main() -> None:
 
 
 def _ingest(args: argparse.Namespace) -> None:
+    """Kaynak sayfaları çeker, ayrıştırır ve indeksler; her kaynak yalnızca kendi verisini
+    değiştirir.
+
+    `--dry-run` ayar ve API anahtarı istemez, hiçbir şey yazmaz: yeni bir ayrıştırıcının
+    çıktısını Voyage kotası harcamadan görmek içindir. `--html` sitedeki sayfa değişmeden önce
+    kaydedilmiş bir kopyayla ayrıştırıcıyı denemeyi sağlar.
+    """
     if args.html and not args.source:
         raise SystemExit("--html yalnızca --source ile birlikte kullanılabilir.")
     sources = [get_source(args.source)] if args.source else list(SOURCES)
@@ -83,6 +95,7 @@ def _ingest(args: argparse.Namespace) -> None:
 
 
 def _serve(_: argparse.Namespace) -> None:
+    """API'yi başlatır; Render'ın başlatma komutu budur (`render.yaml`)."""
     settings = get_settings()
     uvicorn.run(
         "atilim_assistant.api.app:create_app",
@@ -93,6 +106,8 @@ def _serve(_: argparse.Namespace) -> None:
 
 
 def _chat(_: argparse.Namespace) -> None:
+    """Terminalde sohbet. Geçmiş tutulmaz (her soru bağımsızdır) ve günlük sınır uygulanmaz;
+    geliştirme ve hata ayıklama içindir."""
     service = build_chat_service(get_settings())
     while True:
         question = input("\nSoru (çıkış: q): ").strip()

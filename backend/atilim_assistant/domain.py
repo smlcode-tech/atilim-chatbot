@@ -1,4 +1,9 @@
-"""Katmanlar arasında taşınan çekirdek veri tipleri."""
+"""Katmanlar arasında taşınan çekirdek veri tipleri.
+
+Hiçbir dış pakete (FastAPI, pymongo, openai, chromadb) bağlı değildir; her katman bu tipleri
+konuşur ve kendi dış biçimine (HTTP gövdesi, Mongo belgesi, Chroma üst verisi) kendisi çevirir.
+Tipler değişmezdir (`frozen`): katmanlar arasında paylaşılan bir nesne yolda değiştirilemez.
+"""
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -12,11 +17,15 @@ class Document:
     """İndekslenen ve bağlam olarak modele verilen en küçük bilgi birimi."""
 
     id: str
+    # Belgenin geldiği kaynak; yeniden indekslemede o kaynağın belgeleri birlikte değişir.
     source_id: str
+    # Kaynak sayfanın adı ve adresi; yanıtta kaynak olarak gösterilir.
     source_title: str
     url: str
+    # Belgenin ait olduğu birim (ör. bölüm) ve konu kategorisi.
     unit: str
     category: str
+    # Sayfa içindeki bölümün başlığı; soru kalıbı belgelerinde kalıbın kendisidir.
     title: str
     text: str
 
@@ -37,7 +46,11 @@ class PreparedAnswer:
 
 @dataclass(frozen=True, slots=True)
 class SourceContent:
-    """Bir kaynak sayfanın ayrıştırılmış içeriği."""
+    """Bir kaynak sayfanın ayrıştırılmış içeriği: ayrıştırıcının çıktısı, ingest'in girdisi.
+
+    Aynı sayfa üç biçimde kullanılır: metin araması için belgeler, model kesintisi için hazır
+    yanıtlar, liste ve süzme soruları için yapılandırılmış kayıtlar.
+    """
 
     documents: list[Document]
     prepared_answers: list[PreparedAnswer]
@@ -55,12 +68,16 @@ class Source:
     url: str
     unit: str
     category: str
+    # Sayfanın HTML'ini içeriğe çevirir; her sayfa yapısı farklı olduğu için kaynağa özgüdür.
     parser: Callable[[str, "Source"], SourceContent]
+    # Verilirse sayfa siteden çekilmez, bu dosyadan okunur.
     local_content_path: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class Citation:
+    """Yanıtın dayandığı sayfa: adı ve adresi."""
+
     title: str
     url: str
 
@@ -84,7 +101,9 @@ class Completion:
 
 @dataclass(frozen=True, slots=True)
 class Answer:
-    """`prepared`: yanıt model tarafından üretilmedi, hazır yanıtlardan verildi.
+    """`ChatService`'in bir soruya verdiği yanıt; API bunu `ChatResponse`'a çevirir.
+
+    `prepared`: yanıt model tarafından üretilmedi, hazır yanıtlardan verildi.
     `suggestions`: soru yanıtlanamadığında kullanıcıya seçenek olarak sunulan yakın sorular."""
 
     text: str
@@ -95,7 +114,7 @@ class Answer:
 
 @dataclass(frozen=True, slots=True)
 class User:
-    """Google ile giriş yapmış kullanıcı."""
+    """Google ile giriş yapmış kullanıcı. `id` uygulamanın kendi kimliğidir, Google'ınki değil."""
 
     id: str
     email: str

@@ -1,4 +1,9 @@
-"""Ayarlardan somut bileşenleri kuran bağlama noktası."""
+"""Ayarlardan somut bileşenleri kuran bağlama noktası.
+
+Hangi arayüzün hangi sınıfla karşılanacağı yalnızca burada bilinir (Groq, Voyage, Chroma,
+MongoDB). API ve CLI bileşenleri buradan alır; testler bu dosyayı atlayıp sahte bileşenleri
+doğrudan `create_app`'e verir.
+"""
 
 import logging
 
@@ -25,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 def build_provider(settings: Settings) -> tuple[ChatModel, Embedder]:
+    """Sohbet modeli ve embedder. İkisi ayrı sağlayıcıdandır: Groq embedding sunmaz.
+    Kullanılan modeller kayda yazılır ki dağıtımda hangisinin çalıştığı görülebilsin."""
     embedder: Embedder = VoyageEmbedder(
         api_key=settings.voyage_api_key.get_secret_value(),
         model=settings.embed_model,
@@ -39,6 +46,7 @@ def build_provider(settings: Settings) -> tuple[ChatModel, Embedder]:
 
 
 def build_store(settings: Settings) -> DocumentStore:
+    """Sayfa belgelerinin vektör deposu."""
     return DocumentStore(settings.vector_store_dir, settings.collection, settings.embed_model)
 
 
@@ -50,10 +58,12 @@ def build_question_store(settings: Settings) -> DocumentStore:
 
 
 def build_prepared_answer_store(settings: Settings) -> PreparedAnswerStore:
+    """Hazır yanıt dosyası; ingest yazar, sohbet okur."""
     return PreparedAnswerStore(settings.prepared_answers_path)
 
 
 def build_catalog_store(settings: Settings) -> CatalogStore:
+    """Yapılandırılmış katalog dosyası; ingest yazar, sohbet okur."""
     return CatalogStore(settings.catalog_path)
 
 
@@ -69,6 +79,12 @@ def build_conversation_store(
 
 
 def build_chat_service(settings: Settings) -> ChatService:
+    """Soru-cevap servisini tüm bileşenleriyle kurar.
+
+    Eksik veride davranış bilinçli olarak farklıdır: belge indeksi boşsa başlamaz (asistanın
+    yanıt verecek hiçbir şeyi yoktur, sessizce "bilmiyorum" demek sorunu gizlerdi); hazır
+    yanıtlar ya da katalog eksikse uyarıyla başlar, çünkü asistan onlarsız da kısmen çalışır.
+    """
     store = build_store(settings)
     if store.count() == 0:
         raise RuntimeError("İndeks boş. Önce `python -m atilim_assistant ingest` komutunu çalıştır.")
