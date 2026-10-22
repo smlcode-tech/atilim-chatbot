@@ -16,6 +16,11 @@ type SidebarProps = {
   isGuest?: boolean
 }
 
+/**
+ * Yan bar: marka, yeni sohbet, bağlantılar, geçmiş ve kullanıcı. Geniş ekranda kalıcıdır,
+ * dar ekranda çekmece olarak açılır (açık/kapalı durumu App'te, görünüm `styles.css`'te).
+ * Bağlantı ve metinler `config/assistant.ts`'ten gelir.
+ */
 export function Sidebar({
   user,
   conversations,

@@ -6,6 +6,7 @@ type ThemeToggleProps = {
   onToggle: () => void
 }
 
+/** Tema düğmesi; simge ve etiket geçilecek temayı gösterir, şimdikini değil. */
 export function ThemeToggle({ theme, onToggle }: ThemeToggleProps) {
   return (
     <button

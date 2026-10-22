@@ -16,6 +16,11 @@ type TopbarProps = {
   children?: React.ReactNode
 }
 
+/**
+ * Sohbet panelinin üst çubuğu: konum, tema düğmesi ve bağlantı durumu. `children` App'in
+ * verdiği çekmece düğmesidir; düğme App'in durumunu değiştirdiği için orada tanımlanır.
+ * Durum değişince (`aria-live`) ekran okuyucu da duyurur.
+ */
 export function Topbar({ status, theme, onToggleTheme, children }: TopbarProps) {
   return (
     <header className="topbar">

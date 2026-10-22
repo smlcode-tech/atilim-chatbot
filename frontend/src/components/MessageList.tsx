@@ -12,8 +12,13 @@ type MessageListProps = {
   onChooseOther: () => void
 }
 
+// Biçimlendirici bir kez kurulur; her mesaj için yeniden oluşturmak gereksizdir.
 const timeFormat = new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' })
 
+/**
+ * Konuşmanın mesajları ve yanıt beklenirken "yazıyor" göstergesi. Yeni mesaj ya da gösterge
+ * gelince liste en alta kayar.
+ */
 export function MessageList({
   messages,
   isLoading,
@@ -56,11 +61,19 @@ export function MessageList({
   )
 }
 
+/** Yanıtlanamayan soruda sunulan seçeneklerin eylemleri: bir öneriyi sor ya da "Diğer". */
 type Choices = {
   onPick: (question: string) => void
   onOther: () => void
 }
 
+/**
+ * Tek mesaj. Asistan yanıtları Markdown olarak çizilir (model listeler ve kalın yazı üretir;
+ * GFM tabloları da destekler); kullanıcının sorusu ve hata mesajları düz metindir, kullanıcının
+ * yazdığı "*" gibi karakterler biçime dönüşmez. `react-markdown` ham HTML'i çizmez (metin
+ * olarak gösterir) ve `javascript:` gibi tehlikeli bağlantıları temizler; model çıktısına
+ * gömülü betik çalışmaz.
+ */
 function MessageRow({ message, choices }: { message: Message; choices?: Choices }) {
   const isAssistant = message.role === 'assistant'
 

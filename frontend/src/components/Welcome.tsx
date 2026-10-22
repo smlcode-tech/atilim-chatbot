@@ -5,6 +5,10 @@ type WelcomeProps = {
   onPickSuggestion: (prompt: string) => void
 }
 
+/**
+ * Boş sohbetin karşılama ekranı. Hazır soru kartları ilk soruyu yazma zahmetini kaldırır ve
+ * asistanın neyi bildiğini gösterir; kart seçilince soru doğrudan gönderilir.
+ */
 export function Welcome({ onPickSuggestion }: WelcomeProps) {
   return (
     <div className="welcome-content">
