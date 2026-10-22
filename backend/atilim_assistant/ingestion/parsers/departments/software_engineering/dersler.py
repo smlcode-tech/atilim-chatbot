@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass, field
 from bs4 import BeautifulSoup
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.ingestion.parsers.departments.software_engineering import ders_programi
 from atilim_assistant.text import collapse_whitespace, normalize
 
@@ -79,7 +80,7 @@ def parse(html: str, source: Source) -> SourceContent:
     # Tüm ders listesi belge olarak indekslenmez: model bağlamının tek başına sınırını aşar ve
     # aynı bilgi sekme özetlerinde zaten var. Yalnızca hazır yanıt olarak verilir.
     answers.append(
-        _answer(
+        answer_for(
             source,
             [
                 f"{source.unit} dersleri nelerdir?",
@@ -103,9 +104,9 @@ def parse(html: str, source: Source) -> SourceContent:
             )
         tab_text = "\n".join(lines)
         slug = tab.id.replace("_", "-")
-        documents.append(_doc(source, slug, f"{tab.label}", tab_text))
+        documents.append(doc_for(source, slug, f"{tab.label}", tab_text))
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{source.unit} {tab.label.lower()} nelerdir?",
@@ -129,7 +130,7 @@ def parse(html: str, source: Source) -> SourceContent:
             for tab in electives
         )
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     "Seçmeli dersler nelerdir?",
@@ -175,7 +176,7 @@ def parse(html: str, source: Source) -> SourceContent:
             base = f"{tab.id}-{c.code.lower()}"
             local_id = base if base not in seen else f"{base}-2"
             seen.add(local_id)
-            documents.append(_doc(source, local_id, c.name, doc_text))
+            documents.append(doc_for(source, local_id, c.name, doc_text))
 
             shared_name = len(codes_by_name[normalize(c.name)]) > 1
             name = f"{c.name} ({c.code})" if shared_name else c.name
@@ -203,7 +204,7 @@ def parse(html: str, source: Source) -> SourceContent:
                     f"{c.code} dersinin ön koşulu nedir?",
                     f"{name} dersini almak için önce hangi dersi almalıyım?",
                 ]
-            answers.append(_answer(source, questions, doc_text))
+            answers.append(answer_for(source, questions, doc_text))
 
     courses = [
         {**asdict(course), "category": tab.label} for tab in tabs for course in tab.courses
@@ -243,29 +244,3 @@ def _extract_tabs(container) -> list[_Tab]:
                 )
         tabs.append(_Tab(id=tab_id, label=label, courses=courses))
     return tabs
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )

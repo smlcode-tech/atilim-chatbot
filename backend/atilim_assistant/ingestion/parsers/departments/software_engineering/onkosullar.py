@@ -4,6 +4,7 @@ Girdi: `data/onkosullar.txt` dosyası — her satır `DERS: ÖNKOŞUL1, ÖNKOŞU
 """
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 
 
 def parse(text: str, source: Source) -> SourceContent:
@@ -41,9 +42,9 @@ def parse(text: str, source: Source) -> SourceContent:
         prereq_str = " ve ".join(prereqs)
         lines.append(f"{course} alabilmek için ön koşul: {prereq_str}")
     summary = "\n".join(lines)
-    documents.append(_doc(source, "ozet", source.title, summary))
+    documents.append(doc_for(source, "ozet", source.title, summary))
     answers.append(
-        _answer(
+        answer_for(
             source,
             [
                 "Ön koşul zinciri nedir?",
@@ -67,9 +68,9 @@ def parse(text: str, source: Source) -> SourceContent:
         if course in unlocks:
             unlocked = ", ".join(sorted(unlocks[course]))
             doc_text += f"\n{course} tamamlandıktan sonra açılan dersler: {unlocked}"
-        documents.append(_doc(source, f"onkosul-{course.lower()}", f"{course} Ön Koşulu", doc_text))
+        documents.append(doc_for(source, f"onkosul-{course.lower()}", f"{course} Ön Koşulu", doc_text))
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{course} dersinin ön koşulu nedir?",
@@ -89,9 +90,9 @@ def parse(text: str, source: Source) -> SourceContent:
             f"{prereq} dersini tamamlayanlar için açılan dersler ({source.unit}):\n"
             f"{prereq} başarıyla tamamlandığında şu dersler alınabilir: {courses_str}"
         )
-        documents.append(_doc(source, f"acar-{prereq.lower()}", f"{prereq} Sonrası Açılan Dersler", doc_text))
+        documents.append(doc_for(source, f"acar-{prereq.lower()}", f"{prereq} Sonrası Açılan Dersler", doc_text))
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{prereq} sonrasında hangi dersler açılır?",
@@ -105,29 +106,3 @@ def parse(text: str, source: Source) -> SourceContent:
         )
 
     return SourceContent(documents=documents, prepared_answers=answers)
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )

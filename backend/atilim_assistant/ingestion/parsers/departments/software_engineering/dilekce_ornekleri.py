@@ -9,6 +9,7 @@ Sayfa: https://www.atilim.edu.tr/tr/se/page/5217/dilekce-ornekleri
 from bs4 import BeautifulSoup
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.text import collapse_whitespace
 
 # ---------------------------------------------------------------------------
@@ -117,9 +118,9 @@ def parse(html: str, source: Source) -> SourceContent:
     for title, url in links.items():
         summary_lines.append(f"- {title}: {url}")
     summary = "\n".join(summary_lines)
-    documents.append(_doc(source, "ozet", source.title, summary))
+    documents.append(doc_for(source, "ozet", source.title, summary))
     answers.append(
-        _answer(
+        answer_for(
             source,
             [
                 "Dilekçe örnekleri nerede?",
@@ -144,9 +145,9 @@ def parse(html: str, source: Source) -> SourceContent:
             doc_text += "(Şablon metni mevcut değil; lütfen yukarıdaki linkten Word dosyasını indirin.)"
 
         slug = _slugify(title)
-        documents.append(_doc(source, slug, title, doc_text))
+        documents.append(doc_for(source, slug, title, doc_text))
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 _questions(title),
                 doc_text,
@@ -176,29 +177,3 @@ def _questions(title: str) -> list[str]:
         f"{subject} formu, belgesi nereden bulunur?",
         f"{subject} için nasıl başvururum?",
     ]
-
-
-def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )

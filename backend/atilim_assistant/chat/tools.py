@@ -19,6 +19,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering.ders_pr
     instructors_line,
     name_tokens,
     same_person,
+    teaching_line,
 )
 from atilim_assistant.retrieval.catalog import SECTIONS, Catalog
 from atilim_assistant.text import FILLER_WORDS, correct_course_codes, normalize, stem
@@ -27,6 +28,8 @@ from atilim_assistant.text import FILLER_WORDS, correct_course_codes, normalize,
 # "MATH" gibi geniş bir önek yüzlerce ders döndürür; ilk 30'u ve kalan sayısı yeter.
 _MAX_COURSES = 30
 # belge_ara'nın modele verdiği toplam metin; birkaç ilgili parça sığar, sayfanın tamamı sığmaz.
+# Groq ücretsiz katmanı dakikada 8000 token kabul eder; bir soru birkaç model turu sürdüğü için
+# tek bir araç sonucu bunun küçük bir parçası olmalıdır. Bağlam sınırı yalnızca burada tutulur.
 _MAX_DOCUMENT_CHARS = 6000
 # bolum_kadrosu tüm kadroyu tek sonuçta verir; araştırma konusu kişi başına kırpılmazsa liste
 # kotayı tek başına bitirir. Ayrıntı gerekirse model personel_bilgisi'ni çağırır.
@@ -275,7 +278,7 @@ class Tools:
         if not teachers:
             return ToolResult(f"{self.term} ders programında '{ad}' adlı öğretim elemanı yok.")
         lines = [
-            f"{teacher}: {_teaching(self._catalog.timetable.sections_of_teacher(teacher))}"
+            f"{teacher}: {teaching_line(self._catalog.timetable.sections_of_teacher(teacher))}"
             for teacher in teachers
         ]
         return ToolResult(f"{self.term} ders programı:\n" + "\n".join(lines), self._citations(SECTIONS))
@@ -371,7 +374,7 @@ class Tools:
     def _courses_of(self, staff_name: str) -> str:
         """Personel sayfasındaki adla ders programındaki dersler; adların iki kaynakta farklı
         yazılışını `sections_of_teacher` eşleştirir."""
-        return _teaching(self._catalog.timetable.sections_of_teacher(staff_name))
+        return teaching_line(self._catalog.timetable.sections_of_teacher(staff_name))
 
     def _citations(self, *keys: str) -> list[Citation]:
         """Katalog bölümlerinin kaynak sayfaları. Ingest'te alınamayan bölümün kaynağı yoktur;
@@ -413,13 +416,3 @@ def _same(query: str, name: str) -> bool:
     """Sorulan ad ("Yazıcı", "ali yazıcı") kayıttaki adla ("Prof. Dr. Ali YAZICI") uyuşuyor mu."""
     asked = name_tokens(query)
     return bool(asked) and (set(asked) <= set(name_tokens(name)) or same_person(query, name))
-
-
-def _teaching(sections: list[Section]) -> str:
-    """"CMPE113 Computer Programming I (Şube 01, 02); FE302 … (Şube 06)"."""
-    by_course: dict[tuple[str, str], list[str]] = {}
-    for section in sections:
-        by_course.setdefault((section.code, section.name), []).append(section.number)
-    return "; ".join(
-        f"{code} {name} (Şube {', '.join(numbers)})" for (code, name), numbers in by_course.items()
-    )

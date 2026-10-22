@@ -144,6 +144,21 @@ def instructors_line(sections: list[Section]) -> str:
     )
 
 
+def teaching_line(sections: list[Section]) -> str:
+    """Bir hocanın verdiği dersler, ders başına şubeleriyle:
+    "CMPE113 Computer Programming I (Şube 01, 02); FE302 … (Şube 06)".
+
+    `instructors_line`'ın tersi (ders → hocalar yerine hoca → dersler). Hem ingest (personel
+    belgeleri) hem sohbet araçları kullanır; ikisinin aynı biçimi vermesi için tek yerdedir.
+    """
+    by_course: dict[tuple[str, str], list[str]] = {}
+    for section in sections:
+        by_course.setdefault((section.code, section.name), []).append(section.number)
+    return "; ".join(
+        f"{code} {name} (Şube {', '.join(numbers)})" for (code, name), numbers in by_course.items()
+    )
+
+
 def name_tokens(name: str) -> list[str]:
     """Unvanları atılmış, normalleştirilmiş ad sözcükleri: "Prof. Dr. Ali YAZICI" → [ali, yazici]."""
     return [token for token in normalize(name).split() if token not in _TITLE_WORDS]

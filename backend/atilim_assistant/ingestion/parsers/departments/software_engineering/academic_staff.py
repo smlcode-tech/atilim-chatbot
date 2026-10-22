@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, replace
 from bs4 import BeautifulSoup, Tag
 
 from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceContent
+from atilim_assistant.ingestion.parsers.common import answer_for, doc_for
 from atilim_assistant.ingestion.parsers.departments.software_engineering import ders_programi
 from atilim_assistant.ingestion.parsers.departments.software_engineering.staff_emails import (
     card_email,
@@ -59,7 +60,10 @@ def parse(html: str, source: Source) -> SourceContent:
         raise ValueError(f"{source.url} sayfasında akademik personel kartı bulunamadı.")
     timetable = ders_programi.current()
     if timetable:
-        members = [replace(m, courses=_courses_text(timetable, m.name)) for m in members]
+        members = [
+            replace(m, courses=ders_programi.teaching_line(timetable.sections_of_teacher(m.name)))
+            for m in members
+        ]
     return SourceContent(
         documents=[_roster_document(members, source)]
         + [_member_document(member, source) for member in members]
@@ -143,16 +147,6 @@ def _member_fields(member: _StaffMember) -> list[str]:
     return fields
 
 
-def _courses_text(timetable: ders_programi.Timetable, name: str) -> str:
-    """"CMPE113 Introduction to Programming (Şube 01, 02); FE302 Ethics (Şube 06)"."""
-    by_course: dict[tuple[str, str], list[str]] = {}
-    for section in timetable.sections_of_teacher(name):
-        by_course.setdefault((section.code, section.name), []).append(section.number)
-    return "; ".join(
-        f"{code} {course} (Şube {', '.join(numbers)})" for (code, course), numbers in by_course.items()
-    )
-
-
 def _teaching_answers(
     members: list[_StaffMember], source: Source, timetable: ders_programi.Timetable | None
 ) -> list[PreparedAnswer]:
@@ -162,7 +156,7 @@ def _teaching_answers(
     if not timetable or not teaching:
         return []
     return [
-        _answer(
+        answer_for(
             source,
             [
                 "Hangi hocalar hangi dersleri veriyor?",
@@ -175,7 +169,7 @@ def _teaching_answers(
             ),
         )
     ] + [
-        _answer(
+        answer_for(
             source,
             [
                 f"{member.name} hangi dersleri veriyor?",
@@ -222,34 +216,19 @@ def _member_document(member: _StaffMember, source: Source) -> Document:
     modele verildiğinde kişinin hangi bölümden olduğunu söyler."""
     heading = f"{member.name} — {source.unit} akademik personeli"
     text = "\n".join([heading, *_member_fields(member)])
-    return _document(source, slugify(member.name), member.name, text)
+    return doc_for(source, slugify(member.name), member.name, text)
 
 
 def _roster_document(members: list[_StaffMember], source: Source) -> Document:
     """"Kadroda kimler var?" sorusu için tüm kadro tek belgede."""
     title = f"{source.unit} akademik kadrosu"
-    return _document(source, "kadro", title, _roster_text(members, source))
+    return doc_for(source, "kadro", title, _roster_text(members, source))
 
 
 def _contacts_document(members: list[_StaffMember], source: Source) -> Document:
     """"Hocalara nasıl ulaşırım?" sorusu için tüm iletişim bilgileri tek belgede."""
     title = f"{source.unit} akademik kadrosu iletişim bilgileri"
-    return _document(source, "kadro-iletisim", title, _contacts_text(members, source))
-
-
-def _document(source: Source, local_id: str, title: str, text: str) -> Document:
-    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
-    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
-    return Document(
-        id=f"{source.id}:{local_id}",
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        unit=source.unit,
-        category=source.category,
-        title=title,
-        text=text,
-    )
+    return doc_for(source, "kadro-iletisim", title, _contacts_text(members, source))
 
 
 def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer]:
@@ -262,7 +241,7 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
         + [f"- {field}" for field in _member_fields(member)]
     )
     return [
-        _answer(
+        answer_for(
             source,
             [
                 name,
@@ -274,7 +253,7 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
             ],
             profile,
         ),
-        _answer(
+        answer_for(
             source,
             [
                 f"{name} araştırma konuları neler?",
@@ -286,7 +265,7 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
             ],
             f"**{name}** — araştırma konuları: {member.research or _UNSPECIFIED}",
         ),
-        _answer(
+        answer_for(
             source,
             [
                 f"{name} telefon numarası nedir?",
@@ -300,7 +279,7 @@ def _member_answers(member: _StaffMember, source: Source) -> list[PreparedAnswer
             f"**{name}** — {_contact(member)}"
             + ("" if member.email else f". {_SEE_SOURCE_FOR_EMAIL}"),
         ),
-        _answer(
+        answer_for(
             source,
             [
                 f"{name} eğitim bilgileri neler?",
@@ -346,7 +325,7 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
         f"{department} bölümündeki hocalar kimler?",
     ]
     answers = [
-        _answer(
+        answer_for(
             source,
             # Birim adı anılmadan sorulan genel sorular da ("Hocalar kimler?") kadroyu getirir.
             [f"{unit} {question}" for question in roster_questions]
@@ -354,7 +333,7 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
             + roster_questions,
             _roster_text(members, source),
         ),
-        _answer(
+        answer_for(
             source,
             [f"{unit} {question}" for question in contact_questions] + contact_questions,
             _contacts_text(members, source),
@@ -364,7 +343,7 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
     officers = [member for member in members if member.role]
     if officers:
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [f"{unit} {member.role} kim?" for member in officers]
                 + [
@@ -383,7 +362,7 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
     for employment in dict.fromkeys(member.employment for member in members if member.employment):
         names = [member.name for member in members if member.employment == employment]
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [f"{unit} {employment} kimler?", f"{employment} kimler?"],
                 _bullets(f"{unit} — {employment}:", names),
@@ -406,7 +385,7 @@ def _topic_answers(members: list[_StaffMember], source: Source) -> list[Prepared
         # ("Makine Öğrenmesi" ⊂ "Yapay Zekâ ve Makine Öğrenmesi").
         names = [m.name for m in members if f" {key} " in f" {normalize(m.research)} "]
         answers.append(
-            _answer(
+            answer_for(
                 source,
                 [
                     f"{topic} üzerine çalışan akademisyenler kimler?",
@@ -430,14 +409,3 @@ def _short_unit(unit: str) -> str:
 def _bullets(heading: str, items: list[str]) -> str:
     """Başlık ve madde işaretli liste; liste yanıtlarının hepsi aynı biçimde görünür."""
     return "\n".join([heading, *(f"- {item}" for item in items)])
-
-
-def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
-    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
-    return PreparedAnswer(
-        source_id=source.id,
-        source_title=source.title,
-        url=source.url,
-        questions=questions,
-        answer=answer,
-    )

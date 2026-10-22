@@ -76,7 +76,7 @@ def test_question_patterns_bring_prepared_answers_into_the_context(
     questions = DocumentStore(tmp_path / "spread", "test_questions", "spread")
     index_content(staff_source, staff_content, embedder, store, prepared_store, questions)
 
-    retriever = HybridRetriever(store, embedder, top_k=3, max_chars=100_000, questions=questions)
+    retriever = HybridRetriever(store, embedder, top_k=3, questions=questions)
     texts = [document.text for document in retriever.retrieve("Oyun geliştirmeyle uğraşan var mı?")]
     assert any("araştırma konuları arasında" in text for text in texts)
 
@@ -113,7 +113,7 @@ def pattern_retriever(tmp_path) -> HybridRetriever:
     ]
     questions.replace_source("s", documents, embedder.embed_documents([d.title for d in documents]))
     store = DocumentStore(tmp_path / "patterns", "test", "topic")
-    return HybridRetriever(store, embedder, top_k=3, max_chars=100_000, questions=questions)
+    return HybridRetriever(store, embedder, top_k=3, questions=questions)
 
 
 def test_similar_questions_offer_one_pattern_per_answer(pattern_retriever):
@@ -137,12 +137,12 @@ def test_unrelated_questions_get_no_suggestions(pattern_retriever):
 
 
 def test_similar_questions_need_the_question_index(store, embedder):
-    retriever = HybridRetriever(store, embedder, top_k=3, max_chars=100_000)
+    retriever = HybridRetriever(store, embedder, top_k=3)
     assert retriever.similar_questions("herhangi", limit=5) == []
 
 
 def test_the_same_text_enters_the_context_once(store, questions, embedder):
-    retriever = HybridRetriever(store, embedder, top_k=6, max_chars=100_000, questions=questions)
+    retriever = HybridRetriever(store, embedder, top_k=6, questions=questions)
     texts = [document.text for document in retriever.retrieve("akademik kadroda kimler var?")]
     assert len(texts) == len(set(texts))
 
@@ -160,18 +160,9 @@ def test_hybrid_retriever_merges_semantic_and_lexical_results(store, embedder):
     # "Oyun" vektör aramasında, "Ayşe Örnek" anahtar kelime aramasında birinci gelir. Sahte
     # embedder diğer belgelere aynı vektörü verdiği için kalan sıra belirsizdir; yalnızca
     # iki aramanın birincilerinin sonuçta yer aldığı doğrulanır.
-    retriever = HybridRetriever(store, embedder, top_k=3, max_chars=100_000)
+    retriever = HybridRetriever(store, embedder, top_k=3)
     titles = {document.title for document in retriever.retrieve("Oyun mu, Ayşe Örnek mi?")}
     assert {"Öğr. Gör. Mehmet DENEME", "Prof. Dr. Ayşe ÖRNEK"} <= titles
-
-
-def test_hybrid_retriever_skips_documents_that_overflow_the_context_budget(
-    store, embedder, staff_documents
-):
-    budget = min(len(document.text) for document in staff_documents)
-    retriever = HybridRetriever(store, embedder, top_k=3, max_chars=budget)
-    results = retriever.retrieve("Oyun mu, Ayşe Örnek mi?")
-    assert sum(len(document.text) for document in results) <= budget
 
 
 _META = {"source_id": "s", "source_title": "s", "url": "", "unit": "", "category": ""}
