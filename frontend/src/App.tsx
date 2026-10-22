@@ -14,10 +14,8 @@ import { useChat } from './hooks/useChat'
 import { useConversations } from './hooks/useConversations'
 import { useTheme } from './hooks/useTheme'
 
-// Splash en az bu kadar görünür (ms): logo 650 ms gecikmeyle başlayıp 500 ms'de yerine oturur,
-// ardından ~450 ms tam görünür kalır. Daha kısası animasyonu kırpar; daha uzunu her açılışa
-// boş bekleme ekler.
-const SPLASH_MIN_MS = 1600
+// Splash screen en az bu kadar görünür (ms), auth ne kadar hızlı biterse bitsin.
+const SPLASH_MIN_MS = 2200
 
 function App() {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -32,9 +30,7 @@ function App() {
     continueAsGuest,
     signOut,
   } = useAuth()
-  const { conversations, refresh, remove, pendingDelete, undoDelete, flushDelete } = useConversations(
-    user !== null && !isGuest,
-  )
+  const { conversations, refresh, remove } = useConversations(user !== null && !isGuest)
   const { messages, conversationId, isLoading, apiStatus, sendMessage, askAgain, startNew, open } = useChat({
     onConversationChanged: refresh,
     sendsHistory: isGuest,
@@ -85,17 +81,11 @@ function App() {
 
   const deleteConversation = useCallback(
     (id: string) => {
-      remove(id)
+      void remove(id)
       if (id === conversationId) startNewChat()
     },
     [conversationId, remove, startNewChat],
   )
-
-  // Geri alma süresi dolmamış silme, oturum jetonu silinmeden önce sunucuya gönderilir.
-  const leave = useCallback(() => {
-    flushDelete()
-    signOut()
-  }, [flushDelete, signOut])
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -145,7 +135,7 @@ function App() {
               onOpenConversation={openConversation}
               onDeleteConversation={deleteConversation}
               // Giriş yapılandırılmamışsa misafirin gidebileceği bir giriş ekranı yoktur.
-              onSignOut={isGuest && !canSignIn ? undefined : leave}
+              onSignOut={isGuest && !canSignIn ? undefined : signOut}
               isGuest={isGuest}
             />
 
@@ -188,17 +178,6 @@ function App() {
                 focusRequest={composerFocus}
               />
             </section>
-
-            {pendingDelete && (
-              <div className="undo-toast" role="status">
-                <span className="undo-toast-text">
-                  <strong>{pendingDelete.title}</strong> silindi.
-                </span>
-                <button type="button" onClick={undoDelete}>
-                  Geri al
-                </button>
-              </div>
-            )}
           </main>
         )}
         </motion.div>
