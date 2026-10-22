@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
+import type { Quota } from '../api/client'
 import { assistant } from '../config/assistant'
 
 const MAX_TEXTAREA_HEIGHT = 160
@@ -9,9 +10,22 @@ type ComposerProps = {
   onSend: (text: string) => void
   /** Her artışta yazma alanı odaklanır (ör. "Diğer" seçildiğinde). */
   focusRequest?: number
+  /** Bugün kalan soru hakkı; bilinmiyorsa gösterilmez. */
+  quota?: Quota | null
+  /** Hak bitince giriş yaparak devam edilebileceği söylenir (misafir). */
+  suggestsSignIn?: boolean
 }
 
-export function Composer({ disabled, onSend, focusRequest = 0 }: ComposerProps) {
+/** Bu kadar ya da daha az hak kalınca sayı vurgulanır. */
+const LOW_QUOTA = 2
+
+export function Composer({
+  disabled,
+  onSend,
+  focusRequest = 0,
+  quota = null,
+  suggestsSignIn = false,
+}: ComposerProps) {
   const [question, setQuestion] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -60,6 +74,9 @@ export function Composer({ disabled, onSend, focusRequest = 0 }: ComposerProps) 
             <span className="hint-divider" aria-hidden="true">·</span>
             <span className="hint-key">⇧ ↵</span> yeni satır
           </span>
+          {quota !== null && quota.remaining !== null && (
+            <QuotaNote remaining={quota.remaining} limit={quota.limit} suggestsSignIn={suggestsSignIn} />
+          )}
           <button
             className="send-button"
             type="submit"
@@ -74,5 +91,29 @@ export function Composer({ disabled, onSend, focusRequest = 0 }: ComposerProps) 
         {assistant.name} hata yapabilir. Önemli bilgileri yanıtın altındaki kaynaklardan doğrulayın.
       </p>
     </div>
+  )
+}
+
+function QuotaNote({
+  remaining,
+  limit,
+  suggestsSignIn,
+}: {
+  remaining: number
+  limit: number
+  suggestsSignIn: boolean
+}) {
+  const level = remaining === 0 ? 'quota-out' : remaining <= LOW_QUOTA ? 'quota-low' : ''
+  return (
+    // role="status": hak azaldığında ekran okuyucu da duyurur.
+    <span className={`composer-quota ${level}`} role="status">
+      {remaining === 0 ? (
+        <>Bugünlük soru hakkın bitti{suggestsSignIn && <>; Google ile giriş yaparak devam edebilirsin</>}</>
+      ) : (
+        <>
+          Bugün <strong>{remaining}</strong>/{limit} soru hakkın kaldı
+        </>
+      )}
+    </span>
   )
 }

@@ -13,6 +13,10 @@ type UseChatOptions = {
   onConversationChanged: () => void
   /** Misafirin geçmişi sunucuda tutulmaz; takip soruları için her soruyla gönderilir. */
   sendsHistory: boolean
+  /** Her yanıt bugün kalan soru hakkını taşır. */
+  onRemaining: (remaining: number | null) => void
+  /** Soru yanıtlanamadı (sınır dolu ya da hata): kalan hak sunucudan yeniden alınır. */
+  onQuotaStale: () => void
 }
 
 /** Sunucunun geçmiş sınırları (`MAX_HISTORY_TURNS`, `MAX_HISTORY_TURN_LENGTH`) içinde kalır. */
@@ -26,7 +30,12 @@ function historyOf(messages: Message[]): HistoryTurn[] {
     .map(({ role, content }) => ({ role, content: content.slice(0, HISTORY_TURN_LENGTH) }))
 }
 
-export function useChat({ onConversationChanged, sendsHistory }: UseChatOptions) {
+export function useChat({
+  onConversationChanged,
+  sendsHistory,
+  onRemaining,
+  onQuotaStale,
+}: UseChatOptions) {
   const [messages, setMessages] = useState<Message[]>([])
   // Gönderim anındaki mesajlar; sendMessage her mesajda yeniden kurulmasın diye ref'te tutulur.
   const messagesRef = useRef<Message[]>([])
@@ -67,6 +76,7 @@ export function useChat({ onConversationChanged, sendsHistory }: UseChatOptions)
       try {
         const answer = await askQuestion(question, conversationId, history)
         setApiStatus('online')
+        onRemaining(answer.remaining)
         if (ticket !== view.current) {
           // Soru sunucuda kendi konuşmasına kaydedildi; yalnızca yan bar tazelenir.
           if (answer.conversationId !== null) onConversationChanged()
@@ -85,6 +95,7 @@ export function useChat({ onConversationChanged, sendsHistory }: UseChatOptions)
         }
       } catch (error) {
         setApiStatus(error instanceof ApiUnreachableError ? 'offline' : 'online')
+        onQuotaStale()
         if (ticket !== view.current) return
         append({
           role: 'assistant',
@@ -95,7 +106,7 @@ export function useChat({ onConversationChanged, sendsHistory }: UseChatOptions)
         if (ticket === view.current) setIsLoading(false)
       }
     },
-    [append, conversationId, isLoading, onConversationChanged, sendsHistory],
+    [append, conversationId, isLoading, onConversationChanged, onQuotaStale, onRemaining, sendsHistory],
   )
 
   /** Önerilen sorulardan hiçbiri değilse: soru sunucuya gitmez, kullanıcı yeniden sorar. */

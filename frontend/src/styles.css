@@ -1351,6 +1351,34 @@ textarea:focus-visible {
   font-size: 12px;
 }
 
+/* Kalan soru hakkı; azaldıkça vurgulanır. */
+.composer-quota {
+  margin: 0 12px 0 auto;
+  color: var(--muted-2);
+  font-size: 12px;
+  text-align: right;
+}
+
+.composer-quota strong {
+  font-weight: 700;
+}
+
+.composer-quota.quota-low,
+.composer-quota.quota-out {
+  color: var(--accent-text);
+}
+
+.composer-quota.quota-out {
+  font-weight: 600;
+}
+
+/* Dokunmatik ekranda klavye kısayolu yok; yer kalan hakka kalır. */
+@media (pointer: coarse) {
+  .composer-hint {
+    display: none;
+  }
+}
+
 .hint-key {
   color: var(--muted-3);
   font-weight: 600;

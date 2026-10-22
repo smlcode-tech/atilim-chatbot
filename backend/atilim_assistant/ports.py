@@ -21,6 +21,14 @@ class UserRepository(Protocol):
         """Misafir için `count_question`; `guest_key` IP adresinin özetidir."""
         ...
 
+    def questions_asked(self, user_id: str, day: str) -> int:
+        """O gün sorulan soru sayısı; sayacı değiştirmez. Başka günün sayacı 0 sayılır."""
+        ...
+
+    def guest_questions_asked(self, guest_key: str, day: str) -> int:
+        """Misafir için `questions_asked`."""
+        ...
+
     def uncount_question(self, user_id: str, day: str) -> None:
         """`count_question`ın artırdığını geri alır: yanıtlanamayan soru sınırdan düşülmez."""
         ...

@@ -99,6 +99,12 @@ class InMemoryUserRepository:
     def count_guest_question(self, guest_key: str, day: str) -> int:
         return self.count_question(f"misafir:{guest_key}", day)
 
+    def questions_asked(self, user_id: str, day: str) -> int:
+        return self.asked.get((user_id, day), 0)
+
+    def guest_questions_asked(self, guest_key: str, day: str) -> int:
+        return self.questions_asked(f"misafir:{guest_key}", day)
+
     def uncount_question(self, user_id: str, day: str) -> None:
         if self.asked.get((user_id, day), 0) > 0:
             self.asked[user_id, day] -= 1

@@ -59,6 +59,24 @@ def test_a_guest_counter_is_created_on_the_first_question(db):
     assert db.users.count_documents({}) == 0
 
 
+def test_reading_the_counter_does_not_change_it(db):
+    users = MongoUserRepository(db)
+    user_id = users.upsert("google-sub-1", "ogrenci@atilim.edu.tr", "Öğrenci")
+
+    assert users.questions_asked(user_id, "2026-10-12") == 0
+    users.count_question(user_id, "2026-10-12")
+    assert users.questions_asked(user_id, "2026-10-12") == 1
+    assert users.questions_asked(user_id, "2026-10-12") == 1
+    assert users.questions_asked(user_id, "2026-10-13") == 0
+
+    assert users.guest_questions_asked("adres-ozeti", "2026-10-12") == 0
+    users.count_guest_question("adres-ozeti", "2026-10-12")
+    assert users.guest_questions_asked("adres-ozeti", "2026-10-12") == 1
+    # Okumak misafir için sayaç belgesi oluşturmaz.
+    assert users.guest_questions_asked("baska-adres", "2026-10-12") == 0
+    assert db.guest_quotas.count_documents({"_id": "baska-adres"}) == 0
+
+
 def test_turns_round_trip_with_their_timestamps(db):
     conversations = MongoConversationRepository(db)
     conversation_id = conversations.start("user-1", "Bölüm başkanı kim?")
