@@ -13,11 +13,13 @@ from atilim_assistant.text import collapse_whitespace
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Tek belge ve tek hazır yanıt: amaçlar kısa bir listedir, bölünmesi aramaya katkı vermez."""
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
     if not container:
         raise ValueError(f"{source.url} sayfasında detail-container bulunamadı.")
 
+    # Giriş, kalın başlık taşımayan ilk paragraftır; başlık paragrafı atlanır.
     intro = ""
     for p in container.find_all("p"):
         text = collapse_whitespace(p.get_text())
@@ -58,6 +60,8 @@ def parse(html: str, source: Source) -> SourceContent:
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -71,6 +75,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,

@@ -12,6 +12,8 @@ from atilim_assistant.domain import Document, PreparedAnswer, Source, SourceCont
 from atilim_assistant.text import collapse_whitespace
 
 # Görsel olarak sunulan prosedür adımları sayfa metninden türetilmiştir.
+# Dikkat: elle yazılmış bir metindir; sayfadaki prosedür, süreler ya da bölüm sekreterinin
+# adı değişirse ingest bunu fark etmez, bu metin elle güncellenmelidir.
 _PROSEDUR_ADIMLARI = """\
 Yaz Stajı Prosedür Adımları (SE Bölümü):
 
@@ -33,7 +35,8 @@ Moodle üzerinden SE399/SE499 dersine yükle.
 Sonbahar'da kayıt olunmazsa ilkbahar dönemi denenir; o da geçilirse staj tekrarlanır.\
 """
 
-# Sayfadaki tüm bölüm başlıkları → (slug, başlık, sorular)
+# Sayfadaki tüm bölüm başlıkları → (slug, başlık, sorular). Başlıklar sayfadaki yazımla
+# birebir eşleşmelidir; burada olmayan başlığın altındaki liste atlanır.
 _SECTIONS_META: dict[str, tuple[str, str, list[str]]] = {
     "STAJ ÖNERİLERİ BİLGİ DOSYASI İÇİN TIKLAYINIZ.": (
         "genel",
@@ -97,6 +100,12 @@ _SECTIONS_META: dict[str, tuple[str, str, list[str]]] = {
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Bilinen her bölüm başlığı için ayrı belge ve hazır yanıt, ayrıca elle yazılmış prosedür.
+
+    Sayfa düz bir başlık-liste dizisidir: başlıklar sırayla izlenir, ardından gelen listeler o
+    başlığa eklenir. Not: başlıklar değişip hiçbir bölüm bulunamazsa hata verilmez, yalnızca
+    prosedür belgesi üretilir.
+    """
     soup = BeautifulSoup(html, "html.parser")
     container = soup.find(class_="detail-container")
     if not container:
@@ -162,6 +171,8 @@ def parse(html: str, source: Source) -> SourceContent:
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -175,6 +186,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,

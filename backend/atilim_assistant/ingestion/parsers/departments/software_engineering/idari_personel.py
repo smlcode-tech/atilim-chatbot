@@ -17,11 +17,14 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering.staff_e
 )
 from atilim_assistant.text import collapse_whitespace, slugify
 
+# Kartta telefon ayrı bir alanda değil, düz metin içinde durur; +90 ile başlayan dizi aranır.
 _PHONE = re.compile(r"\+90[\d ()]{10,}")
 
 
 @dataclass(frozen=True, slots=True)
 class _StaffMember:
+    """Bir idari personel kartı; katalogdaki `admin_staff` kaydının alanları da bunlardır."""
+
     name: str
     title: str
     phone: str
@@ -29,6 +32,8 @@ class _StaffMember:
 
 
 def parse(html: str, source: Source) -> SourceContent:
+    """Kadro listesi, kişi başına belge, hazır yanıtlar ve katalog kaydı (`personel_bilgisi`
+    aracı idari personeli buradan bulur)."""
     cards = BeautifulSoup(html, "html.parser").select("div.staff-academician")
     emails = known_emails()
     members = [_parse_card(card, emails) for card in cards]
@@ -46,6 +51,8 @@ def parse(html: str, source: Source) -> SourceContent:
 
 
 def _parse_card(card: Tag, emails: dict[str, str]) -> _StaffMember:
+    """Kartı alanlara ayırır. Unvan başlıktaki `<small>` içindedir; adın içine karışmasın diye
+    önce çıkarılır, kalan başlık metni addır."""
     h4 = card.find("h4")
     small = h4.find("small") if h4 else None
     title = collapse_whitespace(small.extract().get_text()).lstrip("/ ") if small else ""
@@ -60,6 +67,7 @@ def _parse_card(card: Tag, emails: dict[str, str]) -> _StaffMember:
 
 
 def _roster_document(members: list[_StaffMember], source: Source) -> Document:
+    """Tüm idari kadro tek belgede; "idari personel kimler?" tek aramada bütün listeyi bulsun."""
     entries = []
     for m in members:
         label = m.title or "İdari Personel"
@@ -69,6 +77,7 @@ def _roster_document(members: list[_StaffMember], source: Source) -> Document:
 
 
 def _member_document(m: _StaffMember, source: Source) -> Document:
+    """Kişi başına belge; adla sorulan soru tek kişinin bilgisini bulur. Boş alanlar yazılmaz."""
     lines = [f"{m.name} — {source.unit} idari personeli"]
     if m.title:
         lines.append(f"Unvan: {m.title}")
@@ -80,6 +89,8 @@ def _member_document(m: _StaffMember, source: Source) -> Document:
 
 
 def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedAnswer]:
+    """Birim düzeyindeki hazır yanıt: kadro listesi, iletişim bilgileriyle birlikte. Kullanıcı
+    çoğu zaman adı değil görevi bilir ("bölüm sekreteri")."""
     unit = source.unit
     entries = []
     for m in members:
@@ -107,6 +118,8 @@ def _unit_answers(members: list[_StaffMember], source: Source) -> list[PreparedA
 
 
 def _member_answers(m: _StaffMember, source: Source) -> list[PreparedAnswer]:
+    """Kişi başına profil yanıtı ve (bilgi varsa) iletişim yanıtı. İletişim bilgisi yoksa o
+    yanıt üretilmez: "telefonu ne?" sorusu boş bir yanıta değil modele gitmelidir."""
     answers = []
     profile_lines = [f"**{m.name}** — {source.unit} idari personeli"]
     if m.title:
@@ -147,6 +160,8 @@ def _member_answers(m: _StaffMember, source: Source) -> list[PreparedAnswer]:
 
 
 def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
+    """Bu kaynağın bir belgesi. Kimlik `<kaynak>:<yerel kimlik>` biçimindedir ve sayfa
+    içeriğinden türetilir; yeniden indekslemede aynı kalır."""
     return Document(
         id=f"{source.id}:{local_id}",
         source_id=source.id,
@@ -160,6 +175,7 @@ def _doc(source: Source, local_id: str, title: str, text: str) -> Document:
 
 
 def _answer(source: Source, questions: list[str], answer: str) -> PreparedAnswer:
+    """Bu kaynağın bir hazır yanıtı; kaynak sayfa yanıtla birlikte gösterilir."""
     return PreparedAnswer(
         source_id=source.id,
         source_title=source.title,

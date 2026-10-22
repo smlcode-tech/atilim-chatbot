@@ -26,10 +26,15 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     yaz_stajlari,
 )
 
+# Siteden çekilemeyen ya da elle derlenen verilerin dizini (bkz. `se-onkosullar`).
 _SE_DATA = Path(__file__).parent / "parsers/departments/software_engineering/data"
 
+# Birimin tam adı; belgelere ve soru kalıplarına yazılır. Kullanıcı sorusunda başka bir birim
+# anılırsa ("bilgisayar mühendisliği…"), bu adı taşımayan hazır yanıtlar elenir.
 _SE = "Atılım Üniversitesi Yazılım Mühendisliği Bölümü"
 
+# Kimlikler (`id`) kalıcıdır: depolar kaynağın verisini bu kimlikle bulup değiştirir. Bir
+# kimliği değiştirmek eski verinin indekste sahipsiz kalmasına yol açar.
 SOURCES: tuple[Source, ...] = (
     Source(
         id="se-tanitim",
@@ -158,12 +163,15 @@ SOURCES: tuple[Source, ...] = (
         unit=_SE,
         category="lisans-programi",
         parser=onkosullar.parse,
+        # Siteden çekilmez; zincir elle `DERS: ÖNKOŞUL` satırlarına dökülmüş bir dosyadan okunur.
         local_content_path=_SE_DATA / "onkosullar.txt",
     ),
 )
 
 
 def get_source(source_id: str) -> Source:
+    """Kimliğe göre kaynak (`cli ingest --source`). Bilinmeyen kimlikte tanımlı kimlikler
+    listelenir, yazım hatası hemen görülsün."""
     for source in SOURCES:
         if source.id == source_id:
             return source
