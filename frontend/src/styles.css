@@ -21,10 +21,12 @@
   --ink: #1a1d26;
   --ink-2: #505468;
   --ink-3: #383b4e;
-  --sub: #9a9dac;
-  --muted: #8b90a3;
-  --muted-2: #a1a4b2;
-  --muted-3: #73788c;
+  /* İkincil metin tonları, koyudan açığa: --muted-3, --muted, --muted-2 ve --sub. Hepsi
+     zeminde en az 4.5:1 kontrast verir (WCAG AA); daha açığı okunmaz. */
+  --sub: #6b6f80;
+  --muted: #656a7c;
+  --muted-2: #6b6f80;
+  --muted-3: #5c6073;
   --scroll-shadow: rgba(26, 29, 38, 0.22);
   --line: #e5e8f0;
   --blue: #1F3D7C;
@@ -47,10 +49,10 @@
   --ink: #dde0ef;
   --ink-2: #9fa3bc;
   --ink-3: #b8bcd0;
-  --sub: #4a4e65;
-  --muted: #565a72;
-  --muted-2: #4a4e65;
-  --muted-3: #4a4e65;
+  --sub: #8a8ea6;
+  --muted: #9195ae;
+  --muted-2: #8a8ea6;
+  --muted-3: #a3a8c2;
   --scroll-shadow: rgba(0, 0, 0, 0.7);
   --line: #252840;
   --blue: #6b8de0;
@@ -153,7 +155,7 @@ textarea:focus-visible {
   font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .signin-brand-name {
@@ -184,7 +186,7 @@ textarea:focus-visible {
 .signin-brand-footnote {
   margin: 0;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.72);
   line-height: 1.6;
 }
 
@@ -220,7 +222,7 @@ textarea:focus-visible {
 
 .signin-lead {
   margin: 0;
-  color: #7a7f94;
+  color: var(--muted-3);
   font-size: 15px;
   line-height: 1.75;
 }
@@ -299,7 +301,7 @@ textarea:focus-visible {
   justify-content: center;
   gap: 6px;
   margin: 28px 0 0;
-  color: #b0b5c8;
+  color: var(--muted-2);
   font-size: 12px;
 }
 
@@ -433,7 +435,7 @@ textarea:focus-visible {
 
 .brand-copy > span {
   margin-top: 3px;
-  color: #9397a7;
+  color: var(--muted-2);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 1.15px;
@@ -476,7 +478,7 @@ textarea:focus-visible {
 
 .section-label {
   margin: 0 10px 12px;
-  color: #a1a4b2;
+  color: var(--muted-2);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1.3px;
@@ -489,7 +491,7 @@ textarea:focus-visible {
   min-height: 39px;
   margin: 3px 0;
   padding: 0 10px;
-  color: #73788c;
+  color: var(--muted-3);
   border-radius: 8px;
   font-size: 13px;
   text-decoration: none;
@@ -562,7 +564,7 @@ textarea:focus-visible {
   min-width: 0;
   min-height: 34px;
   padding: 0 4px 0 10px;
-  color: #73788c;
+  color: var(--muted-3);
   background: none;
   border: none;
   font: inherit;
@@ -664,7 +666,7 @@ textarea:focus-visible {
 
 .user-copy > span {
   overflow: hidden;
-  color: #a1a4b2;
+  color: var(--muted-2);
   font-size: 12px;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -721,7 +723,7 @@ textarea:focus-visible {
 
 .sidebar-note p {
   margin: 0;
-  color: #85899a;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -754,7 +756,7 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #9a9dac;
+  color: var(--muted-2);
   font-size: 13px;
 }
 
@@ -865,7 +867,7 @@ textarea:focus-visible {
 .welcome-description {
   max-width: 400px;
   margin: 13px auto 0;
-  color: #85899a;
+  color: var(--muted);
   font-size: 15px;
   line-height: 1.7;
 }
@@ -930,7 +932,7 @@ textarea:focus-visible {
 
 .suggestion-prompt {
   padding-right: 8px;
-  color: #9599a8;
+  color: var(--muted-2);
   font-size: 13px;
   line-height: 1.55;
 }
@@ -949,7 +951,7 @@ textarea:focus-visible {
   justify-content: center;
   gap: 6px;
   margin-top: 19px;
-  color: #9a9dac;
+  color: var(--muted-2);
   font-size: 12px;
 }
 
@@ -1023,7 +1025,7 @@ textarea:focus-visible {
   gap: 8px;
   min-height: 22px;
   margin-bottom: 5px;
-  color: #999cab;
+  color: var(--muted-2);
   font-size: 12px;
 }
 
@@ -1206,7 +1208,7 @@ textarea:focus-visible {
 .markdown-content blockquote {
   margin: 0.7em 0;
   padding: 0.15em 0 0.15em 0.85em;
-  color: #717589;
+  color: var(--muted);
   border-left: 3px solid #ED1C24;
 }
 
@@ -1339,12 +1341,12 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #a0a3b1;
+  color: var(--muted-2);
   font-size: 12px;
 }
 
 .hint-key {
-  color: #797e91;
+  color: var(--muted-3);
   font-weight: 600;
 }
 
@@ -1379,7 +1381,7 @@ textarea:focus-visible {
 
 .disclaimer {
   margin: 9px 0 0;
-  color: #a1a4b1;
+  color: var(--muted-2);
   text-align: center;
   font-size: 12px;
 }
