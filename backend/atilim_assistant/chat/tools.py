@@ -24,24 +24,44 @@ from atilim_assistant.retrieval.catalog import SECTIONS, Catalog
 from atilim_assistant.text import FILLER_WORDS, correct_course_codes, normalize, stem
 
 # Tek bir araç sonucunun sınırları: model bağlamı ve dakikalık token kotası sınırlıdır.
+# "MATH" gibi geniş bir önek yüzlerce ders döndürür; ilk 30'u ve kalan sayısı yeter.
 _MAX_COURSES = 30
+# belge_ara'nın modele verdiği toplam metin; birkaç ilgili parça sığar, sayfanın tamamı sığmaz.
 _MAX_DOCUMENT_CHARS = 6000
+# bolum_kadrosu tüm kadroyu tek sonuçta verir; araştırma konusu kişi başına kırpılmazsa liste
+# kotayı tek başına bitirir. Ayrıntı gerekirse model personel_bilgisi'ni çağırır.
 _MAX_RESEARCH_CHARS = 100
 
 logger = logging.getLogger(__name__)
 
+# Normalleştirilmiş (küçük harf) metindeki ders kodu: "se212", "se 212", "math151a".
 _COURSE_CODE = re.compile(r"\b([a-z]{2,5}) ?(\d{3}[a-z]?)\b")
+# Ders adında aranacak en kısa sözcük; "ve", "of" gibi kısa sözcükler her derse uyardı.
 _MIN_WORD = 3
 
 
 @dataclass(frozen=True, slots=True)
 class ToolResult:
+    """Bir aracın modele döndürdüğü metin ve yanıtta kaynak olarak gösterilecek sayfalar.
+
+    Kaynaklar metinden ayrı taşınır: model yalnızca metni görür, kaynakları `ChatService`
+    toplar. Böylece kaynak listesi modelin yazdığına değil, gerçekten sorgulanan veriye dayanır.
+    """
+
     text: str
     citations: list[Citation] = field(default_factory=list)
 
 
 @dataclass
 class _Course:
+    """Ders arama dizinindeki bir ders.
+
+    İki kaynağı birleştirir: bölüm müfredatındaki kayıt (`record`: kredi, AKTS, içerik; yalnızca
+    Yazılım Mühendisliği dersleri için var) ve ders programındaki şubeler (`sections`: bu dönem
+    kim veriyor; tüm üniversite). Bölüm dışı derslerde `record` boştur. `words`, ad aramasında
+    her sorguda yeniden hesaplanmasın diye bir kez çıkarılan kök sözcüklerdir.
+    """
+
     code: str
     name: str
     record: dict | None = None
@@ -50,6 +70,11 @@ class _Course:
 
 
 def _function(name: str, description: str, **parameters: str) -> dict:
+    """OpenAI uyumlu araç tanımı üretir; her parametre zorunlu bir metindir.
+
+    Tanımlar elle JSON şeması olarak yazılsaydı her araç için aynı iç içe yapı tekrarlanırdı.
+    Araçların hepsi metin aldığı için tip seçeneği gerekmez.
+    """
     return {
         "type": "function",
         "function": {
@@ -65,6 +90,9 @@ def _function(name: str, description: str, **parameters: str) -> dict:
     }
 
 
+# Modele sunulan araçlar. Adlar ve açıklamalar Türkçedir çünkü model kullanıcının Türkçe
+# sorusunu bu açıklamalarla eşleştirerek araç seçer. Açıklamalardaki kapsam bilgisi ("tüm
+# üniversite", "Yazılım Mühendisliği Bölümü") modelin yanlış araçta boşuna aramasını önler.
 DEFINITIONS = [
     _function(
         "ders_ara",
@@ -107,6 +135,16 @@ DEFINITIONS = [
 
 
 class Tools:
+    """`DEFINITIONS`'taki araçların uygulaması.
+
+    Yapılandırılmış sorular (ders, hoca, kadro) katalogdan kesin olarak yanıtlanır; yalnızca
+    serbest metin konular (staj, Erasmus, SSS) `retriever` ile belge aramasına gider. Metin
+    araması "bu dönem MATH veren hocalar" gibi bir listeyi eksiksiz getiremezdi.
+
+    `retriever`: üretimde `HybridRetriever`, testlerde `FakeRetriever`. `retrieve`,
+    `similar_questions` ve `course_codes` sağlayan her nesne kullanılabilir.
+    """
+
     def __init__(self, catalog: Catalog, retriever) -> None:
         self._catalog = catalog
         self._retriever = retriever
@@ -122,10 +160,16 @@ class Tools:
 
     @property
     def term(self) -> str:
+        """Ders programının dönemi; sistem talimatı ve araç sonuçları hangi dönemi kapsadığını
+        söylesin diye dışarı açılır."""
         return self._catalog.timetable.term
 
     def correct(self, text: str) -> str:
-        """Tek harfle yanlış yazılmış ders kodunu düzeltir ("MATF276" → "MATH276")."""
+        """Tek harfle yanlış yazılmış ders kodunu düzeltir ("MATF276" → "MATH276").
+
+        Bilinen kodlar hem katalogdan hem belge indeksinden toplanır: bazı kodlar yalnızca bölüm
+        sayfalarında geçer, yalnızca katalogla düzeltilselerdi yanlış koda çevrilebilirlerdi.
+        """
         known = frozenset(code.lower() for code in self._courses) | self._retriever.course_codes
         return correct_course_codes(text, known)
 
@@ -155,6 +199,14 @@ class Tools:
             )
 
     def ders_ara(self, sorgu: str) -> ToolResult:
+        """Kod, kod öneki ya da ad sözcükleriyle ders arar; her dersin bu dönemki hocalarını da
+        verir ki "X dersini kim veriyor?" tek çağrıda yanıtlansın.
+
+        Sıralama önceliği: tam kod eşleşmesi, sonra önek eşleşmesi, sonra ortak sözcük sayısı.
+        Böylece "SE212" sorgusunda SE212 her zaman ilk sırada çıkar, adı benzeyen dersler
+        arkadan gelir. Önek olarak tanınan sözcükler ("math") ad aramasına ayrıca katılmaz;
+        aynı sözcük iki kez puan getirmez.
+        """
         query = normalize(self.correct(sorgu))
         exact = [code for code in _codes_in(query) if code in self._courses]
         prefixes = {token for token in query.split() if token.isalpha()} & {
@@ -182,6 +234,12 @@ class Tools:
         return ToolResult("\n".join(lines), self._citations("courses", SECTIONS))
 
     def ders_detayi(self, kod: str) -> ToolResult:
+        """Tek bir dersin müfredat ayrıntısı ve bu dönemki hocaları.
+
+        Bölüm dışı derslerde müfredat kaydı yoktur; bu durumda bunu açıkça yazar. Böylece model
+        kredi bilgisinin eksikliğini "ders yok" diye yorumlamaz.
+        """
+        # Kod kalıba uymazsa (beklenmedik biçim) ham değer denenir; dizinde yoksa "bulunamadı" döner.
         codes = _codes_in(normalize(self.correct(kod))) or [normalize(kod).replace(" ", "")]
         course = self._courses.get(codes[0].upper())
         if course is None:
@@ -204,6 +262,13 @@ class Tools:
         return ToolResult("\n".join(lines), self._citations("courses", SECTIONS))
 
     def hocanin_dersleri(self, ad: str) -> ToolResult:
+        """Bir öğretim elemanının bu dönem verdiği dersler; ders programı üzerinden, tüm
+        üniversitede.
+
+        Ada uyan herkes listelenir: "Yılmaz" birden çok kişiye uyabilir ve hangisinin
+        kastedildiğine model konuşmadan karar verir. Bölüm kadrosunda olmayan hocalar (ör. ortak
+        dersleri veren Matematik hocaları) yalnızca bu araçla bulunur.
+        """
         teachers = sorted(
             {t for s in self._catalog.timetable.sections for t in s.teachers if _same(ad, t)}
         )
@@ -216,6 +281,12 @@ class Tools:
         return ToolResult(f"{self.term} ders programı:\n" + "\n".join(lines), self._citations(SECTIONS))
 
     def bolum_kadrosu(self) -> ToolResult:
+        """Bölüm kadrosunun tamamı, her hocanın bu dönemki dersleriyle birlikte, tek sonuçta.
+
+        "Bu hocalardan hangileri MATH dersi veriyor?" gibi süzme soruları için tasarlandı: model
+        hocaları tek tek sorgulasaydı her biri ayrı bir tur olur ve tur sınırına ya da dakikalık
+        kotaya takılırdı. Satırlar bu yüzden kısa tutulur (bkz. `_MAX_RESEARCH_CHARS`).
+        """
         lines = []
         for member in self._catalog.staff:
             parts = [member["name"]]
@@ -233,6 +304,12 @@ class Tools:
         return ToolResult("\n".join([heading, *lines]), self._citations("staff", SECTIONS))
 
     def personel_bilgisi(self, ad: str) -> ToolResult:
+        """Bölümdeki bir kişinin tüm bilgileri: akademik kadro ya da idari personel.
+
+        İki liste birlikte aranır çünkü kullanıcı "bölüm sekreterinin telefonu" ile "hocanın
+        e-postası"nı aynı biçimde sorar; model kişinin hangi listede olduğunu bilemez. Bulunamazsa
+        model hocanin_dersleri'ne yönlendirilir: kişi başka bölümden olabilir.
+        """
         members = [m for m in self._catalog.staff if _same(ad, m["name"])]
         admins = [m for m in self._catalog.admin_staff if _same(ad, m["name"])]
         if not members and not admins:
@@ -255,13 +332,20 @@ class Tools:
                     fields.append(f"{label}: {member[key]}")
             fields.append(f"{self.term} dersleri: {self._courses_of(member['name']) or 'yok'}")
             blocks.append("\n".join(fields))
+        # Yalnızca bilgisi kullanılan sayfalar kaynak gösterilir; idari personel sorusunda
+        # akademik kadro sayfası kaynak değildir.
         keys = ["staff", SECTIONS] if members else []
         return ToolResult("\n\n".join(blocks), self._citations(*keys, *(["admin_staff"] if admins else [])))
 
     def belge_ara(self, sorgu: str) -> ToolResult:
+        """Bölüm sayfalarında karma (vektör + BM25) arama; katalogda yapılandırılmamış konular
+        için. Her parçanın başına sayfa adı eklenir ki model bilgiyi hangi sayfadan aldığını
+        bilsin."""
         documents: list[Document] = []
         used = 0
         for document in self._retriever.retrieve(sorgu):
+            # Sığmayan parça atlanır ama döngü sürer: sonraki, daha kısa ve yine ilgili bir
+            # parça hâlâ sığabilir.
             if used + len(document.text) > _MAX_DOCUMENT_CHARS:
                 continue
             documents.append(document)
@@ -273,23 +357,35 @@ class Tools:
         return ToolResult(text, [Citation(title=title, url=url) for url, title in pages.items()])
 
     def _summary(self, course: _Course) -> str:
+        """ders_ara sonucundaki tek satır: kod, ad, müfredattaki yeri, bu dönemki hocalar."""
         where = course.record["category"] if course.record else "bölüm programı dışında"
         return f"{course.code} — {course.name} | {where} | {self._instructors(course)}"
 
     def _instructors(self, course: _Course) -> str:
+        """Dersin bu dönemki hocaları. Şubesi olmayan ders için "açılmamış" yazılır; boş
+        bırakılsaydı model bunu "hoca bilgisi yok" sanabilirdi."""
         if not course.sections:
             return f"{self.term}: bu dönem açılmamış"
         return f"{self.term} hocaları: {instructors_line(course.sections)}"
 
     def _courses_of(self, staff_name: str) -> str:
+        """Personel sayfasındaki adla ders programındaki dersler; adların iki kaynakta farklı
+        yazılışını `sections_of_teacher` eşleştirir."""
         return _teaching(self._catalog.timetable.sections_of_teacher(staff_name))
 
     def _citations(self, *keys: str) -> list[Citation]:
+        """Katalog bölümlerinin kaynak sayfaları. Ingest'te alınamayan bölümün kaynağı yoktur;
+        o bölüm sessizce atlanır, olmayan bir sayfa gösterilmez."""
         return [self._catalog.sources[key] for key in keys if key in self._catalog.sources]
 
 
 def _course_index(catalog: Catalog) -> dict[str, _Course]:
-    """Ders koduna göre: bölüm programındaki kayıt (Türkçe ad) ve programdaki şubeler."""
+    """Ders koduna göre: bölüm programındaki kayıt (Türkçe ad) ve programdaki şubeler.
+
+    Dizin açılışta bir kez kurulur; katalog çalışırken değişmez ve her araç çağrısında iki
+    kaynağı yeniden birleştirmek gereksiz olurdu. Ad sözcükleri iki kaynaktan birlikte alınır:
+    müfredatta Türkçe, ders programında İngilizce ad olabilir, iki dille de bulunabilsin.
+    """
     courses: dict[str, _Course] = {}
     for record in catalog.courses:
         code = record["code"].replace(" ", "").upper()
@@ -304,10 +400,12 @@ def _course_index(catalog: Catalog) -> dict[str, _Course]:
 
 
 def _codes_in(text: str) -> list[str]:
+    """Metindeki ders kodları, dizindeki biçimde ("se 212" → "SE212")."""
     return [(letters + number).upper() for letters, number in _COURSE_CODE.findall(text)]
 
 
 def _prefix(code: str) -> str:
+    """Kodun harf kısmı ("SE212" → "se"); "MATH dersleri" gibi önek aramaları için."""
     return re.sub(r"\d.*", "", code).lower()
 
 

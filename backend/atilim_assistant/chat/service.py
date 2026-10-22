@@ -41,6 +41,14 @@ _MARKUP = " \t\n*_>#"
 
 
 class ChatService:
+    """Bir soruyu yanıta çeviren tek giriş noktası; API katmanı yalnızca bunu çağırır.
+
+    Bileşenler (`ChatModel`, araçlar, hazır yanıtlar) dışarıdan verilir: üretimde
+    `bootstrap.build_chat_service` bağlar, testler sahte model verir. Model durumu (soğuma
+    saatleri) nesnede tutulur ve tüm kullanıcılar arasında paylaşılır: kesinti kullanıcıya
+    değil, Groq'a özgüdür.
+    """
+
     def __init__(
         self,
         tools: Tools,
@@ -51,12 +59,22 @@ class ChatService:
         self._tools = tools
         self._model = model
         self._prepared_answers = prepared_answers
+        # Günlük kota bitince modelin dinlendirileceği süre; ayarlanabilir, testler kısaltır.
         self._quota_cooldown_seconds = quota_cooldown_seconds
+        # Bu saate kadar hazır yanıtı olan sorular modele gönderilmez (her hatada ilerler).
         self._model_retry_at = 0.0
+        # Bu saate kadar hiçbir soru modele gönderilmez (yalnızca günlük kota hatasında ilerler).
         self._quota_reset_at = 0.0
 
     def answer(self, question: str, history: list[Turn] | None = None) -> Answer:
-        """Model de hazır yanıtlar da soruyu karşılayamazsa modelin hatasını yükseltir."""
+        """Soruyu yanıtlar; sıra: kod düzeltme → birebir hazır yanıt → model → hazır yanıt yedeği.
+
+        `history`: önceki turlar; takip sorularını ("bu hocalar") model bunlardan çözer.
+
+        Model de hazır yanıtlar da soruyu karşılayamazsa modelin hatasını yükseltir. Hata
+        yutulmaz: API katmanı bunu görüp soruyu kullanıcının günlük sınırından geri düşer ve
+        boş ya da uydurma bir yanıt yerine hata döndürür.
+        """
         # Yanlış yazılmış ders kodu en başta düzeltilir; model de hazır yanıtlar da doğru
         # kodu görür.
         question = self._tools.correct(question)
@@ -101,6 +119,12 @@ class ChatService:
         return Answer(text=SUGGESTIONS_INTRO, citations=[], suggestions=suggestions)
 
     def _converse(self, question: str, history: list[Turn]) -> Answer:
+        """Araç çağrılı model döngüsü: model araç istedikçe çalıştırılır, sonuçları mesaj olarak
+        geri verilir; model araçsız yanıt verince döngü biter.
+
+        Kaynaklar araç sonuçlarından toplanır, modelin metninden değil; model kaynak
+        uyduramaz. Aynı sayfa birden çok araçtan gelirse bir kez gösterilir.
+        """
         messages: list[dict] = [{"role": "system", "content": system_prompt(self._tools.term)}]
         messages += [{"role": turn.role, "content": _clip(turn.content)} for turn in history]
         messages.append({"role": "user", "content": question})
@@ -127,6 +151,11 @@ class ChatService:
         raise RuntimeError("Model araç turu sınırında yanıt üretmedi.")
 
     def _note_failure(self, error: Exception) -> None:
+        """Model hatasından sonra modelin ne kadar dinlendirileceğini belirler.
+
+        Hata türü mesajdan anlaşılır çünkü Groq günlük ve dakikalık sınırların ikisinde de aynı
+        hata sınıfını (429) döndürür; ayrım yalnızca metindedir (bkz. `_DAILY_QUOTA_MARKERS`).
+        """
         quota = any(marker in str(error) for marker in _DAILY_QUOTA_MARKERS)
         wait = self._quota_cooldown_seconds if quota else _TRANSIENT_COOLDOWN_SECONDS
         self._model_retry_at = time.monotonic() + wait
@@ -135,6 +164,11 @@ class ChatService:
 
 
 def _assistant_message(completion: Completion) -> dict:
+    """Modelin araç isteğini OpenAI mesaj biçimine geri çevirir.
+
+    Araç sonuçları (`role: tool`) `tool_call_id` ile bu mesaja bağlanır; istek geçmişe
+    eklenmezse API sonuçları sahipsiz sayıp isteği reddeder.
+    """
     return {
         "role": "assistant",
         "content": completion.content,
@@ -156,9 +190,13 @@ def _says_no_answer(text: str) -> bool:
 
 
 def _clip(text: str) -> str:
+    """Geçmişteki bir turu kısaltır (bkz. `_MAX_TURN_CHARS`). Sonuna "…" eklenir; sistem
+    talimatı da modele kısaltılmış listelere güvenmemesini ve aracı yeniden çağırmasını söyler."""
     return text if len(text) <= _MAX_TURN_CHARS else text[:_MAX_TURN_CHARS] + " …"
 
 
 def _prepared_answer(prepared: PreparedAnswer) -> Answer:
+    """Hazır yanıtı `Answer`'a çevirir. `prepared=True` API yanıtına ve arayüzün mesaj durumuna
+    (`isPrepared`) taşınır; modelsiz verilen yanıtlar böylece ayırt edilebilir."""
     citation = Citation(title=prepared.source_title, url=prepared.url)
     return Answer(text=prepared.answer, citations=[citation], prepared=True)
