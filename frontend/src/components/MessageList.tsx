@@ -27,7 +27,8 @@ export function MessageList({
   }, [messages, isLoading])
 
   return (
-    <div className="message-list">
+    // role="log": eklenen mesajlar ekran okuyucuda sırayla okunur.
+    <div className="message-list" role="log" aria-label="Mesajlar">
       {messages.map((message, index) => (
         <MessageRow
           key={message.id}
@@ -45,7 +46,8 @@ export function MessageList({
           <span className="message-avatar assistant-avatar"><Sparkles size={15} /></span>
           <div className="message-content">
             <div className="message-meta"><strong>{assistant.name}</strong></div>
-            <div className="typing-bubble" aria-label="Yanıt hazırlanıyor">
+            <span className="visually-hidden">Yanıt hazırlanıyor</span>
+            <div className="typing-bubble" aria-hidden="true">
               <span /><span /><span />
             </div>
           </div>

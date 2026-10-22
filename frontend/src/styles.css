@@ -21,6 +21,8 @@
   --muted: #8b90a3;
   --muted-2: #a1a4b2;
   --muted-3: #73788c;
+  /* küçük yardımcı metinler; zeminde en az 4.5:1 kontrast (WCAG AA) */
+  --text-faint: #6b6f80;
   --line: #e5e8f0;
   --blue: #1F3D7C;
   --blue-dark: #03326c;
@@ -46,6 +48,7 @@
   --muted: #565a72;
   --muted-2: #4a4e65;
   --muted-3: #4a4e65;
+  --text-faint: #8c90a8;
   --line: #252840;
   --blue: #6b8de0;
   --blue-dark: #4a6bc0;
@@ -421,8 +424,8 @@ textarea:focus-visible {
 
 .section-label {
   margin: 0 10px 12px;
-  color: #a1a4b2;
-  font-size: 9px;
+  color: var(--text-faint);
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 1.3px;
 }
@@ -434,7 +437,7 @@ textarea:focus-visible {
   min-height: 39px;
   margin: 3px 0;
   padding: 0 10px;
-  color: #73788c;
+  color: var(--text-faint);
   border-radius: 8px;
   font-size: 11px;
   text-decoration: none;
@@ -475,8 +478,8 @@ textarea:focus-visible {
 
 .history-empty {
   margin: 0 10px;
-  color: #a1a4b2;
-  font-size: 10px;
+  color: var(--text-faint);
+  font-size: 12px;
 }
 
 .history-list {
@@ -544,7 +547,7 @@ textarea:focus-visible {
   height: 28px;
   margin-right: 4px;
   padding: 0;
-  color: #b4b7c4;
+  color: var(--text-faint);
   background: none;
   border: none;
   border-radius: 5px;
@@ -561,6 +564,13 @@ textarea:focus-visible {
 
 .history-delete:hover {
   color: var(--accent);
+}
+
+/* Dokunmatik ekranda üstüne gelme yok; düğme görünmezken dokunulabilir olmamalı. */
+@media (hover: none) {
+  .history-delete {
+    opacity: 1;
+  }
 }
 
 .sidebar-user {
@@ -953,13 +963,13 @@ textarea:focus-visible {
   gap: 8px;
   min-height: 22px;
   margin-bottom: 5px;
-  color: #999cab;
-  font-size: 9px;
+  color: var(--text-faint);
+  font-size: 11px;
 }
 
 .message-meta strong {
   color: #505468;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -1248,12 +1258,12 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #a0a3b1;
-  font-size: 9px;
+  color: var(--text-faint);
+  font-size: 11px;
 }
 
 .hint-key {
-  color: #797e91;
+  color: var(--ink-2);
   font-weight: 600;
 }
 
@@ -1288,9 +1298,9 @@ textarea:focus-visible {
 
 .disclaimer {
   margin: 9px 0 0;
-  color: #a1a4b1;
+  color: var(--text-faint);
   text-align: center;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .disclaimer a {
@@ -1525,10 +1535,6 @@ textarea:focus-visible {
   .composer-area {
     padding-bottom: 10px;
   }
-
-  .disclaimer {
-    font-size: 8px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1593,11 +1599,11 @@ textarea:focus-visible {
 [data-theme="dark"] .brand-copy > span,
 [data-theme="dark"] .section-label,
 [data-theme="dark"] .history-empty {
-  color: var(--muted);
+  color: var(--text-faint);
 }
 
 [data-theme="dark"] .nav-item {
-  color: var(--muted-3);
+  color: var(--text-faint);
 }
 
 [data-theme="dark"] .nav-item:hover,
@@ -1621,7 +1627,7 @@ textarea:focus-visible {
 }
 
 [data-theme="dark"] .history-delete {
-  color: var(--muted-2);
+  color: var(--text-faint);
 }
 
 [data-theme="dark"] .sidebar-note {
@@ -1748,11 +1754,11 @@ textarea:focus-visible {
 }
 
 [data-theme="dark"] .message-meta {
-  color: var(--sub);
+  color: var(--text-faint);
 }
 
 [data-theme="dark"] .message-meta strong {
-  color: var(--muted-3);
+  color: var(--ink-2);
 }
 
 [data-theme="dark"] .message-error {
@@ -1791,15 +1797,15 @@ textarea:focus-visible {
 }
 
 [data-theme="dark"] .composer-hint {
-  color: var(--muted-2);
+  color: var(--text-faint);
 }
 
 [data-theme="dark"] .hint-key {
-  color: var(--muted-3);
+  color: var(--ink-2);
 }
 
 [data-theme="dark"] .disclaimer {
-  color: var(--muted-2);
+  color: var(--text-faint);
 }
 
 [data-theme="dark"] .disclaimer a {
@@ -1849,4 +1855,52 @@ textarea:focus-visible {
 
 [data-theme="dark"] .signin-privacy {
   color: var(--muted-2);
+}
+
+/* Görünmez ama ekran okuyucuda okunan metin. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Silinen konuşmayı geri alma bildirimi; temada ters renklerle zeminden ayrılır. Üstte durur:
+   altta yazma alanını örterdi. */
+.undo-toast {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(100% - 32px, 420px);
+  padding: 10px 10px 10px 16px;
+  color: var(--surface);
+  background: var(--ink);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 17, 26, 0.24);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.undo-toast-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.undo-toast button {
+  flex: none;
+  padding: 6px 10px;
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  font-weight: 600;
+  cursor: pointer;
 }
