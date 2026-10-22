@@ -24,6 +24,8 @@ export function useQuota(identity: string | null) {
     void refresh()
   }, [refresh])
 
+  // Yanıttaki kalan hakkı yazar; sınır (`limit`) değişmediği için yeniden istek atılmaz.
+  // Kota henüz alınmadıysa yazılacak sınır da bilinmez, değer atlanır.
   const setRemaining = useCallback((remaining: number | null) => {
     setQuota((current) => (current === null ? current : { ...current, remaining }))
   }, [])

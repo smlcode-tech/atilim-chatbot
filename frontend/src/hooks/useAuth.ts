@@ -10,12 +10,19 @@ import {
 } from '../api/client'
 import type { User } from '../types'
 
+/**
+ * Oturum durumu: kim giriş yapmış (girişli kullanıcı, misafir ya da kimse), giriş açık mı ve
+ * Google düğmesinin kurulması.
+ */
+
+/** Google Identity Services betiği; giriş ekranı açılınca yüklenir, açılışı yavaşlatmaz. */
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
 /** Misafir kimliği: giriş yapılmadan ya da sunucuda giriş yapılandırılmamışken; geçmiş tutulmaz. */
 const GUEST: User = { id: 'guest', email: 'Geçmiş kaydedilmiyor', name: 'Misafir' }
 /** Misafir olarak devam etme seçimi sekme açık kaldıkça hatırlanır; sayfa yenilenince sorulmaz. */
 const GUEST_KEY = 'atilim-assistant-guest'
 
+/** Misafir seçimini sekme boyunca saklar ya da siler. */
 function rememberGuest(isGuest: boolean) {
   try {
     if (isGuest) sessionStorage.setItem(GUEST_KEY, '1')
@@ -25,6 +32,7 @@ function rememberGuest(isGuest: boolean) {
   }
 }
 
+/** Bu sekmede daha önce misafir olarak devam edildi mi. */
 function choseGuest(): boolean {
   try {
     return sessionStorage.getItem(GUEST_KEY) === '1'
@@ -32,10 +40,13 @@ function choseGuest(): boolean {
     return false
   }
 }
+/** Derleme sırasında gömülür (Vercel ortam değişkeni); yoksa Google düğmesi kurulmaz. */
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
 
 type GoogleCredentialResponse = { credential: string }
 
+// Google betiğinin `window.google` üzerine kurduğu API'nin kullanılan kısmı; resmi tip paketi
+// yalnızca bu birkaç işlev için eklenmez.
 declare global {
   interface Window {
     google?: {
@@ -52,6 +63,7 @@ declare global {
   }
 }
 
+/** Google betiğini bir kez yükler; sayfada zaten varsa yeniden eklemez. */
 function loadGoogleScript(): Promise<void> {
   const existing = document.querySelector<HTMLScriptElement>(`script[src="${GSI_SRC}"]`)
   if (existing) return Promise.resolve()
@@ -66,6 +78,11 @@ function loadGoogleScript(): Promise<void> {
   })
 }
 
+/**
+ * Açılışta oturumu çözer: önce sunucunun giriş açık olup olmadığına bakar (kapalıysa herkes
+ * misafirdir), sonra saklanan jetonu doğrular, jeton yoksa sekmedeki misafir seçimini hatırlar.
+ * `isChecking` bu süreç bitene kadar true kalır; App bu sırada splash gösterir.
+ */
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [isChecking, setIsChecking] = useState(true)
@@ -115,6 +132,8 @@ export function useAuth() {
     }
   }, [])
 
+  // Herhangi bir istek 401 alınca (`api/client.ts`) oturum kapanır ve giriş ekranı gelir.
+  // Düğme bayrağı da sıfırlanır: giriş ekranı yeniden kurulduğunda Google düğmesi yeniden çizilmeli.
   useEffect(() => {
     const handleUnauthorized = () => {
       isInitialized.current = false
@@ -124,6 +143,11 @@ export function useAuth() {
     return () => window.removeEventListener('atilim:unauthorized', handleUnauthorized)
   }, [])
 
+  /**
+   * Google düğmesini verilen öğeye çizer ve giriş sonucunu dinler. Düğmeyi ve giriş penceresini
+   * Google çizer; uygulama yalnızca sonuçtaki kimlik jetonunu alıp sunucuya gönderir. Giriş
+   * başarısız olursa bayrak sıfırlanır ki kullanıcı yeniden deneyebilsin.
+   */
   const mountGoogleButton = useCallback(async (parent: HTMLElement) => {
     if (isInitialized.current) return
     if (!CLIENT_ID) {
@@ -166,6 +190,7 @@ export function useAuth() {
     })
   }, [])
 
+  /** Giriş yapmadan devam eder; seçim sekme boyunca hatırlanır. */
   const continueAsGuest = useCallback(() => {
     rememberGuest(true)
     setError(null)
