@@ -1,4 +1,8 @@
-"""ChatModel arayüzünün Groq uygulaması (OpenAI uyumlu API)."""
+"""ChatModel arayüzünün Groq uygulaması (OpenAI uyumlu API).
+
+Groq'un kendi istemcisi yerine `openai` paketi kullanılır: API OpenAI biçimindedir ve başka
+bir OpenAI uyumlu sağlayıcıya geçmek yalnızca `base_url` ile model adını değiştirmek olur.
+"""
 
 from openai import OpenAI
 
@@ -12,6 +16,8 @@ _MAX_RETRIES = 2
 
 
 class GroqProvider:
+    """`ChatModel` portunun Groq uygulaması; yalnızca sohbet modeli, embedding Voyage'dadır."""
+
     def __init__(self, api_key: str, llm_model: str) -> None:
         self._client = OpenAI(
             api_key=api_key,
@@ -22,14 +28,18 @@ class GroqProvider:
         self._llm_model = llm_model
 
     def complete(self, messages: list[dict], tools: list[dict]) -> Completion:
+        """Bir model turu. OpenAI yanıt nesnesi `Completion`'a çevrilir ki uygulamanın geri
+        kalanı `openai` paketine bağımlı olmasın."""
         response = self._client.chat.completions.create(
             model=self._llm_model,
             messages=messages,
+            # Olgusal bir asistanda yaratıcılık istenmez; aynı soru aynı yanıtı almalıdır.
             temperature=0,
             # gpt-oss modelleri yanıttan önce "düşünür" ve bu da token kotasından yer. Ücretsiz
             # katmanın dakikalık sınırı (8000 token) varsayılan düzeyde bir-iki soruya yetiyor;
             # düşünme uzayınca yanıt çıkış sınırında kesilip boş da dönebiliyor.
             reasoning_effort="low",
+            # Son turda araç listesi boş gelir; boş `tools` göndermek yerine alan hiç eklenmez.
             **({"tools": tools, "tool_choice": "auto"} if tools else {}),
         )
         message = response.choices[0].message
