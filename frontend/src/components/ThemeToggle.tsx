@@ -14,7 +14,7 @@ export function ThemeToggle({ theme, onToggle }: ThemeToggleProps) {
       aria-label={theme === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç'}
       title={theme === 'dark' ? 'Açık tema' : 'Koyu tema'}
     >
-      {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+      {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
     </button>
   )
 }

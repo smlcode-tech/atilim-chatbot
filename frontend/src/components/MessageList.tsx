@@ -42,7 +42,7 @@ export function MessageList({
       ))}
       {isLoading && (
         <article className="message-row message-assistant">
-          <span className="message-avatar assistant-avatar"><Sparkles size={15} /></span>
+          <span className="message-avatar assistant-avatar"><Sparkles size={17} /></span>
           <div className="message-content">
             <div className="message-meta"><strong>{assistant.name}</strong></div>
             <div className="typing-bubble" aria-label="Yanıt hazırlanıyor">
@@ -67,7 +67,7 @@ function MessageRow({ message, choices }: { message: Message; choices?: Choices 
   return (
     <article className={`message-row message-${message.role}`}>
       {isAssistant && (
-        <span className="message-avatar assistant-avatar"><Sparkles size={15} /></span>
+        <span className="message-avatar assistant-avatar"><Sparkles size={17} /></span>
       )}
       <div className="message-content">
         <div className="message-meta">
@@ -89,14 +89,14 @@ function MessageRow({ message, choices }: { message: Message; choices?: Choices 
             {message.suggestions.map((question) => (
               <li key={question}>
                 <button type="button" onClick={() => choices.onPick(question)}>
-                  <CornerDownRight size={13} />
+                  <CornerDownRight size={15} />
                   {question}
                 </button>
               </li>
             ))}
             <li>
               <button type="button" className="choice-other" onClick={choices.onOther}>
-                <PencilLine size={13} />
+                <PencilLine size={15} />
                 Diğer
               </button>
             </li>
@@ -109,7 +109,7 @@ function MessageRow({ message, choices }: { message: Message; choices?: Choices 
               <li key={url}>
                 <a href={url} target="_blank" rel="noreferrer">
                   {title}
-                  <ArrowUpRight size={11} />
+                  <ArrowUpRight size={13} />
                 </a>
               </li>
             ))}
@@ -117,7 +117,7 @@ function MessageRow({ message, choices }: { message: Message; choices?: Choices 
         )}
       </div>
       {!isAssistant && (
-        <span className="message-avatar user-avatar"><UserRound size={14} /></span>
+        <span className="message-avatar user-avatar"><UserRound size={16} /></span>
       )}
     </article>
   )
