@@ -66,7 +66,7 @@ export function Composer({ disabled, onSend, focusRequest = 0 }: ComposerProps) 
             aria-label="Mesajı gönder"
             disabled={!question.trim() || disabled}
           >
-            <ArrowUp size={18} strokeWidth={2.3} />
+            <ArrowUp size={20} strokeWidth={2.3} />
           </button>
         </div>
       </form>

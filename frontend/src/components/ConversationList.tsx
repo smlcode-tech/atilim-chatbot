@@ -29,7 +29,7 @@ export function ConversationList({
                 title={title}
                 onClick={() => onOpen(id)}
               >
-                <MessageSquare size={15} />
+                <MessageSquare size={16} />
                 <span>{title}</span>
               </button>
               <button
@@ -37,7 +37,7 @@ export function ConversationList({
                 aria-label={`${title} sohbetini sil`}
                 onClick={() => onDelete(id)}
               >
-                <Trash2 size={14} />
+                <Trash2 size={15} />
               </button>
             </li>
           ))}
