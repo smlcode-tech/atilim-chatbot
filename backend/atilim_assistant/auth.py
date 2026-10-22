@@ -13,18 +13,28 @@ from jwt import PyJWKClient
 
 from atilim_assistant.domain import User
 
+# Google kimlik jetonlarının `iss` alanı bu iki biçimden biri olabilir (Google belgesi).
 _GOOGLE_ISSUERS = frozenset({"accounts.google.com", "https://accounts.google.com"})
+# Oturum jetonunu yalnızca bu sunucu üretir ve doğrular; ortak gizli anahtarlı HS256 yeterlidir.
 _SESSION_ALGORITHM = "HS256"
 
+# Google'ın imza anahtarları; istemci anahtar kümesini 5 dakika önbellekte tutar
+# (PyJWT varsayılanı), her girişte yeniden indirilmez.
 _google_keys = PyJWKClient("https://www.googleapis.com/oauth2/v3/certs")
 
 
 class AuthError(Exception):
-    """Kimlik doğrulanamadı."""
+    """Kimlik doğrulanamadı. HTTP'den bağımsızdır; 401'e API katmanı çevirir."""
 
 
 def verify_google_token(id_token: str, client_id: str) -> tuple[str, str, str]:
-    """Google kimlik jetonunu doğrular; (google_sub, email, name) döndürür."""
+    """Google kimlik jetonunu doğrular; (google_sub, email, name) döndürür.
+
+    İmza, alıcı (`audience`: yalnızca bizim istemci kimliğimiz için üretilmiş jeton), yayıncı
+    ve süre denetlenir. Doğrulanmamış e-posta reddedilir: adres kullanıcı kaydına ve oturum
+    jetonuna yazılır, sahibi kanıtlanmamış bir adres başkasınınki olabilir. Ayrıntılı hata
+    kullanıcıya gösterilmez, yalnızca "doğrulanamadı" denir.
+    """
     try:
         key = _google_keys.get_signing_key_from_jwt(id_token).key
         claims = jwt.decode(id_token, key, algorithms=["RS256"], audience=client_id)
@@ -41,6 +51,7 @@ def verify_google_token(id_token: str, client_id: str) -> tuple[str, str, str]:
 
 
 def issue_token(user: User, secret: str, ttl_hours: int) -> str:
+    """Girişten sonra verilen oturum jetonu; `ttl_hours` sonra geçersizleşir."""
     return jwt.encode(
         {
             "sub": user.id,
@@ -54,7 +65,10 @@ def issue_token(user: User, secret: str, ttl_hours: int) -> str:
 
 
 def read_token(token: str, secret: str) -> User:
+    """Oturum jetonunu doğrulayıp kullanıcıya çevirir; geçersiz ya da süresi dolmuşsa `AuthError`."""
     try:
+        # Algoritma açıkça sabitlenir: jetonun kendi başlığındaki algoritmaya güvenmek, imzasız
+        # ("none") ya da başka algoritmalı sahte jetonların kabul edilmesine yol açabilirdi.
         claims = jwt.decode(token, secret, algorithms=[_SESSION_ALGORITHM])
     except Exception as error:
         raise AuthError("Oturumun süresi dolmuş. Lütfen yeniden giriş yapın.") from error

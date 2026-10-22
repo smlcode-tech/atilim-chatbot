@@ -1,8 +1,16 @@
-"""Türkçe metin için arama odaklı normalleştirme."""
+"""Türkçe metin için arama odaklı normalleştirme.
+
+Sözcük düzeyindeki her karşılaştırma (BM25, hazır yanıt eşleştirme, ders arama, ad eşleştirme)
+bu dosyadaki işlevlerden geçer. Hepsi aynı kuralları kullanmalıdır: soru bir biçimde, belge
+başka bir biçimde normalleştirilirse hiçbir zaman eşleşmezler.
+"""
 
 import re
 import unicodedata
 
+# "ı" Unicode ayrıştırmasıyla ASCII'ye inmez ve noktalamayla birlikte silinirdi: bu çeviri
+# olmadan "ışık" → "s k" olur. "İ/I/ı" önceden "i"ye çevrilir; "ışık", "IŞIK", "isik" aynı
+# sözcüğe ("isik") iner.
 _TURKISH_I = str.maketrans("İIı", "iii")
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _WHITESPACE = re.compile(r"\s+")
@@ -55,13 +63,19 @@ SYNONYMS = (
     ("dayali", "yonelik", "yonelim"),
 )
 _CANONICAL = {variant: group[0] for group in SYNONYMS for variant in group}
+# Uzun öğeler önce denenir: "ders planı" "ders" (→ ders) olarak değil, "ders plan"
+# (→ mufredat) olarak eşleşmelidir.
 _SYNONYM = re.compile(
     r"\b(" + "|".join(sorted(map(re.escape, _CANONICAL), key=len, reverse=True)) + r")\w*"
 )
 
 
 def normalize(text: str) -> str:
-    """Küçük harfe çevirir, Türkçe harfleri ASCII karşılığına indirger, noktalamayı boşluk yapar."""
+    """Küçük harfe çevirir, Türkçe harfleri ASCII karşılığına indirger, noktalamayı boşluk yapar.
+
+    ASCII'ye indirmek, Türkçe klavyesi olmayan ya da harfleri atlayan kullanıcıyı da kapsar:
+    "öğretim üyesi" ile "ogretim uyesi" aynı metne iner.
+    """
     folded = unicodedata.normalize("NFKD", text.translate(_TURKISH_I))
     ascii_text = "".join(ch for ch in folded if not unicodedata.combining(ch))
     return _NON_ALNUM.sub(" ", ascii_text.lower()).strip()
@@ -91,6 +105,8 @@ def stem(token: str) -> str:
     return token[:5]
 
 
+# Ham metindeki ders kodu; harf kısmı her alfabe harfini kabul eder ("MATF", "PÇ") çünkü
+# düzeltme normalleştirmeden önce, kullanıcının yazdığı metin üzerinde yapılır.
 _COURSE_CODE = re.compile(r"\b([^\W\d_]{2,5}) ?(\d{3}[^\W\d_]?)\b")
 # Boşluklu yazımda ("matf 276") düzeltilecek harf kısmının en kısa uzunluğu.
 _MIN_SPACED_LETTERS = 4
@@ -106,6 +122,7 @@ def correct_course_codes(text: str, known: frozenset[str]) -> str:
     """
 
     def replace(match: re.Match) -> str:
+        """Tek bir kod eşleşmesinin yerine geçecek metin; düzeltilemiyorsa yazıldığı gibi kalır."""
         letters, number = normalize(match.group(1)), normalize(match.group(2))
         if letters + number in known:
             return match.group(0)
@@ -133,8 +150,12 @@ def _one_edit_apart(a: str, b: str) -> bool:
 
 
 def slugify(text: str) -> str:
+    """URL ve kimlik için güvenli biçim ("Yaz Stajları" → "yaz-stajlari"); ayrıştırıcılar
+    belge kimliklerini bununla üretir, kimlikler yeniden indekslemede değişmez."""
     return normalize(text).replace(" ", "-")
 
 
 def collapse_whitespace(text: str) -> str:
+    """HTML'den çıkan metindeki satır sonu ve girinti yığınlarını tek boşluğa indirir;
+    gereksiz boşluklar hem indeksi hem modele giden token bütçesini şişirirdi."""
     return _WHITESPACE.sub(" ", text).strip()
