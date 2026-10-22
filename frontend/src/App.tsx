@@ -12,6 +12,7 @@ import { assistant } from './config/assistant'
 import { useAuth } from './hooks/useAuth'
 import { useChat } from './hooks/useChat'
 import { useConversations } from './hooks/useConversations'
+import { useQuota } from './hooks/useQuota'
 import { useTheme } from './hooks/useTheme'
 
 // Splash screen en az bu kadar görünür (ms), auth ne kadar hızlı biterse bitsin.
@@ -31,9 +32,13 @@ function App() {
     signOut,
   } = useAuth()
   const { conversations, refresh, remove } = useConversations(user !== null && !isGuest)
+  // Giriş, çıkış ya da misafire geçiş kalan hakkı değiştirir; kimlik değişince yeniden alınır.
+  const { quota, refresh: refreshQuota, setRemaining } = useQuota(user === null ? null : user.id)
   const { messages, conversationId, isLoading, apiStatus, sendMessage, askAgain, startNew, open } = useChat({
     onConversationChanged: refresh,
     sendsHistory: isGuest,
+    onRemaining: setRemaining,
+    onQuotaStale: refreshQuota,
   })
 
   // Çıkışta ya da oturum düştüğünde sohbet ekranda kalmamalı: aynı tarayıcıda giriş yapan
@@ -181,6 +186,9 @@ function App() {
                 disabled={isLoading}
                 onSend={send}
                 focusRequest={composerFocus}
+                quota={quota}
+                // Hakkı biten misafire giriş yapınca devam edebileceği söylenir.
+                suggestsSignIn={isGuest && canSignIn}
               />
             </section>
           </main>

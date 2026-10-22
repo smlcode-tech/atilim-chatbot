@@ -7,6 +7,8 @@ export type ChatAnswer = {
   suggestions: string[]
   conversationId: string | null
   title: string | null
+  /** Bu sorudan sonra bugün kalan soru hakkı; sunucu sayacı tutamıyorsa bilinmez. */
+  remaining: number | null
 }
 
 /** Sunucuya hiç ulaşılamadığında fırlatılır. */
@@ -164,6 +166,7 @@ export async function askQuestion(
     suggestions?: string[]
     conversation_id?: string | null
     title?: string | null
+    remaining?: number | null
   }>('/api/chat', {
     method: 'POST',
     body: { question, conversation_id: conversationId, history },
@@ -179,7 +182,19 @@ export async function askQuestion(
     suggestions: payload.suggestions ?? [],
     conversationId: payload.conversation_id ?? null,
     title: payload.title ?? null,
+    remaining: payload.remaining ?? null,
   }
+}
+
+/** Günlük soru sınırı ve bugün kalan hak (giriş yapana ya da misafire göre). */
+export type Quota = {
+  limit: number
+  /** Sunucu sayacı tutamıyorsa bilinmez; sınır da uygulanmaz. */
+  remaining: number | null
+}
+
+export function fetchQuota(): Promise<Quota> {
+  return request<Quota>('/api/quota')
 }
 
 export async function fetchConversations(): Promise<ConversationSummary[]> {

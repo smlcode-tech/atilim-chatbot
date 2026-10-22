@@ -20,6 +20,7 @@ from atilim_assistant.api.schemas import (
     ConversationSummaryResponse,
     GoogleSignInRequest,
     HealthResponse,
+    QuotaResponse,
     SignInResponse,
     SourceLink,
     TurnResponse,
@@ -156,8 +157,9 @@ def create_app(
         )
 
         users: UserRepository | None = request.app.state.users
+        limit = _daily_limit(settings, user)
         if user is not None:
-            counted_day = _check_daily_limit(
+            counted = _check_daily_limit(
                 lambda day: users.count_question(user.id, day),
                 users,
                 f"Günlük {settings.daily_question_limit} soru sınırına ulaştın. Asistan ücretsiz "
@@ -166,13 +168,14 @@ def create_app(
             )
         else:
             guest = _guest_key(request)
-            counted_day = _check_daily_limit(
+            counted = _check_daily_limit(
                 lambda day: users.count_guest_question(guest, day),
                 users,
                 f"Misafir olarak günlük {settings.guest_daily_question_limit} soru sınırına "
                 "ulaştın. Google ile giriş yaparak sormaya devam edebilirsin.",
                 settings.guest_daily_question_limit,
             )
+        counted_day, asked = counted if counted is not None else (None, None)
 
         history: list[Turn] = []
         conversation_id = None
@@ -244,7 +247,27 @@ def create_app(
             suggestions=answer.suggestions,
             conversation_id=conversation_id,
             title=title,
+            remaining=None if asked is None else max(0, limit - asked),
         )
+
+    @app.get("/api/quota")
+    def quota(request: Request, user: User | None = Depends(chat_user)) -> QuotaResponse:
+        """Bugün kalan soru hakkı; sayacı değiştirmez. Arayüz açılışta gösterir."""
+        settings: Settings = request.app.state.settings
+        users: UserRepository | None = request.app.state.users
+        limit = _daily_limit(settings, user)
+        if users is None:
+            return QuotaResponse(limit=limit, remaining=None)
+        day = datetime.now(UTC).date().isoformat()
+        try:
+            if user is not None:
+                asked = users.questions_asked(user.id, day)
+            else:
+                asked = users.guest_questions_asked(_guest_key(request), day)
+        except Exception:
+            logger.exception("Günlük soru sayacı okunamadı")
+            return QuotaResponse(limit=limit, remaining=None)
+        return QuotaResponse(limit=limit, remaining=max(0, limit - asked))
 
     @app.get("/api/conversations")
     def list_conversations(
@@ -289,11 +312,18 @@ def create_app(
     return app
 
 
+def _daily_limit(settings: Settings, user: User | None) -> int:
+    if user is not None:
+        return settings.daily_question_limit
+    return settings.guest_daily_question_limit
+
+
 def _check_daily_limit(
     count: Callable[[str], int], users: UserRepository | None, detail: str, limit: int
-) -> str | None:
+) -> tuple[str, int] | None:
     """`count` o günün sayacını artırıp döndürür. Sayaç tutulamıyorsa soru geçer: depo
-    kesintisi asistanı durdurmamalı. Sayaç artırıldıysa günü döndürür (geri almak için)."""
+    kesintisi asistanı durdurmamalı. Sayaç artırıldıysa günü (geri almak için) ve o günün
+    soru sayısını döndürür."""
     if users is None:
         return None
     day = datetime.now(UTC).date().isoformat()
@@ -304,7 +334,7 @@ def _check_daily_limit(
         return None
     if asked > limit:
         raise HTTPException(status_code=429, detail=detail)
-    return day
+    return day, asked
 
 
 def _last(turns: list[Turn], count: int) -> list[Turn]:

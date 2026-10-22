@@ -90,6 +90,12 @@ class MongoUserRepository:
         # Misafirin önceden kaydı yoktur; sayaç belgesi ilk soruda oluşur.
         return _count(self._guest_quotas, guest_key, day, upsert=True) or 1
 
+    def questions_asked(self, user_id: str, day: str) -> int:
+        return _asked(self._users, user_id, day)
+
+    def guest_questions_asked(self, guest_key: str, day: str) -> int:
+        return _asked(self._guest_quotas, guest_key, day)
+
     def uncount_question(self, user_id: str, day: str) -> None:
         _uncount(self._users, user_id, day)
 
@@ -121,6 +127,13 @@ def _count(collection: Collection, key: str, day: str, upsert: bool) -> int | No
         return_document=True,
     )
     return None if document is None else document["quota_count"]
+
+
+def _asked(collection: Collection, key: str, day: str) -> int:
+    document = collection.find_one({"_id": key}, {"quota_day": 1, "quota_count": 1})
+    if document is None or document.get("quota_day") != day:
+        return 0
+    return document.get("quota_count", 0)
 
 
 def _uncount(collection: Collection, key: str, day: str) -> None:

@@ -196,6 +196,50 @@ def test_guests_have_a_lower_daily_limit_per_address(anon_client, settings):
     assert blocked.status_code == 429
 
 
+def test_a_guest_sees_how_many_questions_are_left_today(anon_client, settings):
+    limit = settings.guest_daily_question_limit
+    assert anon_client.get("/api/quota").json() == {"limit": limit, "remaining": limit}
+
+    answered = anon_client.post("/api/chat", json={"question": "Soru"})
+    assert answered.json()["remaining"] == limit - 1
+    # Hakkı okumak sayacı değiştirmez.
+    assert anon_client.get("/api/quota").json()["remaining"] == limit - 1
+    assert anon_client.get("/api/quota").json()["remaining"] == limit - 1
+
+    for _ in range(limit - 1):
+        last = anon_client.post("/api/chat", json={"question": "Soru"})
+    assert last.json()["remaining"] == 0
+    assert anon_client.post("/api/chat", json={"question": "Soru"}).status_code == 429
+    # Reddedilen soru da sayılsa kalan hak eksiye düşmez.
+    assert anon_client.get("/api/quota").json()["remaining"] == 0
+
+
+def test_a_signed_in_user_sees_their_own_allowance(client, other_client, settings):
+    limit = settings.daily_question_limit
+    assert client.post("/api/chat", json={"question": "Bölüm başkanı kim?"}).json()[
+        "remaining"
+    ] == limit - 1
+    assert client.get("/api/quota").json() == {"limit": limit, "remaining": limit - 1}
+    assert other_client.get("/api/quota").json() == {"limit": limit, "remaining": limit}
+
+
+def test_an_unanswered_question_does_not_use_up_an_allowance(client, model, settings):
+    model.reply = RuntimeError("model down")
+    assert client.post("/api/chat", json={"question": "Yemekhane menüsü nedir?"}).status_code == 502
+
+    assert client.get("/api/quota").json()["remaining"] == settings.daily_question_limit
+
+
+def test_the_allowance_is_unknown_when_the_store_is_down(client_with_store_down, settings):
+    assert client_with_store_down.get("/api/quota").json() == {
+        "limit": settings.daily_question_limit,
+        "remaining": None,
+    }
+    assert client_with_store_down.post(
+        "/api/chat", json={"question": "Bölüm başkanı kim?"}
+    ).json()["remaining"] is None
+
+
 def _use_up_guest_limit(client, settings, headers):
     for _ in range(settings.guest_daily_question_limit):
         assert client.post("/api/chat", json={"question": "Soru"}, headers=headers).status_code == 200

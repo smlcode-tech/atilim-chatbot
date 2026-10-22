@@ -43,6 +43,8 @@ class ChatResponse(BaseModel):
     # Geçmiş deposu kapalıysa boş kalır.
     conversation_id: str | None = None
     title: str | None = None
+    # Bu sorudan sonra bugün kalan soru hakkı; sayaç tutulamıyorsa (depo yok ya da hata) boş.
+    remaining: int | None = None
 
 
 class HealthResponse(BaseModel):
@@ -52,6 +54,13 @@ class HealthResponse(BaseModel):
     auth_required: bool
     # Misafirin IP başına günlük soru sınırı; giriş ekranında gösterilir.
     guest_question_limit: int
+
+
+class QuotaResponse(BaseModel):
+    # Günlük soru sınırı: giriş yapan kullanıcıya ya da misafire göre.
+    limit: int
+    # Bugün kalan hak; sayaç tutulamıyorsa boş (sınır da uygulanamaz).
+    remaining: int | None
 
 
 class GoogleSignInRequest(BaseModel):
