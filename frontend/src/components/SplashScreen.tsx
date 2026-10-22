@@ -1,6 +1,10 @@
 import { motion, useIsPresent } from 'motion/react'
 import { assistant } from '../config/assistant'
 
+/**
+ * Açılış ekranı: oturum denetlenirken logo gösterir (ne kadar süre kalacağına App karar verir).
+ * Çıkışta önce logo, sonra arka plan solar; altındaki sayfa bu sırada hazırdır.
+ */
 export function SplashScreen() {
   // Çıkış başlayınca alttaki sayfa görünür olur; solmakta olan katman tıklamaları yutmamalı.
   const isPresent = useIsPresent()
@@ -43,6 +47,7 @@ export function SplashScreen() {
   )
 }
 
+// Stiller satır içidir ve temadan bağımsızdır: arka plan her iki temada da marka lacivertidir.
 const wrapper: React.CSSProperties = {
   position: 'fixed',
   inset: 0,

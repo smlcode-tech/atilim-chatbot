@@ -3,6 +3,7 @@ import { ArrowUp } from 'lucide-react'
 import type { Quota } from '../api/client'
 import { assistant } from '../config/assistant'
 
+/** Yazma alanı metinle birlikte bu yüksekliğe (px) kadar uzar, sonra kendi içinde kayar. */
 const MAX_TEXTAREA_HEIGHT = 160
 
 type ComposerProps = {
@@ -19,6 +20,10 @@ type ComposerProps = {
 /** Bu kadar ya da daha az hak kalınca sayı vurgulanır. */
 const LOW_QUOTA = 2
 
+/**
+ * Soru yazma alanı, gönder düğmesi ve kalan soru hakkı. Enter gönderir, Shift+Enter yeni satır
+ * açar. Yanıt beklenirken kilitlenir: aynı anda iki soru gönderilip sıraları karışmaz.
+ */
 export function Composer({
   disabled,
   onSend,
@@ -29,10 +34,13 @@ export function Composer({
   const [question, setQuestion] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Yanıt gelince (kilit açılınca) ya da odak istendiğinde yazma alanına dönülür: kullanıcı
+  // fareye uzanmadan bir sonraki soruyu yazabilir.
   useEffect(() => {
     if (!disabled) textareaRef.current?.focus()
   }, [disabled, focusRequest])
 
+  /** Boş değilse gönderir, alanı temizler ve yüksekliği tek satıra döndürür. */
   function submit() {
     if (!question.trim() || disabled) return
     onSend(question)
@@ -94,6 +102,7 @@ export function Composer({
   )
 }
 
+/** Kalan hak notu; az kalınca ve bitince farklı renkte gösterilir. */
 function QuotaNote({
   remaining,
   limit,

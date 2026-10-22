@@ -8,6 +8,10 @@ type ConversationListProps = {
   onDelete: (id: string) => void
 }
 
+/**
+ * Yan bardaki geçmiş listesi; her satırda aç ve sil düğmeleri. İki ayrı düğmedir (iç içe
+ * değil): klavyeyle ve ekran okuyucuyla ikisine de ayrı ayrı ulaşılır.
+ */
 export function ConversationList({
   conversations,
   activeId,

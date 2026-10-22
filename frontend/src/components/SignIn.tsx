@@ -9,9 +9,14 @@ type SignInProps = {
   onContinueAsGuest: () => void
 }
 
+/**
+ * Giriş ekranı: Google ile giriş ya da misafir olarak devam. Sol panel marka, sağ panel form;
+ * dar ekranda alt alta dizilir.
+ */
 export function SignIn({ error, guestLimit, onMountGoogleButton, onContinueAsGuest }: SignInProps) {
   const buttonRef = useRef<HTMLDivElement>(null)
 
+  // Google düğmesi React dışında, Google betiği tarafından bu boş kutuya çizilir.
   useEffect(() => {
     if (buttonRef.current) onMountGoogleButton(buttonRef.current)
   }, [onMountGoogleButton])
