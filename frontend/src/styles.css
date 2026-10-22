@@ -1,3 +1,16 @@
+/*
+ * Uygulamanın tek stil dosyası.
+ *
+ * Renkler :root'ta değişken (token) olarak tanımlıdır; koyu tema yalnızca bu değişkenleri
+ * `:root[data-theme="dark"]` altında yeniden tanımlar (`hooks/useTheme.ts` özniteliği ayarlar).
+ * Bazı bileşen kuralları hâlâ doğrudan renk değeri yazar; bunların koyu tema karşılıkları
+ * dosyanın sonundaki "Dark mode component overrides" bölümündedir. Yeni kurallarda doğrudan
+ * renk yerine değişken kullanmak, koyu tema için ayrı bir kural yazmayı gereksiz kılar.
+ *
+ * Sıra: tokenlar → temel öğeler → giriş ekranı → yan bar → sohbet paneli → karşılama →
+ * mesajlar → Markdown → yazma alanı → ekran genişliğine göre düzenlemeler → koyu tema.
+ */
+
 :root {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: #1a1d26;
@@ -72,6 +85,7 @@
   box-sizing: border-box;
 }
 
+/* ── Temel öğeler ── */
 body {
   min-width: 320px;
   /* Kabukla aynı birim: mobilde 100vh görünen alandan uzundur, sayfa kabuğun altında kayardı. */
@@ -96,6 +110,7 @@ textarea:focus-visible {
   outline-offset: 3px;
 }
 
+/* ── Uygulama iskeleti: yan bar + sohbet paneli ── */
 .app-shell {
   display: flex;
   width: 100%;
@@ -375,6 +390,7 @@ textarea:focus-visible {
   }
 }
 
+/* ── Yan bar ── */
 /* Geniş ekranda yan bar kalıcıdır; çekmece düğmesi ve perdesi yalnızca dar ekranda görünür. */
 .drawer-toggle,
 .drawer-backdrop {
@@ -738,6 +754,7 @@ textarea:focus-visible {
   margin-top: auto;
 }
 
+/* ── Sohbet paneli ve üst çubuk ── */
 .chat-panel {
   display: flex;
   flex: 1;
@@ -806,6 +823,7 @@ textarea:focus-visible {
   box-shadow: 0 0 0 3px #d36a6a20;
 }
 
+/* ── Konuşma alanı ve karşılama ekranı ── */
 .conversation {
   flex: 1;
   min-height: 0;
@@ -965,6 +983,7 @@ textarea:focus-visible {
   color: #56ac87;
 }
 
+/* ── Mesajlar ── */
 .message-list {
   display: flex;
   width: min(100% - 48px, 720px);
@@ -1137,6 +1156,7 @@ textarea:focus-visible {
   border-color: var(--line);
 }
 
+/* ── Asistan yanıtlarındaki Markdown ── */
 .markdown-content {
   white-space: normal;
 }
@@ -1266,6 +1286,7 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
+/* ── "Yazıyor" göstergesi ── */
 .typing-bubble {
   display: flex;
   align-items: center;
@@ -1294,6 +1315,7 @@ textarea:focus-visible {
   animation-delay: 240ms;
 }
 
+/* ── Yazma alanı (composer) ── */
 .composer-area {
   width: min(100% - 48px, 720px);
   flex: none;
@@ -1429,6 +1451,7 @@ textarea:focus-visible {
   text-decoration: underline;
 }
 
+/* ── Animasyonlar ── */
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -1453,6 +1476,7 @@ textarea:focus-visible {
   }
 }
 
+/* ── Ekran genişliğine göre düzenlemeler ── */
 @media (min-width: 1400px) {
   .sidebar {
     flex-basis: 278px;
