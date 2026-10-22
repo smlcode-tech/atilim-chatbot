@@ -4,6 +4,7 @@ from atilim_assistant.domain import Source
 from atilim_assistant.ingestion.parsers.departments.software_engineering import (
     department_intro,
     dilekce_ornekleri,
+    mufredat,
     yaz_stajlari,
 )
 
@@ -89,3 +90,28 @@ def test_intro_answer_is_skipped_when_the_page_no_longer_says_it():
     assert _answer_for(content, "Bölüm akredite mi?") is None
     assert _answer_for(content, "Mezun iş imkânları neler?") is None
     assert _answer_for(content, "Doktora programı var mı?") is None
+
+
+def _curriculum_page() -> str:
+    def row(code: str, akts: int) -> str:
+        data = f'{{"code": "{code}", "name": "Ders {code}", "theory": 3, "practice": 0, "akts": {akts}}}'
+        return f"<tr><td><a class='lesson_card' data-lesson-data='{data}'>{code}</a></td></tr>"
+
+    semesters = "".join(
+        f"<h3>{n}. Yarıyıl</h3><table>{row(f'SE{n}01', 6)}"
+        f"<tr><td>Toplam</td><td>3</td><td>0</td><td>30</td></tr></table>"
+        for n in range(5, 7)
+    )
+    return f'<div class="detail-container">{semesters}</div>'
+
+
+def test_curriculum_tables_are_not_swallowed_by_numbered_headings():
+    """"5. Yarıyıl" ile başlayan satır Markdown'da numaralı liste maddesidir; hemen altındaki
+    tablo o maddenin düz metnine dönüşür. Tablodan önceki satır rakam ve noktayla başlamamalı."""
+    content = mufredat.parse(_curriculum_page(), _source(mufredat.parse))
+    answer = _answer_for(content, "3. sınıf dersleri neler?")
+    assert "| SE501 | Ders SE501 | 6 |" in answer
+    lines = answer.splitlines()
+    for before, line in zip(lines, lines[1:]):
+        if line.startswith("| Kod |"):
+            assert not before[:1].isdigit(), before

@@ -106,6 +106,14 @@ def test_schedule_table_gives_each_meeting_its_day_time_and_room():
     )
 
 
+def test_schedule_table_merges_rooms_of_the_same_slot():
+    meetings = (Meeting("Salı", "09:30", "11:20", "Lab A"), Meeting("Salı", "09:30", "11:20", "Lab B"))
+    sections = [Section("CMPE113", "01", "Computer Programming I", ("Ali Yazıcı",), meetings)]
+    assert ders_programi.schedule_table(sections).splitlines()[2:] == [
+        "| 01 | Ali Yazıcı | Salı | 09:30–11:20 | Lab A, Lab B |"
+    ]
+
+
 def test_schedule_table_by_teacher_keeps_sections_without_meetings():
     sections = [Section("CMPE113", "01", "Computer Programming I", ("Ali Yazıcı",))]
     assert ders_programi.schedule_table(sections, by_teacher=True).splitlines()[-1] == (

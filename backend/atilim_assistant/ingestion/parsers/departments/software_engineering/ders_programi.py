@@ -216,7 +216,14 @@ def schedule_table(sections: list[Section], by_teacher: bool = False) -> str:
         lead = [f"{s.code} {s.name}", s.number] if by_teacher else [s.number, ", ".join(s.teachers)]
         if not s.meetings:
             rows.append([*lead, "programda yok", "", ""])
-        rows += [[*lead, m.day, f"{m.start}–{m.end}", m.room] for m in s.meetings]
+        # Aynı saatte iki derslikte yapılan oturum (laboratuvar iki odaya bölünür) programda iki
+        # ayrı karttır; tabloda dersliklerini birleştiren tek satır olur.
+        rooms: dict[tuple[str, str, str], list[str]] = {}
+        for m in s.meetings:
+            slot = rooms.setdefault((m.day, m.start, m.end), [])
+            if m.room and m.room not in slot:
+                slot.append(m.room)
+        rows += [[*lead, day, f"{start}–{end}", ", ".join(r)] for (day, start, end), r in rooms.items()]
     return markdown_table(headers, rows)
 
 

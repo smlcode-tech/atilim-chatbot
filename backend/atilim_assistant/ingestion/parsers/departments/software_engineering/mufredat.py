@@ -61,7 +61,9 @@ def parse(html: str, source: Source) -> SourceContent:
     # Tüm müfredatı özetleyen tek bir belge
     all_parts = [f"{source.unit} Lisans Programı Müfredatı"]
     for sem in semesters:
-        all_parts.append(f"{sem.name}:\n{_courses_table(sem.courses)}")
+        # "1. Yarıyıl" ile başlayan satır Markdown'da numaralı liste maddesi sayılır ve alttaki
+        # tablo maddenin metnine katılır; başlık kalın yazılınca liste sayılmaz.
+        all_parts.append(f"**{sem.name}**\n{_courses_table(sem.courses)}")
         if sem.total_akts:
             all_parts.append(_total_line(sem))
     full_roster = "\n\n".join(all_parts)
@@ -132,7 +134,7 @@ def parse(html: str, source: Source) -> SourceContent:
     for year, year_semesters in sorted(years.items()):
         year_parts = [f"{source.unit} {year}. sınıf dersleri:"]
         for sem in year_semesters:
-            year_parts.append(f"{sem.name}{_year_label(sem.name)}:\n{_courses_table(sem.courses)}")
+            year_parts.append(f"**{sem.name}{_year_label(sem.name)}**\n{_courses_table(sem.courses)}")
             if sem.total_akts:
                 year_parts.append(_total_line(sem))
         year_text = "\n\n".join(year_parts)
