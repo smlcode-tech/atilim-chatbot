@@ -27,6 +27,10 @@
   font-weight: 400;
   font-style: normal;
 
+  /* Arayüz ölçeği: tasarım px ile yazılıdır; geniş ekranda tümü bu oranla büyür (bkz.
+     "Ekran genişliğine göre düzenlemeler"). Tam ekran yükseklikleri bu orana bölünür. */
+  --ui-zoom: 1;
+
   /* colour tokens — light */
   --bg: #f5f7fc;
   --surface: #ffffff;
@@ -94,6 +98,13 @@ body {
   margin: 0;
 }
 
+/* Masaüstünde metin, boşluk ve simgeler aynı oranda büyür; tek tek px değerlerini değiştirmek
+   oranları bozardı. zoom görünüm birimlerini de büyüttüğünden tam ekran yükseklikleri
+   --ui-zoom'a bölünür. */
+#root {
+  zoom: var(--ui-zoom);
+}
+
 button,
 textarea {
   font: inherit;
@@ -115,8 +126,11 @@ textarea:focus-visible {
   display: flex;
   width: 100%;
   /* Sayfa kaymaz, yalnızca konuşma kayar. dvh: mobil tarayıcı çubukları yazma alanını örtmesin. */
-  height: 100vh;
-  height: 100dvh;
+  height: calc(100vh / var(--ui-zoom));
+  height: calc(100dvh / var(--ui-zoom));
+  /* viewport-fit=cover ile yatay iPhone'da içerik çentiğin altına girmesin. */
+  padding-right: env(safe-area-inset-right);
+  padding-left: env(safe-area-inset-left);
   overflow: hidden;
 }
 
@@ -125,8 +139,8 @@ textarea:focus-visible {
   display: flex;
   width: 100%;
   /* Sabit yükseklik yatay telefonda giriş düğmesini keserdi; kısa ekranda sayfa kayar. */
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100vh / var(--ui-zoom));
+  min-height: calc(100dvh / var(--ui-zoom));
 }
 
 /* Sol panel — marka */
@@ -378,8 +392,8 @@ textarea:focus-visible {
    belirip formu yana kaydırmaz. Kısa ekranda (yatay telefon) form kesilmesin diye sayfa kayar. */
 @media (min-width: 681px) and (min-height: 560px) {
   .signin-shell {
-    height: 100vh;
-    height: 100dvh;
+    height: calc(100vh / var(--ui-zoom));
+    height: calc(100dvh / var(--ui-zoom));
     overflow: hidden;
   }
 }
@@ -1490,6 +1504,20 @@ textarea:focus-visible {
 }
 
 /* ── Ekran genişliğine göre düzenlemeler ── */
+/* Masaüstü: px ile yazılmış tasarım okunamayacak kadar küçük kalıyordu. Kısa pencerede
+   (yatay tablet, küçük dizüstü) büyütme yazma alanını sıkıştırırdı; orada ölçek 1 kalır. */
+@media (min-width: 1024px) and (min-height: 640px) {
+  :root {
+    --ui-zoom: 1.125;
+  }
+}
+
+@media (min-width: 1600px) and (min-height: 800px) {
+  :root {
+    --ui-zoom: 1.2;
+  }
+}
+
 @media (min-width: 1400px) {
   .sidebar {
     flex-basis: 278px;
@@ -1510,6 +1538,15 @@ textarea:focus-visible {
 /* Dar ekranda geçmiş listesi 70px'lik bir ikon rayına sığmaz; yan bar üstten kayan bir
    çekmeceye dönüşür ve sohbet paneli tüm genişliği alır. */
 @media (max-width: 760px) {
+  /* Mobilde kabuk görünüm alanına sabitlenir: 100dvh'yi desteklemeyen ya da klavye kapanınca
+     sayfayı kaydırılmış bırakan tarayıcılarda (iOS Safari) kabuk kısa kalıp altında başka renkte
+     şerit görünüyordu. */
+  .app-shell {
+    position: fixed;
+    inset: 0;
+    height: auto;
+  }
+
   .sidebar {
     position: fixed;
     top: 0;
@@ -1519,6 +1556,7 @@ textarea:focus-visible {
     flex-basis: 280px;
     width: 280px;
     max-width: 85vw;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
     transform: translateX(-100%);
     transition: transform 180ms ease;
   }
@@ -1692,7 +1730,7 @@ textarea:focus-visible {
   }
 
   .composer-area {
-    padding-bottom: 10px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
 
   .disclaimer {
