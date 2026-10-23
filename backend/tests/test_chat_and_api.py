@@ -71,6 +71,45 @@ def test_tool_rounds_are_capped_and_the_last_round_must_answer(service, model):
     assert model.tools == []
 
 
+_ELIDED = "Şubeler:\n\n| Şube | Hoca | Derslik |\n|---|---|---|\n| 01 | Emel Yıldırım | B1014H |\n| 02 | Emil ... | ... |"
+_FULL = "Şubeler:\n\n| Şube | Hoca | Derslik |\n|---|---|---|\n| 01 | Emel Yıldırım | B1014H |\n| 02 | Emel Yıldırım | B1006H |"
+
+
+def test_a_table_with_elided_cells_is_rewritten_once_without_tools(service, model):
+    model.script = [Completion(content=_ELIDED), Completion(content=_FULL)]
+
+    answer = service.answer("MATH276 hangi sınıfta?")
+
+    assert answer.text == _FULL
+    assert model.calls == 2
+    assert model.tools == []
+    assert model.messages[-2:] == [
+        {"role": "assistant", "content": _ELIDED},
+        {"role": "user", "content": chat_service.ELIDED_TABLE_RETRY},
+    ]
+
+
+def test_the_first_answer_is_kept_when_the_rewrite_is_still_elided(service, model):
+    model.script = [Completion(content=_ELIDED), Completion(content=_ELIDED + "\n| 03 | ... | ... |")]
+
+    assert service.answer("MATH276 hangi sınıfta?").text == _ELIDED
+    assert model.calls == 2
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Tek cümlelik yanıt...",
+        "| Ad | Araştırma |\n|---|---|\n| Ayşe Örnek | Yazılım testi, model tabanlı…|",
+    ],
+)
+def test_ellipses_outside_cells_or_clipped_by_tools_are_not_rewritten(service, model, text):
+    model.reply = text
+
+    assert service.answer("Hocalar ne çalışıyor?").text == text
+    assert model.calls == 1
+
+
 def test_misspelled_course_codes_are_corrected_before_the_model_sees_them(model, staff_answers):
     catalog = replace(Catalog.empty(), courses=[_course("MATH276", "Diferansiyel Denklemler")])
     service = ChatService(Tools(catalog, FakeRetriever([])), model, PreparedAnswerMatcher(staff_answers))
