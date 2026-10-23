@@ -8,7 +8,12 @@ aşımı) soru hazır yanıtlarla karşılanır.
 import logging
 import time
 
-from atilim_assistant.chat.prompts import NO_ANSWER, SUGGESTIONS_INTRO, system_prompt
+from atilim_assistant.chat.prompts import (
+    ELIDED_TABLE_RETRY,
+    NO_ANSWER,
+    SUGGESTIONS_INTRO,
+    system_prompt,
+)
 from atilim_assistant.chat.tools import DEFINITIONS, Tools
 from atilim_assistant.domain import Answer, Citation, Completion, PreparedAnswer, Turn
 from atilim_assistant.ports import ChatModel
@@ -137,6 +142,8 @@ class ChatService:
                 text = completion.content.strip()
                 if not text:
                     raise RuntimeError("Model boş yanıt döndürdü.")
+                if _has_elided_cell(text):
+                    text = self._rewrite_elided(messages, text)
                 # Model veriyi yetersiz bulduysa sorgulanan sayfalar yanıtın kaynağı değildir.
                 sources = [] if _says_no_answer(text) else list(citations.values())
                 return Answer(text=text, citations=sources)
@@ -149,6 +156,23 @@ class ChatService:
                     citations.setdefault(citation.url, citation)
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": result.text})
         raise RuntimeError("Model araç turu sınırında yanıt üretmedi.")
+
+    def _rewrite_elided(self, messages: list[dict], text: str) -> str:
+        """Hücreleri "..." ile kısaltılmış tabloyu modele bir kez yeniden yazdırır.
+
+        Veri araç sonuçlarında zaten mesajlardadır; araç verilmez, model yalnızca yeniden
+        yazar. Yeniden yazım da boş ya da kısaltılmış gelirse ilk yanıt kalır: yarım tablo hiç
+        yanıt vermemekten iyidir ve ikinci bir deneme dakikalık kotadan yer.
+        """
+        retry = messages + [
+            {"role": "assistant", "content": text},
+            {"role": "user", "content": ELIDED_TABLE_RETRY},
+        ]
+        rewritten = self._model.complete(retry, []).content.strip()
+        if not rewritten or _has_elided_cell(rewritten):
+            logger.warning("Model tabloyu kısaltmadan yeniden yazamadı.")
+            return text
+        return rewritten
 
     def _note_failure(self, error: Exception) -> None:
         """Model hatasından sonra modelin ne kadar dinlendirileceğini belirler.
@@ -187,6 +211,22 @@ def _says_no_answer(text: str) -> bool:
     """Model `NO_ANSWER` cümlesiyle mi başladı; başına koyduğu biçim işaretleri ("**", "> ")
     yok sayılır, yoksa yanıt kaynaklı gösterilir ve yerine yakın sorular önerilmezdi."""
     return text.lstrip(_MARKUP).startswith(NO_ANSWER)
+
+
+def _has_elided_cell(text: str) -> bool:
+    """Yanıttaki Markdown tablosunda modelin kısalttığı bir hücre var mı ("...", "Emil ...").
+
+    Yalnızca üç nokta ve tek başına "…" sayılır: araçlar uzun metni sonuna "…" koyarak
+    kısaltır (bkz. `bolum_kadrosu` araştırma sütunu), o hücreler veridir.
+    """
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if any(cell == "…" or cell.endswith("...") for cell in cells):
+            return True
+    return False
 
 
 def _clip(text: str) -> str:

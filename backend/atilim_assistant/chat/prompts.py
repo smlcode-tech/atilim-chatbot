@@ -16,6 +16,13 @@ SUGGESTIONS_INTRO = (
 )
 
 
+# Model tablo hücrelerini "..." ile kısaltınca yanıtı yeniden yazdırmak için verilen uyarı.
+ELIDED_TABLE_RETRY = (
+    "Yanıttaki tabloda '...' ile kısaltılmış hücreler var. Aynı yanıtı, araç sonuçlarındaki "
+    "değerlerle her hücreyi doldurarak, kısaltmadan yeniden yaz."
+)
+
+
 def system_prompt(term: str) -> str:
     """Her soruda modele verilen sistem talimatı.
 
@@ -56,7 +63,9 @@ kullanıcıyı atilim.edu.tr adresine ya da ilgili birime yönlendir.
 - Türkçe, kısa ve net yanıt ver. Biçim her yanıtta aynı olsun: araç sonucunda Markdown tablosu \
 olarak gelen veriyi (ders saatleri, ders listeleri, kadro, müfredat) yanıtta da Markdown tablosu \
 olarak ver; soruyla ilgisiz sütunları ve satırları çıkarabilirsin, ama hücre değerlerini \
-değiştirme. Tablodan önce bir cümleyle neyi gösterdiğini söyle ve tablodan sonra boş satır \
+değiştirme. Yanıta aldığın satırların her hücresini araç sonucundaki değerle doldur; hücreye \
+asla "...", "…" ya da "?" yazma, satırları kısaltma. "Sınıf" sorulduğunda derslik kastedilir. \
+Tablodan önce bir cümleyle neyi gösterdiğini söyle ve tablodan sonra boş satır \
 bırak. Tek bir bilgi soruluyorsa ("SE221 kaç AKTS?") tablo yerine kısa bir cümleyle yanıtla. \
 Tablo olmayan birden çok kayıt sayarken Markdown madde listesi kullan; her madde \
 "**Ad** — ayrıntılar" biçiminde olsun. Kalın yazıyı yalnızca maddenin başındaki adda kullan.
