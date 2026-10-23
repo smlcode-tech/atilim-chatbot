@@ -14,7 +14,7 @@ backend/atilim_assistant/
 │   ├── app.py          FastAPI uygulama fabrikası; tüm HTTP rotaları burada
 │   └── schemas.py      Pydantic istek/yanıt modelleri
 ├── chat/
-│   ├── service.py      Ana soru-cevap akışı: araç çağrılı model döngüsü, cooldown, hazır yanıt yedeği
+│   ├── service.py      Ana soru-cevap akışı: araç çağrılı model döngüsü, cooldown, hazır yanıt yedeği, "..." tablo yeniden yazımı
 │   ├── tools.py        Modelin araçları: ders_ara, ders_detayi, hocanin_dersleri, bolum_kadrosu, personel_bilgisi, belge_ara
 │   └── prompts.py      system_prompt(term), NO_ANSWER
 ├── providers/
@@ -32,21 +32,29 @@ backend/atilim_assistant/
 │   ├── pipeline.py     Veri alım akışı
 │   ├── sources.py      Web scraping / kaynak tanımları
 │   └── parsers/        Sayfa bazlı ayrıştırıcılar
+│       ├── common.py   Ortak ayrıştırıcı fabrikaları ve yardımcıları (doc_for, answer_for, …)
+│       ├── departments/software_engineering/  Bölüm sayfaları, dersler, müfredat, ders programı
+│       └── university/iletisim.py  İletişim + kampüs konumu (Google Haritalar gömme bağlantısı)
 ├── domain.py           Tüm veri sınıfları: Document, Turn, Answer, User, vb.
 ├── ports.py            Protocol arayüzleri: ChatModel, Embedder, Repo'lar
 ├── config.py           Pydantic Settings + lru_cache get_settings()
 ├── bootstrap.py        Bileşen bağlama: build_chat_service(), build_provider()
+├── text.py             Türkçe normalleştirme, stem(), SYNONYMS/canonicalize(), markdown_table()
+├── cli.py              Komut satırı: ingest, serve, chat
 └── auth.py             JWT + Google OAuth JWKS doğrulaması
 
 frontend/src/
 ├── App.tsx             Kök bileşen; splash, auth, drawer, Cmd+K kısayolu
+├── types.ts            Paylaşılan tipler: Message, User, SourceLink, ConversationSummary
+├── config/assistant.ts Asistanın adı, kapsam metinleri, öneri soruları
 ├── api/client.ts       fetch sarmalayıcıları; token yönetimi; hata tipleri
 ├── hooks/
-│   ├── useAuth.ts      Google giriş durumu
+│   ├── useAuth.ts      Google giriş durumu, misafir kipi
 │   ├── useChat.ts      Mesaj durumu + API çağrıları
 │   ├── useConversations.ts  Yan bar konuşma listesi
+│   ├── useQuota.ts     Bugün kalan soru hakkı (`/api/quota` + yanıttaki `remaining`)
 │   └── useTheme.ts     Açık/koyu tema
-└── components/         UI bileşenleri (Composer, MessageList, Sidebar, vb.)
+└── components/         UI bileşenleri (Composer, MessageList, Sidebar, SignIn, vb.)
 ```
 
 ## Kritik Bağımlılıklar
@@ -70,6 +78,8 @@ frontend/src/
 - **Ders kodu düzeltme**: `ChatService.answer` önce `tools.correct()` çağırır; indekste olmayan kod, sayısı aynı ve harfi tek düzenleme uzaktaki tek bilinen koda çevrilir ("MATF276" → "MATH276"). `stem()` rakamlı terimleri kısaltmaz
 - **Eş anlamlı sözlük**: `text.SYNONYMS` / `canonicalize()` — hazır yanıt eşleştirme (yedek yol) ve BM25 (`belge_ara`) için; model yolunda yorumu model yapar. Veride olmayan bilgiyi soran soru kalıbı eklenmez
 - **Ders–hoca eşlemesi**: sitede hoca alanı boş (`academician_id` hep 0); `software_engineering/ders_programi.py` güncel dönemi EduPage API'sinden (`atilim.edupage.org/timetable`, `regularttGetData`) çeker, ders koduyla derse, ad eşleştirmesiyle (`same_person`) personele bağlar; her şubenin gün, saat ve dersliği de (`cards` + `periods` + `classrooms` → `Section.meetings`) alınır, `ders_detayi` ve `hocanin_dersleri` gösterir. `dersler` ve `academic_staff` ingest sırasında kullanır, `cli ingest` tüm programı kataloğa yazar; program alınamazsa hoca bilgisi olmadan devam edilir. Testlerde `conftest` ağı kapatır
+- **Tablolar**: araçlar satır/sütunlu veriyi (ders saatleri, ders listeleri, kadro, müfredat) `text.markdown_table()` ile Markdown tablosu olarak döndürür; sistem talimatı modelden bunu tablo olarak aktarmasını ister, arayüz GFM tablosu gösterir. Model bir hücreyi "..." (ya da tek başına "…") ile kısaltırsa `ChatService._rewrite_elided` araçsız tek bir yeniden yazım ister (`ELIDED_TABLE_RETRY`); o da kısaltılmışsa ilk yanıt kalır. Araçların sonuna "…" koyduğu uzun metinler veridir, sayılmaz
+- **Kampüs konumu ve harita**: `parsers/university/iletisim.py` (kaynak `atilim-iletisim`) adres, telefon ve e-postaları belgeye, konum sorusunu adres + `MAP_EMBED_URL` içeren hazır yanıta çevirir; model bağlantıyı Markdown bağlantısı olarak aynen ekler. `MessageList.tsx` yalnızca `https://www.google.com/maps/embed?` ile başlayan bağlantıyı bağlantının altında gömülü iframe olarak gösterir
 - **Soru kalıbı indeksi**: hazır yanıtların soru kalıpları `<collection>_questions` koleksiyonunda embedding'lenir; retrieval'a üçüncü sıralama olarak katılır ve yanıtı bağlam olarak modele verir (eşik yok, alaka kararını model verir)
 
 ## Geliştirme Komutları
