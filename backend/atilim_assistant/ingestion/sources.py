@@ -25,6 +25,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     sikca_sorulan_sorular,
     yaz_stajlari,
 )
+from atilim_assistant.ingestion.parsers.university import iletisim
 
 # Siteden çekilemeyen ya da elle derlenen verilerin dizini (bkz. `se-onkosullar`).
 _SE_DATA = Path(__file__).parent / "parsers/departments/software_engineering/data"
@@ -36,6 +37,14 @@ _SE = "Atılım Üniversitesi Yazılım Mühendisliği Bölümü"
 # Kimlikler (`id`) kalıcıdır: depolar kaynağın verisini bu kimlikle bulup değiştirir. Bir
 # kimliği değiştirmek eski verinin indekste sahipsiz kalmasına yol açar.
 SOURCES: tuple[Source, ...] = (
+    Source(
+        id="atilim-iletisim",
+        title="Atılım Üniversitesi — İletişim",
+        url="https://www.atilim.edu.tr/tr/home/page/1336/iletisim",
+        unit="Atılım Üniversitesi",
+        category="iletisim",
+        parser=iletisim.parse,
+    ),
     Source(
         id="se-tanitim",
         title="Yazılım Mühendisliği Bölümü — Tanıtım",

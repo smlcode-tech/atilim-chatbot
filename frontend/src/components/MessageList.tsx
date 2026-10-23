@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ArrowUpRight, CornerDownRight, PencilLine, Sparkles, UserRound } from 'lucide-react'
 import { assistant } from '../config/assistant'
@@ -14,6 +14,36 @@ type MessageListProps = {
 
 // Biçimlendirici bir kez kurulur; her mesaj için yeniden oluşturmak gereksizdir.
 const timeFormat = new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' })
+
+// Yalnızca Google Haritalar'ın gömme adresleri haritaya çevrilir; başka bağlantı iframe olmaz.
+const MAP_EMBED_PREFIX = 'https://www.google.com/maps/embed?'
+
+/**
+ * Yanıttaki bağlantılar yeni sekmede açılır. Harita gömme bağlantısı (bkz. backend
+ * `parsers/university/iletisim.py`) bağlantının altında gömülü harita olarak da gösterilir.
+ */
+const markdownComponents: Components = {
+  a: ({ href, children }) => {
+    const link = (
+      <a href={href} target="_blank" rel="noreferrer">
+        {children}
+      </a>
+    )
+    if (!href?.startsWith(MAP_EMBED_PREFIX)) return link
+    return (
+      <span className="markdown-map">
+        {link}
+        <iframe
+          src={href}
+          title="Harita"
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+        />
+      </span>
+    )
+  },
+}
 
 /**
  * Konuşmanın mesajları ve yanıt beklenirken "yazıyor" göstergesi. Yeni mesaj ya da gösterge
@@ -90,7 +120,7 @@ function MessageRow({ message, choices }: { message: Message; choices?: Choices 
         <div className={`message-bubble ${message.isError ? 'message-error' : ''}`}>
           {isAssistant && !message.isError ? (
             <div className="markdown-content">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{message.content}</ReactMarkdown>
             </div>
           ) : (
             message.content
