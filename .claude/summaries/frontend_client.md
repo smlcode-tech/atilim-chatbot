@@ -1,31 +1,28 @@
 ---
 source: frontend/src/api/client.ts
-hash: 4628a0741585b1b8b4c5ece00fa06e99bf274716
-updated: 2026-10-19
+hash: ac2853e20c8c17890c8de4d068292732ac66fa9d
+updated: 2026-10-23
 ---
 
 ## Amaç
-Tüm API çağrılarının merkezi sarmalayıcısı. Token yönetimi, JSON ayrıştırma, Türkçe hata mesajları.
+Arayüzün sunucuyla konuştuğu tek yer. Token yönetimi, JSON ayrıştırma, Türkçe hata mesajları, snake_case → camelCase. İstekler göreli `/api/...` yoluna gider (geliştirmede Vite proxy, yayında Vercel); CORS gerekmez.
 
 ## Public API
-- `readToken() / writeToken(token|null)` — localStorage token yönetimi
-- `checkHealth() -> Promise<boolean>`
-- `signInWithGoogle(idToken) -> Promise<{token, user}>` — token'ı localStorage'a yazar
+- `readToken() / writeToken(token|null)` — localStorage (gizli sekmede sessizce düşer)
+- `userFromToken(token) -> User | null` — imza doğrulamadan JWT içeriği; sunucuya ulaşılamazken oturumu korumak için
+- `checkHealth() -> Promise<Health>` — `{online, authRequired, guestQuestionLimit}`; hiç fırlatmaz, ulaşılamazsa `online:false, authRequired:true`
+- `signInWithGoogle(idToken) -> {token, user}` — token'ı yazar
 - `fetchMe() -> Promise<User>`
-- `askQuestion(question, conversationId|null) -> Promise<ChatAnswer>`
-- `fetchConversations() -> Promise<ConversationSummary[]>`
-- `fetchConversation(id) -> Promise<Message[]>`
-- `deleteConversation(id) -> Promise<void>`
+- `askQuestion(question, conversationId, history=[]) -> Promise<ChatAnswer>` — boş yanıt hata sayılır; `ChatAnswer.remaining`
+- `fetchQuota() -> Promise<Quota>` — `{limit, remaining}`
+- `fetchConversations()`, `fetchConversation(id) -> Message[]` (kararlı id üretir), `deleteConversation(id)`
+- Tipler: `ChatAnswer`, `Health`, `HistoryTurn`, `Quota`
 
 ## Hata Tipleri
-- `ApiUnreachableError` — sunucuya hiç ulaşılamadı
-- `UnauthorizedError` — 401; token temizlenir, `atilim:unauthorized` custom event tetiklenir
+- `ApiUnreachableError` — fetch başarısız; ya da `detail`'siz 502/503/504 veya gövdesiz 500 (proxy arkasında API kapalı / uyanıyor)
+- `UnauthorizedError` — 401; token silinir, `atilim:unauthorized` olayı yayılır
+- düz `Error` — sunucunun `detail` mesajı olduğu gibi
 
 ## Dikkat
 - Token key: `'atilim-assistant-token'`
-- 401 → `writeToken(null)` + custom event dispatch
-- Vite proxy'si API kapalıyken JSON olmayan 5xx → `ApiUnreachableError`
-- `snake_case` → `camelCase` dönüşümü manuel yapılır (`conversation_id` → `conversationId`)
-
-## Misafir ve öneriler (2026-10-19)
-- `askQuestion(question, conversationId, history=[])` — misafir geçmişini gönderir; `checkHealth` `guestQuestionLimit` döndürür; yanıt ve turlarda `suggestions`
+- `checkHealth` `request`'i kullanmaz (401 olayı yaymamalı)

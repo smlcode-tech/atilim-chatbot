@@ -4,7 +4,9 @@ Atılım Üniversitesi web sitesini kaynak alan, Türkçe soru-cevap yapan RAG (
 Generation) asistanı. Amaç, mevcut ve aday öğrencilerin sorularını hızlıca yanıtlayarak öğrenci
 işlerinin yükünü azaltmaktır.
 
-**Mevcut kapsam:** Yazılım Mühendisliği Bölümü akademik personeli. Kapsam, kaynak kataloğuna yeni
+**Mevcut kapsam:** Yazılım Mühendisliği Bölümü (akademik ve idari kadro, dersler, müfredat,
+önkoşullar, güncel dönem ders programı, bölüm sayfaları) ve üniversitenin iletişim/kampüs konumu
+bilgisi. Kapsam, kaynak kataloğuna yeni
 sayfalar eklenerek [atilim.edu.tr](https://www.atilim.edu.tr/tr) genelini kapsayacak şekilde
 büyütülür (bkz. [Kapsamı genişletmek](#kapsamı-genişletmek)).
 
@@ -31,24 +33,26 @@ Soru-cevap (çevrimiçi, HTTP)
 backend/
   atilim_assistant/
     config.py          Ortam değişkenleri / .env ayarları
-    domain.py          Çekirdek tipler: Document, Source, Answer, Citation
-    text.py            Türkçe metin normalleştirme
-    ports.py           Model sağlayıcı arayüzleri: Embedder, ChatModel
+    domain.py          Çekirdek tipler: Document, Source, Answer, Citation, Turn, User
+    text.py            Türkçe metin normalleştirme, eş anlamlı sözlük, Markdown tablosu
+    ports.py           Arayüzler: Embedder, ChatModel, kullanıcı ve konuşma depoları
     providers/         Arayüzlerin somut uygulamaları (Groq: sohbet, Voyage AI: embedding)
     ingestion/         Kaynak kataloğu, sayfa ayrıştırıcıları, indeksleme adımları
-    retrieval/         Belge deposu (Chroma), BM25 indeksi, hibrit getirici, hazır yanıtlar
-    chat/              Sistem talimatı ve soru-cevap servisi
+    retrieval/         Belge deposu (Chroma), BM25 indeksi, hibrit getirici, katalog, hazır yanıtlar
+    chat/              Sistem talimatı, modelin araçları ve soru-cevap servisi
+    storage/           MongoDB: kullanıcılar, günlük soru sayaçları, konuşma geçmişi
     api/               FastAPI uygulaması ve istek/yanıt şemaları
+    auth.py            Google kimlik doğrulaması ve oturum jetonu
     bootstrap.py       Ayarlardan bileşenleri kuran bağlama noktası
     cli.py             Komut satırı: ingest, serve, chat
   tests/               Birim ve API testleri (ağ ve API anahtarı gerektirmez)
 frontend/
-  vercel.json          Yayındaki arayüzün /api isteklerini API'ye yönlendirir
+  vercel.json          Yayındaki arayüzün /api isteklerini API'ye yönlendirir, X-Proxy-Secret ekler
   src/
     config/            Asistanın arayüzdeki adı, kapsam metinleri, öneri soruları
     api/               Backend istemcisi
-    hooks/             Sohbet durumu (useChat)
-    components/        Sidebar, Topbar, Welcome, MessageList, Composer
+    hooks/             Giriş, sohbet, konuşma listesi, kalan soru hakkı, tema
+    components/        SignIn, Sidebar, Topbar, Welcome, MessageList, Composer
 render.yaml            API'nin Render'daki yayın tanımı
 ```
 
@@ -112,10 +116,11 @@ Vite'ın gösterdiği adresi tarayıcıda aç. Geliştirme sunucusu `/api` istek
 
 | Uç nokta | İstek | Yanıt |
 | --- | --- | --- |
-| `GET /api/health` | — | `{"status": "ok"}` |
+| `GET /api/health` | — | `{"status": "ok", "auth_required": true, "guest_question_limit": 10}` |
 | `POST /api/auth/google` | `{"id_token": "..."}` | `{"token": "...", "user": {...}}` |
 | `GET /api/auth/me` | — | `{"id": "...", "email": "...", "name": "..."}` |
-| `POST /api/chat` | `{"question": "...", "conversation_id": "..."}` | `{"answer": "...", "sources": [...], "prepared": false, "conversation_id": "...", "title": "..."}` |
+| `POST /api/chat` | `{"question": "...", "conversation_id": "...", "history": [...]}` | `{"answer": "...", "sources": [...], "prepared": false, "suggestions": [...], "conversation_id": "...", "title": "...", "remaining": 29}` |
+| `GET /api/quota` | — | `{"limit": 30, "remaining": 29}` |
 | `GET /api/conversations` | — | `[{"id": "...", "title": "...", "updated_at": "..."}]` |
 | `GET /api/conversations/{id}` | — | `{"id": "...", "turns": [{"role": "...", "content": "...", "created_at": "..."}]}` |
 | `DELETE /api/conversations/{id}` | — | 204 |
@@ -132,9 +137,26 @@ verilirse o konuşmanın son turları modele geçmiş olarak verilir. Misafir, t
 önceki turları `history` alanında gönderir. Model soruyu yanıtlayamazsa `suggestions`, yanıtı olan
 en yakın soruları içerir.
 
+`remaining`, bu sorudan sonra bugün kalan soru hakkıdır; `GET /api/quota` aynı bilgiyi sayacı
+değiştirmeden verir (jetonla girişli kullanıcıya, jetonsuz misafire göre). Yanıt üretilemeyen
+soru sayaçtan geri düşülür. Sayaç tutulamıyorsa (Mongo yok ya da ulaşılamıyor) `remaining` boş
+döner ve sınır uygulanmaz.
+
+Misafirin IP adresi, Vercel üzerinden gelen istekte `X-Proxy-Secret` başlığı `PROXY_SECRET` ile
+eşleşirse Vercel'in `X-Vercel-Forwarded-For` başlığından, aksi hâlde `X-Forwarded-For`'un son
+öğesinden alınır; sayaçta adresin kendisi değil SHA-256 özeti saklanır.
+
 Hatalar `{"detail": "..."}` gövdesiyle döner: geçersiz soru için 422; giriş yapılmamışsa 401;
 günlük soru sınırı aşıldığında 429; başkasının konuşmasına erişilmeye çalışıldığında 404;
-model yanıt üretemediğinde ve soruyu karşılayan hazır yanıt da olmadığında 502.
+model yanıt üretemediğinde ve soruyu karşılayan hazır yanıt da olmadığında 502; giriş altyapısı
+ya da konuşma geçmişi deposu kullanılamadığında 503.
+
+### Yanıt biçimi
+
+Yanıtlar Markdown'dır. Ders saatleri, ders listeleri, kadro ve müfredat gibi tablo verisi
+Markdown tablosu olarak verilir; model bir hücreyi "..." ile kısaltırsa tablo bir kez yeniden
+yazdırılır. Kampüs konumu sorulduğunda yanıttaki Google Haritalar gömme bağlantısını arayüz
+gömülü harita olarak gösterir.
 
 ### Takip soruları
 
@@ -186,11 +208,12 @@ derleme sırasında `ingest` ile üretilir ve yayın paketine girer.
 2. **Google Cloud Console → Credentials → OAuth 2.0 Client ID** (tür: Web application) oluştur.
    Authorized JavaScript origins: `http://localhost:5173` ve `https://atilim-chatbot.vercel.app`.
 3. Render'da **New → Blueprint** ile bu depoyu seç; `render.yaml` okunur ve servis oluşturulur.
-   Sorulduğunda `VOYAGE_API_KEY`, `GROQ_API_KEY`, `MONGODB_URI` ve `GOOGLE_CLIENT_ID` değerlerini gir
-   (`JWT_SECRET` kendiliğinden üretilir).
+   Sorulduğunda `VOYAGE_API_KEY`, `GROQ_API_KEY`, `MONGODB_URI`, `GOOGLE_CLIENT_ID` ve
+   `PROXY_SECRET` (rastgele uzun bir değer) değerlerini gir (`JWT_SECRET` kendiliğinden üretilir).
 4. Servisin adresi `frontend/vercel.json` içindekinden farklıysa dosyayı güncelle.
 5. Vercel'de depoyu içe aktar; **Root Directory** olarak `frontend` seç ve
-   `VITE_GOOGLE_CLIENT_ID` ortam değişkenini 2. adımdaki değerle ekle.
+   `VITE_GOOGLE_CLIENT_ID` (2. adımdaki değer) ile `PROXY_SECRET` (3. adımdaki değerin aynısı)
+   ortam değişkenlerini ekle.
 
 ### Güncelleme
 
@@ -218,6 +241,7 @@ yaklaşık bir dakika sürer.
 | `MONGODB_URI` | — | Giriş ve konuşma geçmişi deposu; boşsa ikisi de kapalıdır |
 | `MONGODB_DB` | `atilim_assistant` | Veritabanı adı |
 | `GOOGLE_CLIENT_ID` | — | Google OAuth istemci kimliği |
+| `PROXY_SECRET` | — | Vercel'in `X-Proxy-Secret` başlığıyla gönderdiği ortak gizli değer; Vercel projesindekiyle aynı olmalı. Boşsa misafir IP'si `X-Forwarded-For`'un son öğesinden alınır |
 | `JWT_SECRET` | — | Oturum jetonlarının imza anahtarı (en az 32 bayt) |
 | `JWT_TTL_HOURS` | `720` | Oturumun geçerlilik süresi |
 | `HISTORY_TURNS` | `6` | Modele geçmiş olarak verilen son tur sayısı |
@@ -225,6 +249,7 @@ yaklaşık bir dakika sürer.
 | `GUEST_DAILY_QUESTION_LIMIT` | `10` | Misafir için IP başına günlük soru sınırı |
 | `QUOTA_COOLDOWN_SECONDS` | `3600` | Kota bittiğinde modelin yeniden denenmeden önce beklediği süre |
 | `DATA_DIR` | `backend/data` | İndeksin yazıldığı klasör |
+| `COLLECTION` | `atilim_documents` | Chroma koleksiyonunun adı; soru kalıpları `<COLLECTION>_questions` koleksiyonundadır |
 | `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | API'nin dinlediği adres |
 
 Arayüz tarafında `frontend/.env` içindeki `VITE_GOOGLE_CLIENT_ID`, backend'deki
