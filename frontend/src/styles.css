@@ -1204,6 +1204,19 @@ textarea:focus-visible {
   text-underline-offset: 2px;
 }
 
+.markdown-content .markdown-map {
+  display: block;
+}
+
+.markdown-content .markdown-map iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  margin-top: 0.55em;
+  border: 0;
+  border-radius: 5px;
+}
+
 .markdown-content code {
   padding: 0.12em 0.35em;
   color: #1F3D7C;

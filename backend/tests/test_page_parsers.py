@@ -7,6 +7,7 @@ from atilim_assistant.ingestion.parsers.departments.software_engineering import 
     mufredat,
     yaz_stajlari,
 )
+from atilim_assistant.ingestion.parsers.university import iletisim
 
 _EMPTY_PAGE = '<div class="detail-container"><div class="col-md-12"><p>Sayfa taşındı.</p></div></div>'
 
@@ -115,3 +116,23 @@ def test_curriculum_tables_are_not_swallowed_by_numbered_headings():
     for before, line in zip(lines, lines[1:]):
         if line.startswith("| Kod |"):
             assert not before[:1].isdigit(), before
+
+
+def test_contact_parser_reads_address_and_adds_map():
+    html = """
+    <div class="detail-container">
+      <h2>Atılım Üniversitesi - İncek Yerleşkesi</h2>
+      <p><strong>Adres</strong>: Kızılcaşar Mahallesi, 06830 İncek</p>
+      <p><strong>Telefon</strong>: +90 (312) 586 80 00</p>
+      <p><strong>Rektörlük</strong><br />atiliminfo@atilim.edu.tr</p>
+    </div>
+    """
+    content = iletisim.parse(html, _source(iletisim.parse))
+    location, contact = content.prepared_answers
+    assert "06830 İncek" in location.answer and iletisim.MAP_EMBED_URL in location.answer
+    assert "586 80 00" in contact.answer and "atiliminfo@atilim.edu.tr" in contact.answer
+
+
+def test_contact_parser_rejects_a_page_without_address():
+    with pytest.raises(ValueError):
+        iletisim.parse(_EMPTY_PAGE, _source(iletisim.parse))
