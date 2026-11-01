@@ -12,6 +12,8 @@ backend/data/
 # Frontend
 node_modules/
 dist/
+.wrangler/
+.dev.vars
 
 .DS_Store
 
