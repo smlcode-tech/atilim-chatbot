@@ -392,12 +392,12 @@ def _guest_key(request: Request) -> str:
 def _client_ip(request: Request, proxy_secret: str) -> str:
     """İsteği gönderen istemcinin IP adresi.
 
-    Arayüz `/api` isteklerini Cloudflare Worker'ı (`frontend/worker/index.ts`) ya da Vercel
-    üzerinden iletir; Render'ın `X-Forwarded-For` sonuna eklediği adres o zaman vekilin çıkış
-    adresidir ve misafirlerin hepsi birkaç sayacı paylaşır. Vekil istemci adresini kendi
-    başlığına yazar (istemcinin gönderdiği aynı adlı başlığın üzerine yazarak), ama Render'a
-    doğrudan gelen biri de bu başlıkları uydurabilir. Bu yüzden onlara yalnızca vekilin
-    eklediği ortak gizli `X-Proxy-Secret` doğruysa güvenilir.
+    Arayüz `/api` isteklerini Vercel üzerinden iletir; Render'ın `X-Forwarded-For` sonuna
+    eklediği adres o zaman Vercel'in çıkış adresidir ve misafirlerin hepsi birkaç sayacı
+    paylaşır. Vercel istemci adresini kendi başlıklarına yazar (istemcinin gönderdiği aynı
+    adlı başlıkların üzerine yazarak), ama Render'a doğrudan gelen biri de bu başlıkları
+    uydurabilir. Bu yüzden onlara yalnızca Vercel'in eklediği ortak gizli `X-Proxy-Secret`
+    doğruysa güvenilir.
 
     Aksi hâlde `X-Forwarded-For` başlığının son öğesi alınır: onu Render ekler. Baştaki
     öğeleri istemci kendisi yazabilir; onlara güvenmek her istekte farklı adres uydurarak
@@ -406,7 +406,7 @@ def _client_ip(request: Request, proxy_secret: str) -> str:
     if proxy_secret and hmac.compare_digest(
         request.headers.get("X-Proxy-Secret", "").encode(), proxy_secret.encode()
     ):
-        for header in ("X-Client-IP", "X-Vercel-Forwarded-For", "X-Real-IP", "X-Forwarded-For"):
+        for header in ("X-Vercel-Forwarded-For", "X-Real-IP", "X-Forwarded-For"):
             address = request.headers.get(header, "").split(",")[0].strip()
             if address:
                 return address

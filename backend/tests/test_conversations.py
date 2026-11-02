@@ -279,45 +279,6 @@ def test_guests_behind_vercel_are_counted_by_their_own_address(anon_client, sett
     ).status_code == 200
 
 
-def test_guests_behind_cloudflare_are_counted_by_their_own_address(anon_client, settings):
-    settings.proxy_secret = SecretStr("worker-secret")
-    worker_address = "2a06:98c0:3600::103"
-
-    def via_worker(client_ip):
-        return {
-            "X-Proxy-Secret": "worker-secret",
-            "X-Client-IP": client_ip,
-            "X-Real-IP": worker_address,
-            "X-Forwarded-For": worker_address,
-        }
-
-    _use_up_guest_limit(anon_client, settings, via_worker("1.1.1.1"))
-    assert anon_client.post(
-        "/api/chat", json={"question": "Soru"}, headers=via_worker("1.1.1.1")
-    ).status_code == 429
-    # Aynı Worker adresinden gelen başka bir misafirin sayacı ayrıdır.
-    assert anon_client.post(
-        "/api/chat", json={"question": "Soru"}, headers=via_worker("3.3.3.3")
-    ).status_code == 200
-
-
-def test_a_spoofed_client_ip_without_the_secret_is_ignored(anon_client, settings):
-    settings.proxy_secret = SecretStr("worker-secret")
-    _use_up_guest_limit(anon_client, settings, {"X-Forwarded-For": "4.4.4.4"})
-
-    for forged in ("", "wrong-secret"):
-        response = anon_client.post(
-            "/api/chat",
-            json={"question": "Soru"},
-            headers={
-                "X-Proxy-Secret": forged,
-                "X-Client-IP": "10.0.0.1",
-                "X-Forwarded-For": "10.0.0.1, 4.4.4.4",
-            },
-        )
-        assert response.status_code == 429
-
-
 def test_a_spoofed_vercel_header_without_the_secret_is_ignored(anon_client, settings):
     settings.proxy_secret = SecretStr("vercel-secret")
     _use_up_guest_limit(anon_client, settings, {"X-Forwarded-For": "4.4.4.4"})
