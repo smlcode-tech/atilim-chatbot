@@ -48,6 +48,7 @@ backend/
   tests/               Birim ve API testleri (ağ ve API anahtarı gerektirmez)
 frontend/
   vercel.json          Yayındaki arayüzün /api isteklerini API'ye yönlendirir, X-Proxy-Secret ekler
+  worker/, wrangler.jsonc  Cloudflare Worker ile yayın alternatifi (yayında kullanılmıyor)
   src/
     config/            Asistanın arayüzdeki adı, kapsam metinleri, öneri soruları
     api/               Backend istemcisi
@@ -143,7 +144,8 @@ soru sayaçtan geri düşülür. Sayaç tutulamıyorsa (Mongo yok ya da ulaşıl
 döner ve sınır uygulanmaz.
 
 Misafirin IP adresi, Vercel üzerinden gelen istekte `X-Proxy-Secret` başlığı `PROXY_SECRET` ile
-eşleşirse Vercel'in `X-Vercel-Forwarded-For` başlığından, aksi hâlde `X-Forwarded-For`'un son
+eşleşirse Vercel'in `X-Vercel-Forwarded-For` başlığından (Cloudflare Worker alternatifinde
+Worker'ın yazdığı `X-Client-IP` başlığından), aksi hâlde `X-Forwarded-For`'un son
 öğesinden alınır; sayaçta adresin kendisi değil SHA-256 özeti saklanır.
 
 Hatalar `{"detail": "..."}` gövdesiyle döner: geçersiz soru için 422; giriş yapılmamışsa 401;
@@ -198,7 +200,9 @@ Proje, ücretsiz katmanlarla iki parça hâlinde yayınlanır:
 | API | Render (web servisi) | `render.yaml` |
 
 Arayüz `/api/*` isteklerini `frontend/vercel.json` içindeki yönlendirmeyle API'ye iletir; API'nin
-adresi yalnızca bu dosyada durur. Render'ın ücretsiz katmanında disk kalıcı olmadığı için indeks,
+adresi yalnızca bu dosyada durur. `frontend/worker/` ve `frontend/wrangler.jsonc`, arayüzü
+Cloudflare Worker'dan yayınlamak için hazırlanmış bir alternatiftir; yayın Vercel'de kalır ve bu
+dosyalar kullanılmaz. Render'ın ücretsiz katmanında disk kalıcı olmadığı için indeks,
 derleme sırasında `ingest` ile üretilir ve yayın paketine girer.
 
 ### İlk kurulum
