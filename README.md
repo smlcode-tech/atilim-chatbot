@@ -119,7 +119,7 @@ Vite'ın gösterdiği adresi tarayıcıda aç. Geliştirme sunucusu `/api` istek
 | `GET /api/health` | — | `{"status": "ok", "auth_required": true, "guest_question_limit": 10}` |
 | `POST /api/auth/google` | `{"id_token": "..."}` | `{"token": "...", "user": {...}}` |
 | `GET /api/auth/me` | — | `{"id": "...", "email": "...", "name": "..."}` |
-| `POST /api/chat` | `{"question": "...", "conversation_id": "...", "history": [...]}` | `{"answer": "...", "sources": [...], "prepared": false, "suggestions": [...], "conversation_id": "...", "title": "...", "remaining": 29}` |
+| `POST /api/chat` | `{"question": "...", "conversation_id": "...", "history": [...]}` | `{"answer": "...", "sources": [...], "prepared": false, "suggestions": [...], "conversation_id": "...", "remaining": 29}` |
 | `GET /api/quota` | — | `{"limit": 30, "remaining": 29}` |
 | `GET /api/conversations` | — | `[{"id": "...", "title": "...", "updated_at": "..."}]` |
 | `GET /api/conversations/{id}` | — | `{"id": "...", "turns": [{"role": "...", "content": "...", "created_at": "..."}]}` |
@@ -132,7 +132,7 @@ tutulmaz ve IP başına günlük `GUEST_DAILY_QUESTION_LIMIT` sınırı uygulan�
 misafire düşmez, 401 döner.
 
 `prepared: true`, yanıtın model tarafından üretilmediğini, hazır yanıtlardan verildiğini belirtir.
-`conversation_id` verilmezse yeni bir konuşma açılır ve kimliği `title` ile birlikte döner;
+`conversation_id` verilmezse yeni bir konuşma açılır ve kimliği döner;
 verilirse o konuşmanın son turları modele geçmiş olarak verilir. Misafir, takip soruları için
 önceki turları `history` alanında gönderir. Model soruyu yanıtlayamazsa `suggestions`, yanıtı olan
 en yakın soruları içerir.

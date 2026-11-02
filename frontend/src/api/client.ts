@@ -15,7 +15,6 @@ export type ChatAnswer = {
   prepared: boolean
   suggestions: string[]
   conversationId: string | null
-  title: string | null
   /** Bu sorudan sonra bugün kalan soru hakkı; sunucu sayacı tutamıyorsa bilinmez. */
   remaining: number | null
 }
@@ -198,7 +197,6 @@ export async function askQuestion(
     prepared?: boolean
     suggestions?: string[]
     conversation_id?: string | null
-    title?: string | null
     remaining?: number | null
   }>('/api/chat', {
     method: 'POST',
@@ -214,7 +212,6 @@ export async function askQuestion(
     prepared: payload.prepared ?? false,
     suggestions: payload.suggestions ?? [],
     conversationId: payload.conversation_id ?? null,
-    title: payload.title ?? null,
     remaining: payload.remaining ?? null,
   }
 }

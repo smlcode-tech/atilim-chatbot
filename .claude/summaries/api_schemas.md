@@ -1,7 +1,7 @@
 ---
 source: backend/atilim_assistant/api/schemas.py
-hash: 0bdbb6dfb109a0b65e16017f2ce23e0339ada43d
-updated: 2026-10-23
+hash: 769377e68284cabcab531bafba39de5218890ed3
+updated: 2026-11-03
 ---
 
 ## Amaç
@@ -10,7 +10,7 @@ HTTP API için tüm Pydantic istek/yanıt modelleri. Alan modelinden (`domain.py
 ## Modeller
 - `HistoryTurn` — `role: "user"|"assistant"` (system yok), `content` (≤ 8000 karakter)
 - `ChatRequest` — `question` (1-1000, strip), `conversation_id?`, `history: list[HistoryTurn]` (≤ 20; yalnızca misafirde kullanılır)
-- `ChatResponse` — `answer`, `sources: list[SourceLink]`, `prepared`, `suggestions=[]`, `conversation_id?`, `title?` (yalnızca yeni konuşmada; arayüz kullanmıyor), `remaining: int | None` (bu sorudan sonra bugün kalan hak; sayaç yoksa boş)
+- `ChatResponse` — `answer`, `sources: list[SourceLink]`, `prepared`, `suggestions=[]`, `conversation_id?`, `remaining: int | None` (bu sorudan sonra bugün kalan hak; sayaç yoksa boş)
 - `SourceLink` — `title`, `url`
 - `HealthResponse` — `status`, `auth_required`, `guest_question_limit`
 - `QuotaResponse` — `limit`, `remaining: int | None`
