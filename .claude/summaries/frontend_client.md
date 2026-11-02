@@ -1,7 +1,7 @@
 ---
 source: frontend/src/api/client.ts
-hash: ac2853e20c8c17890c8de4d068292732ac66fa9d
-updated: 2026-10-23
+hash: f16b497e38124b0a5dcc14b226d8a7d62f4232d7
+updated: 2026-11-03
 ---
 
 ## Amaç

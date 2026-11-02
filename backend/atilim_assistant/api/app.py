@@ -248,15 +248,12 @@ def create_app(
             # 502: hata bu sunucunun değil, arkasındaki model servisinin.
             raise HTTPException(status_code=502, detail=UNAVAILABLE_DETAIL)
 
-        title = None
         if conversations is not None and user is not None:
             # Yanıt üretildi ve kotadan düşüldü; kaydedilemedi diye kullanıcıya verilmemesi
             # boşa harcanmış bir soru olurdu.
             try:
                 if conversation_id is None:
-                    new_title = _title_from(body.question)
-                    conversation_id = conversations.start(user.id, new_title)
-                    title = new_title
+                    conversation_id = conversations.start(user.id, _title_from(body.question))
                 # Kullanıcının yazdığı ham metin saklanır; ders kodu düzeltilmiş hâli yalnızca
                 # yanıtlamada kullanılır, geçmişte görünmemelidir.
                 conversations.add_turns(
@@ -281,7 +278,6 @@ def create_app(
             prepared=answer.prepared,
             suggestions=answer.suggestions,
             conversation_id=conversation_id,
-            title=title,
             remaining=None if asked is None else max(0, limit - asked),
         )
 

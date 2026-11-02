@@ -1,7 +1,7 @@
 ---
 source: backend/atilim_assistant/api/app.py
-hash: f7fe733ffb07ac0857429dfe75c9c879f1874b4f
-updated: 2026-10-23
+hash: 305dc493760b4d669d104ca9ba8fa73f00215f7c
+updated: 2026-11-03
 ---
 
 ## Amaç

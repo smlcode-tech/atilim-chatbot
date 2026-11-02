@@ -24,15 +24,17 @@ def other_client(service, users, settings, conversations):
 def test_the_first_question_opens_a_conversation_titled_after_it(client):
     response = client.post("/api/chat", json={"question": "Bölüm başkanı kim?"})
 
-    body = response.json()
-    assert body["conversation_id"] is not None
-    assert body["title"] == "Bölüm başkanı kim?"
+    conversation_id = response.json()["conversation_id"]
+    assert conversation_id is not None
+    listed = client.get("/api/conversations").json()
+    assert [(row["id"], row["title"]) for row in listed] == [(conversation_id, "Bölüm başkanı kim?")]
 
 
 def test_a_long_first_question_is_shortened_into_a_title(client):
     question = "Yazılım Mühendisliği bölümünde hangi dersler zorunlu olarak okutuluyor acaba?"
 
-    title = client.post("/api/chat", json={"question": question}).json()["title"]
+    client.post("/api/chat", json={"question": question})
+    title = client.get("/api/conversations").json()[0]["title"]
 
     assert len(title) <= 60
     assert title.endswith("…")
@@ -52,7 +54,7 @@ def test_following_up_appends_to_the_same_conversation(client, model):
 
     assert second["conversation_id"] == started["conversation_id"]
     # Süren bir konuşma yeniden adlandırılmaz.
-    assert second["title"] is None
+    assert client.get("/api/conversations").json()[0]["title"] == "Bölüm başkanı kim?"
 
     turns = client.get(f"/api/conversations/{started['conversation_id']}").json()["turns"]
     assert [turn["content"] for turn in turns if turn["role"] == "user"] == [
@@ -340,7 +342,6 @@ def test_questions_are_answered_when_the_store_goes_down(client_with_store_down,
 
     assert response.status_code == 200
     assert response.json()["answer"] == model.reply
-    assert response.json()["title"] is None
 
 
 def test_sign_in_reports_an_unreachable_store(client_with_store_down, monkeypatch):

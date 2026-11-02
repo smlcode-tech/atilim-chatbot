@@ -58,9 +58,6 @@ class ChatResponse(BaseModel):
     suggestions: list[str] = []
     # Geçmiş deposu kapalıysa boş kalır.
     conversation_id: str | None = None
-    # Yalnızca bu soruyla yeni konuşma açıldığında dolu: konuşmaya verilen başlık. (Arayüz
-    # şu an kullanmıyor; yan barı listeyi yeniden çekerek günceller.)
-    title: str | None = None
     # Bu sorudan sonra bugün kalan soru hakkı; sayaç tutulamıyorsa (depo yok ya da hata) boş.
     remaining: int | None = None
 
