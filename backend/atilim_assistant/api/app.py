@@ -7,7 +7,9 @@ isteğe bağlıdır: biri çalışmazsa uç nokta o özelliği atlar, soru yine 
 
 import hashlib
 import hmac
+import ipaddress
 import logging
+import threading
 from collections.abc import Callable
 from typing import TypeVar
 from contextlib import asynccontextmanager
@@ -114,7 +116,16 @@ def create_app(
             logger.warning("Google girişi yapılandırılmamış; sorular misafir olarak yanıtlanıyor.")
         yield
 
-    app = FastAPI(title="Atılım Akademik Asistan API", lifespan=lifespan)
+    # Etkileşimli belge sayfaları (/docs, /redoc, /openapi.json) kapalı: arayüz kullanmıyor,
+    # yayındaki API'nin yüzeyini dışarıya hazır bir formla açmanın faydası yok.
+    app = FastAPI(
+        title="Atılım Akademik Asistan API",
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
+    app.state.fallback_quota = _MemoryQuota()
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(_: Request, error: RequestValidationError) -> JSONResponse:
@@ -193,23 +204,30 @@ def create_app(
         users: UserRepository | None = request.app.state.users
         limit = _daily_limit(settings, user)
         if user is not None:
-            counted = _check_daily_limit(
-                lambda day: users.count_question(user.id, day),
-                users,
+            count = None if users is None else lambda day: users.count_question(user.id, day)
+            uncount = None if users is None else lambda day: users.uncount_question(user.id, day)
+            detail = (
                 f"Günlük {settings.daily_question_limit} soru sınırına ulaştın. Asistan ücretsiz "
-                "bir kota ile çalışıyor; yarın tekrar bekleriz.",
-                settings.daily_question_limit,
+                "bir kota ile çalışıyor; yarın tekrar bekleriz."
             )
         else:
             guest = _guest_key(request)
-            counted = _check_daily_limit(
-                lambda day: users.count_guest_question(guest, day),
-                users,
-                f"Misafir olarak günlük {settings.guest_daily_question_limit} soru sınırına "
-                "ulaştın. Google ile giriş yaparak sormaya devam edebilirsin.",
-                settings.guest_daily_question_limit,
+            count = None if users is None else lambda day: users.count_guest_question(guest, day)
+            uncount = (
+                None if users is None else lambda day: users.uncount_guest_question(guest, day)
             )
-        counted_day, asked = counted if counted is not None else (None, None)
+            detail = (
+                f"Misafir olarak günlük {settings.guest_daily_question_limit} soru sınırına "
+                "ulaştın. Google ile giriş yaparak sormaya devam edebilirsin."
+            )
+        asked, undo_count = _check_daily_limit(
+            count,
+            uncount,
+            request.app.state.fallback_quota,
+            _counter_key(request, user),
+            detail,
+            limit,
+        )
 
         history: list[Turn] = []
         conversation_id = None
@@ -237,14 +255,10 @@ def create_app(
             logger.exception("Yanıt oluşturulamadı")
             # Yanıtlanamayan soru günlük sınırdan düşülmez; kesinti sırasında yeniden deneyen
             # kullanıcı hiç yanıt almadan sınırına ulaşırdı.
-            if counted_day is not None and users is not None:
-                try:
-                    if user is not None:
-                        users.uncount_question(user.id, counted_day)
-                    else:
-                        users.uncount_guest_question(guest, counted_day)
-                except Exception:
-                    logger.exception("Günlük soru sayacı geri alınamadı")
+            try:
+                undo_count()
+            except Exception:
+                logger.exception("Günlük soru sayacı geri alınamadı")
             # 502: hata bu sunucunun değil, arkasındaki model servisinin.
             raise HTTPException(status_code=502, detail=UNAVAILABLE_DETAIL)
 
@@ -278,7 +292,7 @@ def create_app(
             prepared=answer.prepared,
             suggestions=answer.suggestions,
             conversation_id=conversation_id,
-            remaining=None if asked is None else max(0, limit - asked),
+            remaining=max(0, limit - asked),
         )
 
     @app.get("/api/quota")
@@ -287,17 +301,18 @@ def create_app(
         settings: Settings = request.app.state.settings
         users: UserRepository | None = request.app.state.users
         limit = _daily_limit(settings, user)
-        if users is None:
-            return QuotaResponse(limit=limit, remaining=None)
         day = datetime.now(UTC).date().isoformat()
-        try:
-            if user is not None:
-                asked = users.questions_asked(user.id, day)
-            else:
-                asked = users.guest_questions_asked(_guest_key(request), day)
-        except Exception:
-            logger.exception("Günlük soru sayacı okunamadı")
-            return QuotaResponse(limit=limit, remaining=None)
+        asked = None
+        if users is not None:
+            try:
+                if user is not None:
+                    asked = users.questions_asked(user.id, day)
+                else:
+                    asked = users.guest_questions_asked(_guest_key(request), day)
+            except Exception:
+                logger.exception("Günlük soru sayacı okunamadı; yedek sayaç okunuyor")
+        if asked is None:
+            asked = request.app.state.fallback_quota.asked(_counter_key(request, user), day)
         return QuotaResponse(limit=limit, remaining=max(0, limit - asked))
 
     @app.get("/api/conversations")
@@ -355,23 +370,72 @@ def _daily_limit(settings: Settings, user: User | None) -> int:
     return settings.guest_daily_question_limit
 
 
+class _MemoryQuota:
+    """Sayaç deposu (Mongo) yokken ya da ulaşılamazken kullanılan, süreç içi günlük sayaç.
+
+    Kalıcı değildir (yeniden başlatmada sıfırlanır) ve yalnızca bu süreci görür. Amacı depo
+    kesintisinde sınırın tamamen kalkmamasıdır: aksi hâlde kesinti, ücretsiz model kotasını
+    tüketmenin herkesçe bilinen bir yolu olurdu. Yalnızca o günün sayaçları tutulur.
+    """
+
+    def __init__(self) -> None:
+        self._day = ""
+        self._counts: dict[str, int] = {}
+        # Senkron uç noktalar iş parçacığı havuzunda çalışır; sayaç aynı anda artırılabilir.
+        self._lock = threading.Lock()
+
+    def count(self, key: str, day: str) -> int:
+        with self._lock:
+            self._roll(day)
+            self._counts[key] = self._counts.get(key, 0) + 1
+            return self._counts[key]
+
+    def uncount(self, key: str, day: str) -> None:
+        with self._lock:
+            if day == self._day and self._counts.get(key, 0) > 0:
+                self._counts[key] -= 1
+
+    def asked(self, key: str, day: str) -> int:
+        with self._lock:
+            self._roll(day)
+            return self._counts.get(key, 0)
+
+    def _roll(self, day: str) -> None:
+        if day != self._day:
+            self._day, self._counts = day, {}
+
+
 def _check_daily_limit(
-    count: Callable[[str], int], users: UserRepository | None, detail: str, limit: int
-) -> tuple[str, int] | None:
-    """`count` o günün sayacını artırıp döndürür. Sayaç tutulamıyorsa soru geçer: depo
-    kesintisi asistanı durdurmamalı. Sayaç artırıldıysa günü (geri almak için) ve o günün
-    soru sayısını döndürür."""
-    if users is None:
-        return None
+    count: Callable[[str], int] | None,
+    uncount: Callable[[str], None] | None,
+    fallback: _MemoryQuota,
+    key: str,
+    detail: str,
+    limit: int,
+) -> tuple[int, Callable[[], None]]:
+    """Soruyu o günün sayacına ekler; sınır aşıldıysa 429. `count` o günün sayacını artırıp
+    döndürür; depo yoksa (`count` None) ya da hata verirse süreç içi yedek sayaç kullanılır:
+    depo kesintisi asistanı durdurmaz ama sınırı da kaldırmaz. O günün soru sayısını ve
+    sayacı geri alan işlevi (yanıt üretilemezse çağrılır) döndürür."""
     day = datetime.now(UTC).date().isoformat()
-    try:
-        asked = count(day)
-    except Exception:
-        logger.exception("Günlük soru sayacı güncellenemedi")
-        return None
+    if count is not None and uncount is not None:
+        try:
+            asked = count(day)
+        except Exception:
+            logger.exception("Günlük soru sayacı güncellenemedi; yedek sayaç kullanılıyor")
+        else:
+            if asked > limit:
+                raise HTTPException(status_code=429, detail=detail)
+            return asked, lambda: uncount(day)
+    asked = fallback.count(key, day)
     if asked > limit:
         raise HTTPException(status_code=429, detail=detail)
-    return day, asked
+    return asked, lambda: fallback.uncount(key, day)
+
+
+def _counter_key(request: Request, user: User | None) -> str:
+    """Yedek sayaçtaki anahtar; girişli kullanıcı ile misafir aynı anahtarı paylaşamaz."""
+    return f"user:{user.id}" if user is not None else f"guest:{_guest_key(request)}"
 
 
 def _last(turns: list[Turn], count: int) -> list[Turn]:
@@ -380,9 +444,29 @@ def _last(turns: list[Turn], count: int) -> list[Turn]:
 
 
 def _guest_key(request: Request) -> str:
-    """Misafirin sayaç anahtarı: istemci IP adresinin özeti; adresin kendisi saklanmaz."""
+    """Misafirin sayaç anahtarı: istemci adresinin (bkz. `_subscriber`) özeti; adresin kendisi
+    saklanmaz."""
     address = _client_ip(request, request.app.state.settings.proxy_secret.get_secret_value())
-    return hashlib.sha256(address.encode()).hexdigest()
+    return hashlib.sha256(_subscriber(address).encode()).hexdigest()
+
+
+def _subscriber(address: str) -> str:
+    """Misafir sayacının saydığı adres birimi.
+
+    IPv6'da bir aboneye genelde bütün bir /64 blok verilir; tam adrese göre sayılsa her soruyu
+    bloktan başka bir adresle sorarak sınır sınırsızca aşılırdı. Bu yüzden IPv6 adresi /64
+    önekine indirilir. IPv4 (IPv6 içine gömülü olanı da) olduğu gibi sayılır; adres olarak
+    çözülemeyen değer de olduğu gibi kalır.
+    """
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return str(ip.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{ip}/64", strict=False))
+    return str(ip)
 
 
 def _client_ip(request: Request, proxy_secret: str) -> str:

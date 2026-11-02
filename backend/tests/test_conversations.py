@@ -232,14 +232,48 @@ def test_an_unanswered_question_does_not_use_up_an_allowance(client, model, sett
     assert client.get("/api/quota").json()["remaining"] == settings.daily_question_limit
 
 
-def test_the_allowance_is_unknown_when_the_store_is_down(client_with_store_down, settings):
-    assert client_with_store_down.get("/api/quota").json() == {
-        "limit": settings.daily_question_limit,
-        "remaining": None,
-    }
+def test_the_allowance_is_kept_in_memory_when_the_store_is_down(client_with_store_down, settings):
+    limit = settings.daily_question_limit
+    assert client_with_store_down.get("/api/quota").json() == {"limit": limit, "remaining": limit}
     assert client_with_store_down.post(
         "/api/chat", json={"question": "Bölüm başkanı kim?"}
-    ).json()["remaining"] is None
+    ).json()["remaining"] == limit - 1
+    assert client_with_store_down.get("/api/quota").json()["remaining"] == limit - 1
+
+
+def test_the_daily_limit_still_applies_when_the_store_is_down(client_with_store_down, settings):
+    """Depo kesintisi, sınırı kaldırıp model kotasını tüketmenin yolu olmamalı."""
+    for _ in range(settings.daily_question_limit):
+        assert client_with_store_down.post("/api/chat", json={"question": "Soru"}).status_code == 200
+
+    assert client_with_store_down.post("/api/chat", json={"question": "Soru"}).status_code == 429
+
+
+def test_guests_are_limited_without_a_store(service, settings):
+    with TestClient(create_app(service, settings=settings)) as client:
+        _use_up_guest_limit(client, settings, {})
+        assert client.post("/api/chat", json={"question": "Soru"}).status_code == 429
+
+
+def test_an_unanswered_question_is_given_back_without_a_store(service, model, settings):
+    model.reply = RuntimeError("model down")
+    with TestClient(create_app(service, settings=settings)) as client:
+        assert client.post("/api/chat", json={"question": "Soru"}).status_code == 502
+        assert client.get("/api/quota").json()["remaining"] == settings.guest_daily_question_limit
+
+
+def test_guests_in_the_same_ipv6_block_share_a_limit(anon_client, settings):
+    """IPv6'da abone bütün bir /64 bloğa sahiptir; her soruyu başka adresten sormak sınırı
+    aşmamalı."""
+    for host in range(settings.guest_daily_question_limit):
+        headers = {"X-Forwarded-For": f"2001:db8:1:2::{host + 1:x}"}
+        assert anon_client.post("/api/chat", json={"question": "Soru"}, headers=headers).status_code == 200
+
+    rotated = {"X-Forwarded-For": "2001:db8:1:2:ffff:ffff:ffff:ffff"}
+    assert anon_client.post("/api/chat", json={"question": "Soru"}, headers=rotated).status_code == 429
+    # Başka bir blok ayrı sayılır.
+    other_block = {"X-Forwarded-For": "2001:db8:1:3::1"}
+    assert anon_client.post("/api/chat", json={"question": "Soru"}, headers=other_block).status_code == 200
 
 
 def _use_up_guest_limit(client, settings, headers):

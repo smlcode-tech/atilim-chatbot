@@ -17,3 +17,6 @@ dist/
 
 # graphify bilgi grafiği çıktısı (yerelde üretilir)
 graphify-out/
+
+# Yerel belgeler (sunum metni vb.) depoya girmez
+/*.pdf
