@@ -47,7 +47,7 @@ backend/
     cli.py             Komut satırı: ingest, serve, chat
   tests/               Birim ve API testleri (ağ ve API anahtarı gerektirmez)
 frontend/
-  vercel.json          Yayındaki arayüzün /api isteklerini API'ye yönlendirir, X-Proxy-Secret ekler
+  vercel.json          /api isteklerini API'ye yönlendirir, X-Proxy-Secret ve güvenlik başlıklarını ekler
   src/
     config/            Asistanın arayüzdeki adı, kapsam metinleri, öneri soruları
     api/               Backend istemcisi
@@ -139,12 +139,16 @@ en yakın soruları içerir.
 
 `remaining`, bu sorudan sonra bugün kalan soru hakkıdır; `GET /api/quota` aynı bilgiyi sayacı
 değiştirmeden verir (jetonla girişli kullanıcıya, jetonsuz misafire göre). Yanıt üretilemeyen
-soru sayaçtan geri düşülür. Sayaç tutulamıyorsa (Mongo yok ya da ulaşılamıyor) `remaining` boş
-döner ve sınır uygulanmaz.
+soru sayaçtan geri düşülür. Mongo yoksa ya da ulaşılamıyorsa sayaç API sürecinin belleğinde
+tutulur: sınır yine uygulanır, ama sayaç yeniden başlatmada sıfırlanır.
 
 Misafirin IP adresi, Vercel üzerinden gelen istekte `X-Proxy-Secret` başlığı `PROXY_SECRET` ile
 eşleşirse Vercel'in `X-Vercel-Forwarded-For` başlığından, aksi hâlde `X-Forwarded-For`'un son
-öğesinden alınır; sayaçta adresin kendisi değil SHA-256 özeti saklanır.
+öğesinden alınır; sayaçta adresin kendisi değil SHA-256 özeti saklanır. IPv6 adresleri /64
+önekine göre sayılır: bir aboneye genelde bütün bir /64 blok verildiği için, tam adrese göre
+sayılsa her soruyu başka adresten sorarak sınır aşılabilirdi.
+
+API'nin etkileşimli belge sayfaları (`/docs`, `/redoc`, `/openapi.json`) kapalıdır.
 
 Hatalar `{"detail": "..."}` gövdesiyle döner: geçersiz soru için 422; giriş yapılmamışsa 401;
 günlük soru sınırı aşıldığında 429; başkasının konuşmasına erişilmeye çalışıldığında 404;

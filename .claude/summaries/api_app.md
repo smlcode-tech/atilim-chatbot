@@ -1,6 +1,6 @@
 ---
 source: backend/atilim_assistant/api/app.py
-hash: 305dc493760b4d669d104ca9ba8fa73f00215f7c
+hash: d84d8969d915b118af76f0f63ac0f9bdc9eb4da5
 updated: 2026-11-03
 ---
 
@@ -23,7 +23,8 @@ FastAPI uygulama fabrikası. Tüm HTTP rotaları burada; bileşenler lifespan'de
 - Giriş yalnızca `google_client_id` + kullanıcı deposu varken ve `JWT_SECRET` ≥ 32 bayt ise açık (`MIN_JWT_SECRET_BYTES`)
 - `RequestValidationError` → Türkçe tek `detail` ile 422
 - Günlük sınır yanıttan **önce** düşülür (eşzamanlı istekler aşamasın); aşılırsa 429. Yanıt üretilemezse sayaç `uncount_*` ile geri alınır ve 502 (`UNAVAILABLE_DETAIL`)
-- Sayaç tutulamıyorsa soru yine geçer, `remaining` boş döner
+- Sayaç tutulamıyorsa (depo yok ya da hata) süreç içi `_MemoryQuota` yedek sayacı kullanılır; sınır kalkmaz, `/api/quota` da onu okur. Yeniden başlatmada sıfırlanır
+- `/docs`, `/redoc`, `/openapi.json` kapalı
 - `_daily_limit`: girişliye `daily_question_limit`, misafire `guest_daily_question_limit`; soru ucu ve `/api/quota` aynı kuralı kullanır
 - Geçmiş okunamazsa soru geçmişsiz yanıtlanır ve kayıt da denenmez; kayıt başarısızsa yanıt yine verilir
 - Konuşma uçlarında depo yok/ulaşılamıyorsa 503 (`_from_history`, `HISTORY_UNAVAILABLE_DETAIL`)
@@ -32,5 +33,5 @@ FastAPI uygulama fabrikası. Tüm HTTP rotaları burada; bileşenler lifespan'de
 
 ## Misafir ve IP
 - Misafir: `chat_user` None; geçmiş `body.history`'den gelir, konuşma kaydedilmez
-- `_guest_key`: istemci IP'sinin SHA-256 özeti (adres saklanmaz)
+- `_guest_key`: istemci IP'sinin SHA-256 özeti (adres saklanmaz); `_subscriber` IPv6'yı /64 önekine indirir (blok içinde adres değiştirerek sınır aşılmasın)
 - `_client_ip`: `X-Proxy-Secret` `proxy_secret` ile eşleşirse (`hmac.compare_digest`) `X-Vercel-Forwarded-For` / `X-Real-IP` / `X-Forwarded-For` ilk öğesi; eşleşmezse `X-Forwarded-For`'un **son** öğesi (Render ekler), o da yoksa `request.client.host`

@@ -296,6 +296,11 @@ def test_health(client):
     }
 
 
+@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
+def test_interactive_api_docs_are_not_served(client, path):
+    assert client.get(path).status_code == 404
+
+
 def test_without_sign_in_configured_questions_are_answered_as_guest(service, settings):
     guest_settings = settings.model_copy(update={"google_client_id": ""})
     with TestClient(create_app(service, settings=guest_settings)) as guest:
